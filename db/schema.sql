@@ -88,3 +88,6 @@ UPDATE bookings SET extra_nights = 'thu' WHERE thu_extra_night AND extra_nights 
 UPDATE bookings SET visitor_days = CASE day_visitor_days WHEN 'both' THEN 'fri,sat' ELSE day_visitor_days END
   WHERE day_visitor_days <> '' AND visitor_days = '';
 -- The legacy columns are no longer written; the old CHECK would block new keys only on them.
+
+-- Per-night accommodation mode: core nights a room / single-bed booking stays (comma-separated day keys; empty = all core nights).
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights TEXT NOT NULL DEFAULT '';

@@ -16,6 +16,7 @@
   function collect() {
     return {
       days: rowsOf('tr[data-day]', ['label', 'short']),
+      accommodation: host.querySelector('#st-mode').value,
       coreNights: host.querySelector('#st-nights').value,
       extraNights: rowsOf('tr[data-extra]', ['label', 'includes']),
       package: { enabled: host.querySelector('#st-pkg-on').checked, sub: host.querySelector('#st-pkg-sub').value, includes: host.querySelector('#st-pkg-inc').value },
@@ -35,8 +36,12 @@
         + '<td style="white-space:nowrap"><button type="button" data-delday="' + i + '">✕</button></td></tr>';
     });
     h += '</tbody></table><button type="button" id="st-add-day" style="margin:0.4rem 0">+ Add day</button>'
+      + '<div style="margin:0.75rem 0"><label style="font-weight:600;font-size:0.85rem">How are rooms booked? </label> '
+      + '<select id="st-mode" style="padding:0.3rem"><option value="period"' + (st.accommodation !== 'per_night' ? ' selected' : '') + '>Whole event (one room price for all nights)</option>'
+      + '<option value="per_night"' + (st.accommodation === 'per_night' ? ' selected' : '') + '>Per night (guests choose nights; price and availability per night)</option></select>'
+      + '<div style="font-size:0.75rem;color:var(--muted,#57606a);margin-top:0.25rem">Per-night mode applies to rooms and single beds. Each event day has one night; camper vans and tents are always for the whole event.</div></div>'
       + '<div style="margin:0.75rem 0"><label style="font-weight:600;font-size:0.85rem">Nights included in the room price </label> '
-      + '<input id="st-nights" type="number" min="1" max="14" value="' + esc(st.coreNights) + '" style="width:5rem;' + cell.replace('width:100%', '') + '"></div>'
+      + '<input id="st-nights" type="number" min="1" max="14" value="' + esc(st.coreNights) + '" style="width:5rem;' + cell.replace('width:100%', '') + '"> <span id="st-nights-note" style="font-size:0.75rem;color:var(--muted,#57606a)"></span></div>'
       + '<h4 style="margin:0.5rem 0">Extra nights (optional)</h4><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="text-align:left"><th>Label</th><th>Includes (optional)</th><th></th></tr></thead><tbody>';
     st.extraNights.forEach(function (x, i) {
       h += '<tr data-extra data-key="' + esc(x.key) + '"><td><input name="label" maxlength="60" value="' + esc(x.label) + '" style="' + cell + '" placeholder="e.g. Thursday night"></td>'
@@ -51,11 +56,19 @@
       + '<div style="margin-top:0.75rem"><button type="button" id="st-save" style="padding:0.4rem 1.2rem;border:0;border-radius:4px;background:var(--accent,#b45309);color:#fff;font-weight:600;cursor:pointer">Save event structure</button> '
       + '<span id="st-msg" style="margin-left:0.75rem;font-size:0.85rem"></span></div></details>';
     host.innerHTML = h;
-    var keep = function () { var c = collect(); st = { days: c.days, coreNights: c.coreNights, extraNights: c.extraNights, package: { enabled: c.package.enabled, sub: c.package.sub, includes: c.package.includes.split('\n') } }; };
+    var keep = function () { var c = collect(); st = { days: c.days, accommodation: c.accommodation, coreNights: c.coreNights, extraNights: c.extraNights, package: { enabled: c.package.enabled, sub: c.package.sub, includes: c.package.includes.split('\n') } }; };
     host.querySelector('#st-add-day').onclick = function () { keep(); st.days.push({ key: '', label: '', short: '' }); render(true); };
     host.querySelector('#st-add-x').onclick = function () { keep(); st.extraNights.push({ key: '', label: '', includes: '' }); render(true); };
     host.querySelectorAll('[data-delday]').forEach(function (b) { b.onclick = function () { keep(); st.days.splice(+b.getAttribute('data-delday'), 1); render(true); }; });
     host.querySelectorAll('[data-delx]').forEach(function (b) { b.onclick = function () { keep(); st.extraNights.splice(+b.getAttribute('data-delx'), 1); render(true); }; });
+    var syncMode = function () {
+      var pn = host.querySelector('#st-mode').value === 'per_night';
+      var inp = host.querySelector('#st-nights');
+      inp.disabled = pn;
+      if (pn) inp.value = host.querySelectorAll('tr[data-day]').length;
+      host.querySelector('#st-nights-note').textContent = pn ? '(equals the number of event days in per-night mode)' : '';
+    };
+    host.querySelector('#st-mode').onchange = syncMode; syncMode();
     host.querySelector('#st-save').onclick = save;
   }
 

@@ -38,7 +38,7 @@ function toReportRow(row) {
   return {
     bookingRef: o.bookingRef, callsign: o.callsign, name: o.name, email: o.email, phone: o.phone,
     country: o.country, type: o.type, roomId: o.roomId, roomRef: o.roomRef,
-    isPrimary: o.isPrimaryBooker === 'YES', extraNights: S.keys(o.extraNights), fullBoard: o.fullBoard === 'YES',
+    isPrimary: o.isPrimaryBooker === 'YES', extraNights: S.keys(o.extraNights), nights: S.pickNights(o.nights), fullBoard: o.fullBoard === 'YES',
     meals: o.meals, dietary: o.dietary, shirtSize: o.shirtSize, totalPrice: o.totalPrice, status: o.status,
     roomNumber: o.roomNumber, isOrganizer: o.isOrganizer === 'YES', visitorDays: S.keys(o.visitorDays),
     soloRoom: o.soloRoom === 'YES', freeText: o.freeText, orgComment: o.orgComment, checkedIn: o.status === 'CHECKED_IN',

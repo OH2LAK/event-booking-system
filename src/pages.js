@@ -306,6 +306,15 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
       <div id="tent-info-box" class="info-box" style="display:none;margin-top:1rem">${settings.TENT_INFO}</div>
     </div>
 
+    <div id="nights-section" class="card section" style="display:none">
+      <h2>Nights</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">Select the nights you will stay. The price is calculated per night.</p>
+      ${CONFIG.STRUCTURE.accommodation === 'per_night' ? CONFIG.STRUCTURE.days.slice(0, CONFIG.STRUCTURE.coreNights).map(d => `<label class="check-option">
+        <input type="checkbox" name="nt" value="${esc(d.key)}" checked onchange="onNightsChange()">
+        <div><div class="opt-label">Night of ${esc(d.label)}</div></div>
+      </label>`).join('\n') : ''}
+    </div>
+
     <div id="room-type-section" class="card section">
       <h2>Room type</h2>
       <div class="options" id="room-type-options"></div>
@@ -482,7 +491,7 @@ function selectMode(mode) {
     show('price-section'); show('submit-section');
     hide('acc-type-section'); hide('room-type-section');
     hide('dayvisitor-section');
-    document.getElementById('thu-section').style.display = 'none';
+    document.getElementById('thu-section').style.display = 'none'; hideNights();
     document.getElementById('thu-info-join').style.display = 'none';
     document.getElementById('addons-section').classList.remove('visible');
     document.getElementById('individual-meals-section').style.display = 'none';
@@ -490,7 +499,7 @@ function selectMode(mode) {
     updatePriceDisplay();
   } else if (mode === 'dayvisitor') {
     currentAccType = 'dayvisitor';
-    hide('acc-type-section'); hide('room-type-section'); hide('join-section'); hide('thu-section');
+    hide('acc-type-section'); hide('room-type-section'); hide('join-section'); hide('thu-section'); hideNights();
     document.getElementById('dayvisitor-section').style.display = 'block';
     document.getElementById('individual-meals-section').style.display = 'block';
     document.getElementById('full-board-row').style.display = '';
@@ -537,7 +546,9 @@ function onTypeChange() {
   const hasRoom     = isRoom || isSingleBed;
   document.getElementById('room-type-section').classList.toggle('visible', isRoom);
   document.getElementById('thu-section').style.display = (hasRoom && CONFIG_CLIENT.STRUCTURE.extraNights.length) ? 'block' : 'none';
+  document.getElementById('nights-section').style.display = (hasRoom && perNight()) ? 'block' : 'none';
   if (!hasRoom) resetExtras();
+  applyNightAvailability();
   document.getElementById('camper-info-box').style.display = currentAccType === 'camper' ? 'block' : 'none';
   document.getElementById('tent-info-box').style.display   = currentAccType === 'tent'   ? 'block' : 'none';
   document.getElementById('dayvisitor-section').style.display = 'none';
@@ -558,6 +569,34 @@ function onFullBoardChange() {
   updatePriceDisplay();
 }
 
+function perNight() { return CONFIG_CLIENT.STRUCTURE.accommodation === 'per_night'; }
+function hideNights() { var n = document.getElementById('nights-section'); if (n) n.style.display = 'none'; }
+function selectedNights() { return Array.prototype.map.call(document.querySelectorAll('input[name="nt"]:checked'), function(e){ return e.value; }); }
+// Room price for the nights the guest stays (whole room price unless fewer core nights are selected)
+function roomStayPrice(roomPrice, nightKeys) {
+  var n = Math.max(1, CONFIG_CLIENT.STRUCTURE.coreNights);
+  var sel = perNight() ? (nightKeys ? nightKeys.length : selectedNights().length) : n;
+  return (sel && sel !== n) ? Math.round(roomPrice * sel / n) : roomPrice;
+}
+function nightLabelOf(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? 'Night of ' + d.short : extraLabel(k); }
+// Per-night availability: a room type is bookable only if it is free on every selected night
+function applyNightAvailability() {
+  if (!avail || !avail.rooms) return;
+  var keys = (perNight() ? selectedNights() : []).concat(selectedExtras());
+  (CONFIG_CLIENT.ROOMS || []).forEach(function(r) {
+    var a = avail.rooms[r.id]; var radio = document.querySelector('input[name="room-type"][value="' + r.id + '"]');
+    if (!a || !radio || !a.perNight) return;
+    var checkKeys = keys.length ? keys : (CONFIG_CLIENT.STRUCTURE.days || []).slice(0, CONFIG_CLIENT.STRUCTURE.coreNights).map(function(d){ return d.key; });
+    var free = Math.min.apply(null, checkKeys.map(function(k){ return a.perNight[k] === undefined ? 0 : a.perNight[k]; }));
+    var full = free <= 0;
+    radio.disabled = full;
+    if (full && radio.checked) { radio.checked = false; radio.closest('.radio-option').classList.remove('selected'); }
+    var tag = radio.closest('.radio-option').querySelector('.full-tag');
+    if (tag) tag.textContent = full ? (perNight() ? ' — FULL for selected nights' : ' — FULL') : '';
+  });
+}
+function onNightsChange() { applyNightAvailability(); updatePriceDisplay(); }
+
 function selectedExtras() { return Array.prototype.map.call(document.querySelectorAll('input[name="xn"]:checked'), function(e){ return e.value; }); }
 function resetExtras() { document.querySelectorAll('input[name="xn"]').forEach(function(e){ e.checked = false; e.disabled = false; }); }
 function extraLabel(k) { var x = (CONFIG_CLIENT.STRUCTURE.extraNights || []).find(function(y){ return y.key === k; }); return x ? x.label : k; }
@@ -566,6 +605,7 @@ function selectedVisitorDays() { return Array.prototype.map.call(document.queryS
 function dayShort(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.short : k; }
 
 function onThuExtraChange() {
+  applyNightAvailability();
   updatePriceDisplay();
 }
 
@@ -604,12 +644,13 @@ function renderRoomTypes(data) {
     const livePrice = (data.prices && data.prices.rooms && data.prices.rooms[r.id] !== undefined) ? data.prices.rooms[r.id] : r.price_eur;
     html += '<label class="radio-option" id="rt-' + r.id + '">'
       + '<input type="radio" name="room-type" value="' + r.id + '"' + (full ? ' disabled' : '') + ' onchange="onRoomTypeChange()">'
-      + '<div><div class="opt-label">' + r.note_en + (full ? ' — FULL' : '') + '</div>'
+      + '<div><div class="opt-label">' + r.note_en + '<span class="full-tag">' + (full ? ' — FULL' : '') + '</span></div>'
       + '<div class="opt-sub">\u20AC' + livePrice + ' / room \u00b7 ' + r.persons + ' person' + (r.persons > 1 ? 's' : '') + '</div>'
       + (isDouble && CONFIG_CLIENT.ALLOW_SOLO_DOUBLE ? '<div style="margin-top:0.5rem"><label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;cursor:pointer"><input type="checkbox" id="solo-double" onchange="updatePriceDisplay()"> Book entire room for myself (solo use)</label></div>' : '')
       + '</div></label>';
   });
   container.innerHTML = html;
+  applyNightAvailability();
 }
 
 function onRoomTypeChange() {
@@ -678,7 +719,7 @@ function initJoinFromRef(ref) {
   // --- CAMPER JOIN ---
   if (camper) {
     if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — 🚐 Camper van spot · booked by <strong>' + camper.callsign + '</strong> · ' + camper.occupants + ' registered so far'; }
-    document.getElementById('thu-section').style.display = 'none';
+    document.getElementById('thu-section').style.display = 'none'; hideNights();
     document.getElementById('thu-info-join').style.display = 'none';
     resetExtras();
     document.getElementById('addons-section').classList.add('visible');
@@ -701,11 +742,12 @@ function initJoinFromRef(ref) {
   // Room has space — show info and form
   var spotsText = room.spotsLeft + ' spot' + (room.spotsLeft > 1 ? 's' : '') + ' remaining';
   var joinExtras = room.extraNights || [];
-  var thuNote = joinExtras.length ? ' · 🌙 Extra night included: ' + joinExtras.map(extraLabel).join(', ') : '';
+  var joinNights = (perNight() && room.nights && room.nights.length) ? ' · nights: ' + room.nights.map(nightLabelOf).join(', ') : '';
+  var thuNote = joinNights + (joinExtras.length ? ' · 🌙 Extra night included: ' + joinExtras.map(extraLabel).join(', ') : '');
   if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — ' + room.roomType + ' · <strong>' + spotsText + '</strong>' + thuNote; }
 
   // Extra nights are inherited from the room
-  document.getElementById('thu-section').style.display = 'none';
+  document.getElementById('thu-section').style.display = 'none'; hideNights();
   resetExtras();
   if (joinExtras.length) {
     var nightRoom = extraNightRoomPrice(room.roomPrice);
@@ -749,8 +791,10 @@ function updatePriceDisplay() {
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else if (selRoom) {
-      rows.push({label:'Room share (' + selRoom.roomType + ')', val:'\u20AC' + selRoom.pricePerPerson + '/person (room \u20AC' + selRoom.roomPrice + ')'});
-      total += selRoom.pricePerPerson;
+      const joinStay = roomStayPrice(selRoom.roomPrice, selRoom.nights || []);
+      const joinPP = Math.round(joinStay / (selRoom.roomPersons || 1));
+      rows.push({label:'Room share (' + selRoom.roomType + ')', val:'\u20AC' + joinPP + '/person (room \u20AC' + joinStay + ')'});
+      total += joinPP;
       (selRoom.extraNights || []).forEach(function(k) {
         const nightRoom = extraNightRoomPrice(selRoom.roomPrice);
         const persons = selRoom.roomPersons || 1;
@@ -775,8 +819,10 @@ function updatePriceDisplay() {
         const livePrice = (CONFIG_CLIENT.ROOM_PRICES && CONFIG_CLIENT.ROOM_PRICES[r.id] !== undefined) ? CONFIG_CLIENT.ROOM_PRICES[r.id] : r.price_eur;
         const soloEl = document.getElementById('solo-double');
         const isSolo = soloEl && soloEl.checked;
-        const pp = isSolo ? livePrice : Math.round(livePrice / r.persons);
-        rows.push({label:'Room (' + r.note_en + (isSolo ? ', solo)' : ')'), val:'\u20AC' + pp + (isSolo ? '' : '/person (room \u20AC' + livePrice + ')')});
+        const stayPrice = roomStayPrice(livePrice);
+        const pp = isSolo ? stayPrice : Math.round(stayPrice / r.persons);
+        const nightsNote = (perNight() && stayPrice !== livePrice) ? ', ' + selectedNights().length + ' of ' + CONFIG_CLIENT.STRUCTURE.coreNights + ' nights' : '';
+        rows.push({label:'Room (' + r.note_en + nightsNote + (isSolo ? ', solo)' : ')'), val:'\u20AC' + pp + (isSolo ? '' : '/person (room \u20AC' + stayPrice + ')')});
         total += pp;
       }
     }
@@ -803,8 +849,9 @@ function updatePriceDisplay() {
     rows.push({label:'Tent spot (whole event)', val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
     total += CONFIG_CLIENT.TENT_PRICE_WEEKEND;
   } else if (currentAccType === 'singlebed') {
-    rows.push({label:'Single bed (organizer-assigned room)', val:'\u20AC'+CONFIG_CLIENT.SINGLE_BED_PRICE});
-    total += CONFIG_CLIENT.SINGLE_BED_PRICE;
+    const bedStay = roomStayPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
+    rows.push({label:'Single bed (organizer-assigned room)', val:'\u20AC'+bedStay});
+    total += bedStay;
     selectedExtras().forEach(function(k) {
       const nightPrice = extraNightRoomPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
       rows.push({label:'\uD83C\uDF19 Extra night: ' + extraLabel(k), val:'\u20AC'+nightPrice});
@@ -876,11 +923,13 @@ function submitForm() {
       const rt = document.querySelector('input[name="room-type"]:checked');
       if (!rt) { showError('Please select a room type.'); return; }
       data.roomId = rt.value;
+      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError('Please select at least one night.'); return; } }
       const soloEl = document.getElementById('solo-double');
       data.soloDouble = soloEl ? soloEl.checked : false;
       data.extraNights = selectedExtras();
     } else if (currentAccType === 'singlebed') {
       data.extraNights = selectedExtras();
+      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError('Please select at least one night.'); return; } }
     } else if (currentAccType === 'dayvisitor') {
       data.visitorDays = selectedVisitorDays();
       if (!data.visitorDays.length) { showError('Please select which day(s) you will attend.'); return; }
@@ -1378,6 +1427,10 @@ function getAdminPanelHtml() {
           <option value="NEEDS_ATTENTION">NEEDS_ATTENTION</option>
         </select>
       </div>
+    </div>
+    <div class="modal-field" id="edit-nights-row" style="display:none">
+      <label>Nights (room / single bed; all ticked = whole stay)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:0.75rem">${CONFIG.STRUCTURE.days.slice(0, CONFIG.STRUCTURE.coreNights).map(d => `<label style="display:flex;align-items:center;gap:0.35rem"><input type="checkbox" name="edit-nt" value="${esc(d.key)}" style="width:auto;margin:0"> ${esc(d.short)}</label>`).join('')}</div>
     </div>
     <div class="modal-field" id="edit-dayvisitor-days-row" style="display:none">
       <label>Day visitor days</label>
@@ -2099,7 +2152,7 @@ function renderAdmin(data) {
 
   document.getElementById('stats').innerHTML = statsHtml;
 
-  const showCols = ['_guest','Email','Country','_room','ExtraNights','FullBoard','VisitorDays','Meals','Dietary','FreeText','TotalPrice','_status','OrgComment'];
+  const showCols = ['_guest','Email','Country','_room','Nights','ExtraNights','FullBoard','VisitorDays','Meals','Dietary','FreeText','TotalPrice','_status','OrgComment'].filter(function(h){ return h !== 'Nights' || CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night'; });
 
   // Sort state
   if (!window._adminSort) window._adminSort = { col: null, dir: 1 };
@@ -2114,6 +2167,7 @@ function renderAdmin(data) {
         var label = h === '_guest'       ? 'Callsign / Name / Ref'
                   : h === '_room'        ? 'Room / №'
                   : h === '_status'      ? 'Status'
+                  : h === 'Nights'       ? 'Nights'
                   : h === 'ExtraNights'  ? 'Extra nights'
                   : h === 'FullBoard'    ? 'FB'
                   : h === 'VisitorDays'  ? 'Days'
@@ -2206,6 +2260,7 @@ function renderAdmin(data) {
       }
       let v = r[h] !== undefined ? r[h] : '';
       if (h==='FullBoard') v = v==='YES' ? '✓' : '';
+      if (h==='Nights') v = (v||'').split(',').filter(Boolean).map(function(k){ var d=(CONFIG_ADMIN.STRUCTURE.days||[]).find(function(y){return y.key===k;}); return d ? d.short : k; }).join(' + ');
       if (h==='ExtraNights') v = (v||'').split(',').filter(Boolean).map(function(k){ var x=(CONFIG_ADMIN.STRUCTURE.extraNights||[]).find(function(y){return y.key===k;}); return x ? x.label : k; }).join(', ');
       if (h==='VisitorDays') v = (v||'').split(',').filter(Boolean).map(function(k){ var d=(CONFIG_ADMIN.STRUCTURE.days||[]).find(function(y){return y.key===k;}); return d ? d.short : k; }).join(' + ');
       if (h==='OrgComment') v = '<span class="org-field org-comment" data-ref="'+ref+'">' + (v || '<em style="opacity:0.4">&mdash;</em>') + '</span>';
@@ -2314,6 +2369,9 @@ function openEdit(ref) {
   document.getElementById('edit-status').value       = row.Status     || 'CONFIRMED';
   document.getElementById('edit-fullboard').checked  = row.FullBoard  === 'YES';
   document.querySelectorAll('input[name="edit-xn"]').forEach(function(cb){ cb.checked = (row.ExtraNights||'').split(',').indexOf(cb.value) >= 0; });
+  var ntSel = (row.Nights||'').split(',').filter(Boolean);
+  document.querySelectorAll('input[name="edit-nt"]').forEach(function(cb){ cb.checked = ntSel.length === 0 || ntSel.indexOf(cb.value) >= 0; });
+  document.getElementById('edit-nights-row').style.display = (CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night' && (row.Type === 'room' || row.Type === 'singlebed')) ? '' : 'none';
   document.getElementById('edit-soloroom').checked   = row.SoloRoom   === 'YES';
   document.getElementById('edit-publish').checked    = row.PublishConsent === 'YES';
   document.querySelectorAll('input[name="edit-vd"]').forEach(function(cb){ cb.checked = (row.VisitorDays||'').split(',').indexOf(cb.value) >= 0; });
@@ -2407,6 +2465,7 @@ function saveEdit() {
     Dietary:       document.getElementById('edit-dietary').value.trim(),
     Status:        document.getElementById('edit-status').value,
     FullBoard:     document.getElementById('edit-fullboard').checked ? 'YES' : 'NO',
+    Nights:        Array.prototype.map.call(document.querySelectorAll('input[name="edit-nt"]:checked'), function(c){return c.value;}).join(','),
     ExtraNights:   Array.prototype.map.call(document.querySelectorAll('input[name="edit-xn"]:checked'), function(c){return c.value;}).join(','),
     SoloRoom:      document.getElementById('edit-soloroom').checked  ? 'YES' : 'NO',
     PublishConsent: document.getElementById('edit-publish').checked   ? 'YES' : 'NO',

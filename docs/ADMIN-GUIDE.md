@@ -77,7 +77,15 @@ The **Event structure** card defines the shape of your event:
 - **Meal package**: switch it on or off, set the one-line summary and the contents (one item per line). The price is set under Pricing.
 
 Days and extra nights that already have bookings cannot be removed. Press **Save event structure**; the page reloads.
-Not yet supported: per-night room booking inside the core period, and individually priced meals.
+**Per-night mode.** Set *How are rooms booked?* to *Per night* to let guests pick which nights of the event they stay. Each event day then has exactly one night, the number of core nights follows the number of days, and the room price is split evenly across the nights (a partial stay costs `room price x nights stayed / core nights`, rounded). Availability is counted per night, so a room type can be full on one night and still open on another. Rules:
+
+- Applies to rooms and single beds only; camper and tent bookings stay whole-event.
+- Roommates inherit the primary booker's nights and extra nights.
+- Choosing every night is the same as the default whole-event stay.
+- You cannot switch back to *Whole period* while any booking has specific nights, and you cannot remove a day or extra night that bookings use.
+- In the booking edit dialog the *Nights* field appears only in per-night mode. Changing the primary booker's nights does not update roommates automatically.
+
+Individually priced meals are not supported; use the meal package.
 
 ## 5a. Room types
 

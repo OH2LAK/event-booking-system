@@ -31,6 +31,7 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `room_ref` | text | - | `booking_ref` of the **primary booker** of the room / camper spot. A primary booker (and every tent, single-bed and day-visitor booking) points to its own `booking_ref`. |
 | `is_primary` | boolean | `false` | `true` for the person who holds the room / camper spot, and for tent, single-bed and day-visitor bookings. `false` for joiners. |
 | `extra_nights` | text | `''` | Comma-separated extra-night keys from the event structure, e.g. `x1,x2` (room and single-bed bookings only). Joiners inherit them from the room. |
+| `nights` | text | `''` | Per-night mode only: comma-separated day keys for the nights a room or single-bed guest stays. Empty means all core nights. |
 | `thu_extra_night` | boolean | `false` | **Deprecated**: legacy column, no longer written. Migrated into `extra_nights` (`thu`) on first start. |
 | `full_board` | boolean | `false` | Meal package (contents defined in the event structure). |
 | `dietary` | text | `''` | Free text. |
@@ -179,7 +180,7 @@ Single-row table (`id` is always 1) describing the shape of the event, edited in
 | Column | Type | Notes |
 |---|---|---|
 | `id` | smallint PK | Always 1 |
-| `structure` | jsonb | `days` (core event days: `key`, `label`, `short`), `coreNights` (nights included in the room price), `extraNights` (optional nights: `key`, `label`, `includes`) and `package` (`enabled`, `sub`, `includes[]`) |
+| `structure` | jsonb | `days` (core event days: `key`, `label`, `short`), `accommodation` (`period` or `per_night`), `coreNights` (nights included in the room price; equals the number of days in `per_night` mode), `extraNights` (optional nights: `key`, `label`, `includes`) and `package` (`enabled`, `sub`, `includes[]`) |
 | `updated_at` | timestamptz | Last save |
 
 Keys are stored on bookings (`bookings.extra_nights`, `bookings.visitor_days`), so a day or extra night that is in use

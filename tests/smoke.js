@@ -140,6 +140,34 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   check('room price follows catalog', setg.settings.ROOM_PRICES['5S'] === 520, setg.settings.ROOM_PRICES);
 
 
+  // --- per-night accommodation mode ---
+  const cur = (await rpc('getStructure')).body.result.structure;
+  r = (await rpc('saveStructure', { ...cur, accommodation: 'per_night' })).body.result;
+  check('switch to per-night mode', r.success, r);
+  const sPN = (await rpc('getStructure')).body.result.structure;
+  check('per-night mode forces nights = days', sPN.accommodation === 'per_night' && sPN.coreNights === sPN.days.length, sPN);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN0', type: 'room', roomId: '4S', nights: [] }))).body.result;
+  check('per-night room needs at least one night', !r.success, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN1', type: 'room', roomId: '4S', nights: ['d1'] }))).body.result;
+  check('book one night only', r.success && r.price.breakdown.includes('1 of 2 nights') && r.price.total === 200 / 4 + 10, r);
+  const refN1 = r.bookingRef;
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN2', type: 'room', roomId: '4S', nights: ['d1'] }))).body.result;
+  check('second room, same night', r.success, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN3', type: 'room', roomId: '4S', nights: ['d1'] }))).body.result;
+  check('night fully booked is rejected', !r.success && /Night of/.test(r.error), r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN4', type: 'room', roomId: '4S', nights: ['d2'] }))).body.result;
+  check('same room type is free on the other night', r.success, r);
+  const avN = (await rpc('getAvailability')).body.result;
+  check('availability per night', avN.rooms['4S'].perNight.d1 === 0 && avN.rooms['4S'].perNight.d2 === 1 && avN.rooms['4S'].available === 1, avN.rooms['4S']);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTN5', type: 'room', joinExisting: true, roomRef: refN1 }))).body.result;
+  check('joiner inherits the nights', r.success && r.price.breakdown.includes('1 of 2 nights'), r);
+  r = (await rpc('updateBooking', '', refN1, { Nights: 'd1,d2' }, false)).body.result;
+  const adN = (await rpc('getAdminData', '')).body.result;
+  const rowN1 = adN.rows.find(x => x.BookingRef === refN1);
+  check('all nights ticked = whole stay, price recalculated', r.success && rowN1.Nights === '' && Number(rowN1.TotalPrice) === 110, rowN1);
+  r = (await rpc('saveStructure', { ...cur, accommodation: 'period' })).body.result;
+  check('cannot go back to whole-event mode with per-night bookings', !r.success, r);
+
   // report & check-in tool
   const noAuth = await fetch(BASE + '/report?view=summary');
   check('report without login shows login page', (await noAuth.text()).includes('Kirjaudu'), noAuth.status);

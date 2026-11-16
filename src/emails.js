@@ -5,6 +5,8 @@ const nodemailer = require('nodemailer');
 const { CONFIG } = require('./config');
 const S = require('./structure');
 const daysText = list => S.pickDays(list).map(k => S.dayByKey(k).short).join(' + ');
+const nightsLine = data => (S.mode() === 'per_night' && (data.type === 'room' || data.type === 'singlebed'))
+  ? 'Nights   : ' + (data.nights && data.nights.length ? S.pickNights(data.nights).map(S.nightLabel).join(', ') : 'All') : '';
 const extrasText = list => S.pickExtras(list).map(k => { const x = S.extraByKey(k); return x.label + (x.includes ? ' (' + x.includes + ')' : ''); }).join(', ');
 
 let transporter = null;
@@ -109,6 +111,7 @@ Anyone travelling in the same vehicle MUST use one of these options:
 Co-travellers who do NOT use the join option will be registered
 as separate camper spots.` : ""}
 ${!data.isPrimaryBooker ? `Joining ${data.type === 'camper' ? 'camper spot' : 'room'}: ${data.roomRef}${primaryBooker_ ? " — booked by " + primaryBooker_.callsign.toUpperCase() + " " + primaryBooker_.name : ""}` : ""}
+${nightsLine(data)}
 ${data.extraNights && data.extraNights.length ? `Extra nights: ${extrasText(data.extraNights)}` : ""}`}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -307,6 +310,7 @@ ${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodati
 Days     : ${daysText(data.visitorDays)}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "room" && data.isPrimaryBooker ? `Role     : Primary booker (room holder)` : ""}
 ${data.type === "room" && !data.isPrimaryBooker ? `Role     : Joining existing room: ${data.roomRef}` : ""}
+${nightsLine(data)}
 Extra nights: ${data.extraNights && data.extraNights.length ? extrasText(data.extraNights) : "No"}`}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500

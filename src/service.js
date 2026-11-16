@@ -23,6 +23,7 @@ function priceInput(o) {
     roomId: o.roomId,
     isPrimaryBooker: o.isPrimaryBooker === 'YES',
     extraNights: o.extraNights || '',
+    nights: o.nights || '',
     fullBoard: o.fullBoard === 'YES',
     soloRoom: o.soloRoom === 'YES',
     visitorDays: o.visitorDays || '',
@@ -46,8 +47,13 @@ async function getAvailability() {
     const count = settings.ROOM_COUNTS[r.id];
     const booked = bookings.filter(b => b.roomId === r.id && b.isPrimaryBooker === 'YES').length;
     const spotsUsed = bookings.filter(b => b.roomId === r.id).length;
+    // Free rooms per night (core nights and extra nights). In per-night mode a room type counts as
+    // available when at least one core night is still free.
+    const occ = S.occupancy(bookings, r.id);
+    const perNight = {}; S.allNightKeys().forEach(k => { perNight[k] = count - occ[k]; });
+    const available = S.mode() === 'per_night' ? Math.max(0, ...S.coreNightKeys().map(k => perNight[k])) : count - booked;
     roomAvail[r.id] = {
-      total: count, booked, available: count - booked, spotsUsed,
+      total: count, booked, available, perNight, spotsUsed,
       capacity: r.persons * count, price_eur: settings.ROOM_PRICES[r.id],
     };
   });
@@ -87,6 +93,7 @@ async function getAvailability() {
         roomPersons: roomCfg.persons, spotsLeft: roomCfg.persons - occupants,
         pricePerPerson: Math.round(livePrice / roomCfg.persons), roomPrice: livePrice,
         extraNights: S.pickExtras(b.extraNights),
+        nights: S.pickNights(b.nights),
       };
     }).filter(Boolean);
 
@@ -153,6 +160,7 @@ async function submitBooking(input) {
     roomId: str(input.roomId, 20), roomRef: str(input.roomRef, 60),
     joinExisting: !!input.joinExisting,
     extraNights: S.pickExtras(Array.isArray(input.extraNights) ? input.extraNights : S.keys(input.extraNights)),
+    nights: S.pickNights(Array.isArray(input.nights) ? input.nights : S.keys(input.nights)),
     fullBoard: !!input.fullBoard && CONFIG.STRUCTURE.package.enabled,
     dietary: str(input.dietary, 300), shirtSize: str(input.shirtSize, 10),
     gdprNoPublish: !!input.gdprNoPublish, soloDouble: !!input.soloDouble,
@@ -183,6 +191,14 @@ async function submitBooking(input) {
     let isPrimary = false; let roomId = ''; let roomRef = bookingRef; let soloRoom = false;
     let primaryRow = null;
 
+    // Per-night mode: room and single-bed bookings choose their core nights (joiners inherit the room's nights)
+    const joiningRoom = data.type === 'room' && data.joinExisting && data.roomRef;
+    if ((data.type !== 'room' && data.type !== 'singlebed') || S.mode() !== 'per_night') data.nights = [];
+    else if (!joiningRoom) {
+      if (!data.nights.length) return reject('Please select at least one night.', callsign);
+      if (data.nights.length === S.coreNightKeys().length) data.nights = [];
+    }
+
     if (data.type === 'room') {
       if (data.joinExisting && data.roomRef) {
         const primary = bookings.find(b => b.bookingRef === data.roomRef && b.isPrimaryBooker === 'YES' && b.type === 'room');
@@ -192,11 +208,13 @@ async function submitBooking(input) {
         const occupants = bookings.filter(b => b.roomRef === data.roomRef && b.isPrimaryBooker !== 'YES').length + 1;
         if (occupants >= roomCfg.persons) return reject(`Room ${data.roomRef} is full (${roomCfg.persons} persons max).`, callsign);
         roomId = primary.roomId; roomRef = data.roomRef; primaryRow = primary;
+        data.nights = S.mode() === 'per_night' ? S.pickNights(primary.nights) : [];
       } else {
         const roomCfg = roomCfgOf(data.roomId);
         if (!roomCfg) return reject('Invalid room type', callsign);
-        const booked = bookings.filter(b => b.roomId === data.roomId && b.isPrimaryBooker === 'YES').length;
-        if (booked >= settings.ROOM_COUNTS[roomCfg.id]) return reject(`No ${roomCfg.note_en} rooms left.`, callsign);
+        const occ = S.occupancy(bookings, data.roomId);
+        const full = S.nightsOf({ nights: data.nights, extraNights: data.extraNights }).find(k => occ[k] >= settings.ROOM_COUNTS[roomCfg.id]);
+        if (full) return reject(`No ${roomCfg.note_en} rooms left` + (S.mode() === 'per_night' ? ` for ${S.nightLabel(full)}.` : '.'), callsign);
         // FIX: solo occupancy is only allowed when enabled and for multi-person rooms
         if (data.soloDouble) {
           if (!settings.ALLOW_SOLO_DOUBLE || roomCfg.persons < 2) return reject('Solo occupancy is not available for this room.', callsign);
@@ -242,7 +260,7 @@ async function submitBooking(input) {
       return reject('Please select which day(s) you will attend.', callsign);
 
     const price = calculatePrice({
-      type: data.type, roomId, isPrimaryBooker: isPrimary, extraNights: data.extraNights,
+      type: data.type, roomId, isPrimaryBooker: isPrimary, extraNights: data.extraNights, nights: data.nights,
       fullBoard: data.fullBoard, soloRoom, visitorDays: data.visitorDays,
       joinExisting: data.type === 'camper' && !isPrimary,
     }, settings);
@@ -250,12 +268,12 @@ async function submitBooking(input) {
     const meals = data.meals ? Object.entries(data.meals).filter(([, v]) => v).map(([k]) => k).join(',') : '';
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
-         is_primary, extra_nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
+         is_primary, extra_nights, nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
          publish_consent, solo_room, visitor_days, meals, free_text)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22)`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        !data.gdprNoPublish, soloRoom, data.visitorDays.join(','), meals, data.freeText]
+        !data.gdprNoPublish, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(',')]
     );
 
     const existingJoiners = data.joinExisting && primaryRow
@@ -333,6 +351,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
     const clean = {};
     repo.EDITABLE.forEach(f => { if (Object.prototype.hasOwnProperty.call(fields, f)) clean[f] = fields[f]; });
     if (clean.ExtraNights !== undefined) clean.ExtraNights = S.pickExtras(S.keys(clean.ExtraNights)).join(',');
+    if (clean.Nights !== undefined) { const n = S.pickNights(S.keys(clean.Nights)); clean.Nights = (S.mode() === 'per_night' && n.length < S.coreNightKeys().length) ? n.join(',') : ''; }
     if (clean.VisitorDays !== undefined) clean.VisitorDays = S.pickDays(S.keys(clean.VisitorDays)).join(',');
     if (clean.Status !== undefined && !STATUSES.includes(clean.Status)) return { success: false, error: 'Invalid status' };
     if (clean.Type !== undefined && !TYPES.includes(clean.Type)) return { success: false, error: 'Invalid type' };
@@ -352,7 +371,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
 
     const fresh = (await repo.all(client)).find(r => r.booking_ref === bookingRef);
     const obj = repo.toObj(fresh);
-    const priceFields = ['FullBoard', 'ExtraNights', 'VisitorDays', 'Type', 'RoomId', 'IsPrimaryBooker', 'SoloRoom'];
+    const priceFields = ['FullBoard', 'ExtraNights', 'Nights', 'VisitorDays', 'Type', 'RoomId', 'IsPrimaryBooker', 'SoloRoom'];
     const needsRecalc = priceFields.some(f => Object.prototype.hasOwnProperty.call(clean, f));
     let price = { total: obj.totalPrice, breakdown: obj.priceBreakdown };
     if (needsRecalc) {
@@ -414,8 +433,8 @@ async function changeAccommodation(bookingRef, params) {
     if (newType === 'room') {
       newRoomCfg = roomCfgOf(newRoomId);
       if (!newRoomCfg) return { success: false, error: 'Invalid room type: ' + newRoomId };
-      const already = bookings.filter(b => b.roomId === newRoomId && b.isPrimaryBooker === 'YES' && b.bookingRef !== bookingRef).length;
-      if (already >= settings.ROOM_COUNTS[newRoomId]) return { success: false, error: 'No ' + newRoomCfg.note_en + ' rooms available.' };
+      const occ = S.occupancy(bookings.filter(b => b.bookingRef !== bookingRef), newRoomId);
+      if (S.nightsOf(booking).some(k => occ[k] >= settings.ROOM_COUNTS[newRoomId])) return { success: false, error: 'No ' + newRoomCfg.note_en + ' rooms available.' };
       if (booking.isPrimaryBooker === 'YES') {
         const joiners = bookings.filter(b => b.roomRef === bookingRef && b.isPrimaryBooker !== 'YES' && b.bookingRef !== bookingRef);
         if (joiners.length + 1 > newRoomCfg.persons)
@@ -462,11 +481,12 @@ async function changeRole(bookingRef, params) {
       if (!targetRoomId) return { success: false, error: 'No room type selected.' };
       const roomCfg = roomCfgOf(targetRoomId);
       if (!roomCfg) return { success: false, error: 'Invalid room type.' };
-      const booked = rows.filter(r => r.room_id === targetRoomId && r.is_primary && isActive(r)).length;
       const limit = settings.ROOM_COUNTS[targetRoomId];
-      if (booked >= limit) return { success: false, error: `No ${roomCfg.note_en} rooms available (${booked}/${limit} booked).` };
+      const occ = S.occupancy(rows.filter(r => isActive(r) && r.booking_ref !== bookingRef).map(repo.toObj), targetRoomId);
+      const busy = S.nightsOf(repo.toObj(row)).find(k => occ[k] >= limit);
+      if (busy) return { success: false, error: `No ${roomCfg.note_en} rooms available (${occ[busy]}/${limit} booked for ${S.nightLabel(busy)}).` };
       await repo.updateFields(client, bookingRef, { IsPrimaryBooker: 'YES', RoomRef: bookingRef, RoomId: targetRoomId, Type: 'room' });
-      const p = calculatePrice({ type: 'room', roomId: targetRoomId, fullBoard: row.full_board, extraNights: row.extra_nights }, settings);
+      const p = calculatePrice({ type: 'room', roomId: targetRoomId, fullBoard: row.full_board, extraNights: row.extra_nights, nights: row.nights }, settings);
       await client.query('UPDATE bookings SET total_price=$1, price_breakdown=$2 WHERE booking_ref=$3', [p.total, p.breakdown, bookingRef]);
       db.logEvent('OK', 'role_changed', callsign, `ref=${bookingRef} joiner→primary roomId=${targetRoomId}`);
       return { success: true, message: `${callsign} promoted to primary booker in a ${roomCfg.note_en} room.` };
@@ -490,7 +510,7 @@ async function changeRole(bookingRef, params) {
         await client.query(`UPDATE bookings SET status='NEEDS_ATTENTION', org_comment=$1 WHERE id=$2`, [comment, j.id]);
       }
       await repo.updateFields(client, bookingRef, { IsPrimaryBooker: 'NO', RoomRef: targetRoomRef, RoomId: target.room_id });
-      const p = calculatePrice({ type: 'room', roomId: target.room_id, fullBoard: row.full_board, extraNights: row.extra_nights }, settings);
+      const p = calculatePrice({ type: 'room', roomId: target.room_id, fullBoard: row.full_board, extraNights: row.extra_nights, nights: row.nights }, settings);
       await client.query('UPDATE bookings SET total_price=$1, price_breakdown=$2 WHERE booking_ref=$3', [p.total, p.breakdown, bookingRef]);
       db.logEvent('OK', 'role_changed', callsign, `ref=${bookingRef} primary→joiner targetRoom=${targetRoomRef} oldJoinersFlagged=${oldJoiners.length}`);
       const extra = oldJoiners.length > 0 ? ` ${oldJoiners.length} previous joiner(s) flagged as NEEDS_ATTENTION.` : '';

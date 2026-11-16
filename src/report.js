@@ -21,6 +21,7 @@ function setRC(settings) {
     CAMPER_PRICE: settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS,
     TENT_PRICE: settings.TENT_PRICE_WEEKEND,
     CORE_NIGHTS: CONFIG.STRUCTURE.coreNights,
+    PER_NIGHT: CONFIG.STRUCTURE.accommodation === 'per_night',
     DAYS: CONFIG.STRUCTURE.days,
     EXTRAS: CONFIG.STRUCTURE.extraNights,
     PACKAGE: CONFIG.STRUCTURE.package.enabled,
@@ -84,7 +85,7 @@ function calcPrices_(r) {
   var acc = 0, meals = 0, fee = 0;
   var rc = RC.ROOMS.find(function(x) { return x.id === r.roomId; });
   if (r.type === 'room' || r.type === 'singlebed') {
-    if (r.isPrimary && rc) acc = rc.price / rc.persons;
+    if (r.isPrimary && rc) acc = rc.price / rc.persons * (RC.PER_NIGHT && r.nights.length ? r.nights.length / RC.CORE_NIGHTS : 1);
     if (r.isPrimary && rc && r.extraNights.length) acc += r.extraNights.length * (rc.price / RC.CORE_NIGHTS / rc.persons);
     fee = RC.MEETING_FEE_WEEKEND;
   } else if (r.type === 'camper') {
@@ -135,6 +136,10 @@ function wrap_(title, body, token, active) {
 
 function dayLabels_(keys, field) {
   return RC.DAYS.filter(function(d){return keys.indexOf(d.key)>=0;}).map(function(d){return d[field||'short'];});
+}
+function nightsText_(r) {
+  if (!RC.PER_NIGHT || !r.nights.length) return '';
+  return r.nights.map(function(k){ var d = RC.DAYS.find(function(x){return x.key===k;}); return d ? d.short : k; }).join(' + ');
 }
 function extraLabels_(keys) {
   return RC.EXTRAS.filter(function(x){return keys.indexOf(x.key)>=0;}).map(function(x){return x.label;});
@@ -202,15 +207,19 @@ function hotelView_(rows, token) {
   var roomPrimaries = rows.filter(function(r) { return r.type==='room' && r.isPrimary; });
   var groups = {}; var order = [];
   roomPrimaries.forEach(function(r) {
-    var sig = r.extraNights.join('+');
+    var sig = r.extraNights.join('+') + (RC.PER_NIGHT && r.nights.length ? '|' + r.nights.join('+') : '');
     if (!groups[sig]) { groups[sig] = []; order.push(sig); }
     groups[sig].push(r);
   });
   order.sort(function(a, b) { return (a === '' ? 1 : 0) - (b === '' ? 1 : 0); });
   order.forEach(function(sig) {
     var list = groups[sig];
-    var title = sig ? '🌙 Lisäyö: ' + extraLabels_(sig.split('+')).join(' + ') : '🏨 Majoittujat';
+    var parts = sig.split('|');
+    var ex = parts[0] ? parts[0].split('+') : [];
+    var nt = parts[1] ? parts[1].split('+') : [];
+    var title = ex.length ? '🌙 Lisäyö: ' + extraLabels_(ex).join(' + ') : '🏨 Majoittujat';
     if (!sig && order.length > 1) title = '🏨 Majoittujat ilman lisäöitä';
+    if (nt.length) title += ' · Yöt: ' + dayLabels_(nt).join(' + ');
     body += '<h2>' + title + ' (' + list.length + ' huonetta)</h2>';
     body += roomTable(list, rows);
   });
@@ -331,7 +340,7 @@ function checkinView_(rows, token, preRef) {
           + '<td>'+r.name+'</td>'
           + '<td>'+r.country+'</td>'
           + '<td>'+room+'</td>'
-          + '<td>'+extraLabels_(r.extraNights).join(', ')+'</td>'
+          + '<td>'+[nightsText_(r)].concat(extraLabels_(r.extraNights)).filter(Boolean).join(', ')+'</td>'
           + '<td>'+(r.fullBoard?'TB':r.meals?'yks.':'—')+'</td>'
           + '<td style="width:2rem;border:1px solid #d1d5db">&nbsp;</td>'
           + '</tr>';
@@ -371,6 +380,7 @@ function confirmationSlip_(rows, r, pw) {
     acc = rc.note_en||r.roomId;
     if (r.roomNumber) acc+=' — Room '+r.roomNumber;
     else acc+=' — Room number TBD';
+    if (nightsText_(r)) acc+=' — nights: '+nightsText_(r);
     if (r.extraNights.length) acc+=' + extra night: '+extraLabels_(r.extraNights).join(', ');
   } else if (r.type==='camper') {
     acc='Camper van spot ('+RC.CORE_NIGHTS+' nights, incl. electricity)';
@@ -538,13 +548,13 @@ function summaryView_(rows, token) {
 
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
-    'IsPrimary','ExtraNights','VisitorDays','FullBoard','Meals','Dietary','ShirtSize',
+    'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Meals','Dietary','ShirtSize',
     'Accommodation+Meals_EUR','MeetingFee_EUR','Total_EUR','Status','BookingRef'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
     lines.push([r.callsign,r.name,r.email,r.country,r.type,r.roomId,r.roomNumber,r.roomRef,
-      r.isPrimary?'YES':'NO', r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
+      r.isPrimary?'YES':'NO', r.nights.join('+'), r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
       r.meals,r.dietary,r.shirtSize,
       p.hotelTotal.toFixed(0), p.meetingFee.toFixed(0), p.total.toFixed(0),
       r.status, r.bookingRef,
@@ -583,6 +593,7 @@ function printView_(rows, token, ref) {
     accEN = rc.note_en||r.roomId; accFI = rc.note_fi||r.roomId;
     if (r.roomNumber){accEN+=' — Room '+r.roomNumber; accFI+=' — Huone '+r.roomNumber;}
     else {accEN+=' — Room number TBD'; accFI+=' — Huonenumero ilmoitetaan';}
+    if (nightsText_(r)){accEN+=' — nights: '+nightsText_(r); accFI+=' — yöt: '+nightsText_(r);}
     if (r.extraNights.length){var xl=extraLabels_(r.extraNights).join(', '); accEN+=' + extra night: '+xl; accFI+=' + lisäyö: '+xl;}
   } else if (r.type==='camper') {
     accEN='Camper van spot ('+RC.CORE_NIGHTS+' nights, incl. electricity)'; accFI='Matkailuautopaikka ('+RC.CORE_NIGHTS+' yötä, sähkö mukana)';

@@ -12,6 +12,10 @@ function calculatePrice(data, s) {
   const st = CONFIG.STRUCTURE;
   const extras = S.pickExtras(data.extraNights);
   const nights = Math.max(1, st.coreNights);
+  // Per-night mode: the guest pays for the selected core nights only (empty selection = all nights)
+  const picked = S.mode() === 'per_night' ? S.pickNights(data.nights) : [];
+  const stay = picked.length ? picked.length : nights;
+  const partial = stay !== nights;
   const meetingFee = () => {
     total += s.MEETING_FEE_WEEKEND;
     lines.push(`Meeting fee (full event): €${s.MEETING_FEE_WEEKEND}`);
@@ -33,11 +37,13 @@ function calculatePrice(data, s) {
     if (roomCfg) {
       const roomPrice = s.ROOM_PRICES[roomCfg.id] !== undefined ? s.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur;
       const solo = !!data.soloRoom;
-      const pricePerPerson = solo ? roomPrice : Math.round(roomPrice / roomCfg.persons);
+      const stayPrice = partial ? Math.round(roomPrice * stay / nights) : roomPrice;
+      const nightsNote = partial ? `, ${stay} of ${nights} nights` : '';
+      const pricePerPerson = solo ? stayPrice : Math.round(stayPrice / roomCfg.persons);
       total += pricePerPerson;
       lines.push(solo
-        ? `Room (${roomCfg.note_en}, solo): €${pricePerPerson}`
-        : `Room (${roomCfg.note_en}): €${pricePerPerson}/person (room total €${roomPrice})`);
+        ? `Room (${roomCfg.note_en}${nightsNote}, solo): €${pricePerPerson}`
+        : `Room (${roomCfg.note_en}${nightsNote}): €${pricePerPerson}/person (room total €${stayPrice})`);
       extraLines(Math.round(roomPrice / nights), roomCfg.persons, solo);
     }
   } else if (data.type === 'camper') {
@@ -54,8 +60,9 @@ function calculatePrice(data, s) {
     lines.push(`Tent spot (whole event): €${s.TENT_PRICE_WEEKEND}`);
     meetingFee(); packageLine();
   } else if (data.type === 'singlebed') {
-    total += s.SINGLE_BED_PRICE;
-    lines.push(`Single bed (organizer-assigned room): €${s.SINGLE_BED_PRICE}`);
+    const bedPrice = partial ? Math.round(s.SINGLE_BED_PRICE * stay / nights) : s.SINGLE_BED_PRICE;
+    total += bedPrice;
+    lines.push(`Single bed (organizer-assigned room${partial ? `, ${stay} of ${nights} nights` : ''}): €${bedPrice}`);
     extraLines(Math.round(s.SINGLE_BED_PRICE / nights), 1, false);
   } else if (data.type === 'dayvisitor') {
     const days = S.pickDays(data.visitorDays);
