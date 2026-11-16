@@ -1,266 +1,98 @@
-# Nordic VUSHF 2026 — Hotel Booking System
+# Nordic VUSHF 2026 booking system
 
-A Google Apps Script web application for managing hotel room, camper van, tent and day visitor bookings for the **Nordic VUSHF Meeting 2026**, hosted by [RATS – Radio Amateur Technology Society of Finland](https://rats.fi) at Hotelli Martinhovi, Raisio, 15–17 May 2026.
+Event booking system for the Nordic VUSHF Meeting (RATS ry, Hotel Martinhovi, Raisio). Originally a Google Apps Script
+web app; this repository contains the containerized **Node.js + PostgreSQL** version plus the original scripts.
 
-Built to be reusable for similar amateur radio events.
+Features: room / camper / tent / single-bed / day-visitor bookings, joining an existing room with a booking reference,
+live availability, price calculation with admin-editable prices, confirmation and organizer emails, public
+"Who's coming?" list, admin panel (settings, pricing, room inventory, editable bookings table, CSV export), and a
+report & check-in tool (hotel list, check-in desk, summary, printable slips).
 
----
+## Quick start (Docker)
 
-## What It Does
-
-A single `.gs` file (~4000 lines) that serves as both the backend and frontend for a complete event booking system. It runs entirely on Google's infrastructure — no servers, no hosting costs, no external dependencies beyond Google Workspace.
-
-### Booking Types
-
-| Type | Description |
-|------|-------------|
-| 🏨 Hotel room | Single, double, triple, quad, or 7-person rooms — primary booker holds the room, others join via reference |
-| 🚐 Camper van | Camper spot with electricity — primary booker reserves the spot, co-travellers join at no extra spot cost |
-| ⛺ Tent | Tent pitch on hotel grounds |
-| 🛏️ Single bed | Organizer-assigned bed in shared room (admin-controlled, hidden until enabled) |
-| 🎫 Day visitor | Friday and/or Saturday attendance without accommodation |
-
-### Add-ons
-
-- **Full board meal package** — Friday BBQ dinner + Saturday lunch + Saturday Ham Dinner
-- **Thursday extra night** — optional arrival night, priced at half the room rate
-- **Individual meal selection** — à la carte for day visitors and non-full-board guests
-- **T-shirt size selection**
-- **Dietary requirements**
-
-### Key Features
-
-**Public booking flow**
-- Availability display (rooms by type, camper spots, tent spots)
-- Room/camper join system — share a booking reference or direct link so roommates pay their own share
-- Real-time price calculation in the browser
-- GDPR publish consent (controls appearance on the public "Who's coming?" list)
-- Confirmation email to guest with join link (for primary bookers), booking summary, and payment instructions
-- Notification email to organizer on each new booking
-
-**Admin panel** (password-protected)
-- Live booking table with sortable columns (click any header)
-- Per room-type occupancy stats — shows full vs. partially filled shared rooms
-- Edit any booking field inline
-- Change accommodation type for any booking
-- Change room role (primary ↔ joiner)
-- Room number assignment
-- Free-text organizer comments
-- Staff/organizer badge
-- Export to CSV
-- Configurable settings (all stored in Script Properties, survives redeployment):
-  - Registration open/closed with closing date
-  - Announcement banner
-  - Prices (room prices per type, camper, tent, single bed, full board, meeting fee)
-  - Room counts and capacity overrides
-  - Camper van and tent spot limits
-  - Info texts for camper and tent guests
-  - Price disclaimer
-
-**Who's Coming page**
-- Public list of confirmed guests who have given publish consent
-- Callsign, name, country, type badges
-
----
-
-## Architecture
-
-| Component | Technology |
-|-----------|------------|
-| Backend | Google Apps Script (V8 runtime) |
-| Frontend | Vanilla HTML/CSS/JS, served by `doGet()` |
-| Database | Google Sheets (one row per booking) |
-| Email | GmailApp (sent from the deploying account) |
-| Config | Script Properties (persistent key-value store) |
-| Routing | URL parameter `?page=admin`, `?page=whoscming`, `?join=REF` |
-
-The entire application is one file. There are no npm packages, no build steps, no external APIs.
-
-### Google Sheets Schema
-
-One sheet, one row per booking. Columns in order:
-
-```
-Timestamp, BookingRef, Callsign, Name, Email, Phone, Country,
-Type, RoomId, RoomRef, IsPrimaryBooker, ThuExtraNight, FullBoard,
-Dietary, ShirtSize, TotalPrice, PriceBreakdown, Status,
-RoomNumber, OrgComment, PublishConsent, SoloRoom, DayVisitorDays,
-IsOrganizer, FreeText
+```bash
+cp .env.example .env
+# edit .env - see "Change the default passwords" below
+docker compose up --build -d
 ```
 
-### Room Join System
+Open http://localhost:3000 (booking page), `/?public=1` (Who's coming), `/?admin=1` (admin panel) and `/report`
+(report & check-in tool; uses the same admin password). Data lives in the `pgdata` Docker volume.
 
-- Primary booker holds the room and pays the room's per-person share
-- Joiners find the booking via reference code or direct link (`?join=REF`)
-- Joiners pay only their own meeting fee and any add-ons
-- If a primary cancels, joiners are flagged `NEEDS_ATTENTION` for admin follow-up
-- Camper van joiners pay no spot fee — only meeting fee and add-ons
+## Change the default passwords
 
-### Booking References
+`.env.example` ships with placeholder defaults (`change-me-...`) so the stack starts out of the box. **They are public
+knowledge. Change all of them before exposing the app to the internet:**
 
-Format: `CALLSIGN-N` where N is a sequential counter per callsign (e.g. `OH2LAK-7`). Generated server-side at submission.
+| Variable | What it protects |
+| --- | --- |
+| `ADMIN_PASSWORD` | Admin panel and the report & check-in tool |
+| `SESSION_SECRET` | Signs admin session cookies (`openssl rand -hex 32`) |
+| `POSTGRES_PASSWORD` | Database password (the data volume keeps the old one - see below) |
+| `SMTP_PASS` | Mail server login |
 
-### Status Values
+While any default is still in use the app prints a warning at startup and shows a red banner in the admin panel.
 
-| Status | Meaning |
-|--------|---------|
-| `CONFIRMED` | Normal booking, counts toward capacity |
-| `NEEDS_ATTENTION` | Counts toward capacity, highlighted in admin (e.g. orphaned joiners) |
-| `CANCELLED` | Does not count toward capacity, hidden from public views |
+Note: PostgreSQL only reads `POSTGRES_PASSWORD` when the data volume is first created. If you change it afterwards,
+either remove the volume (`docker compose down -v`, **deletes data**) or change it inside the database with
+`ALTER USER`.
 
----
+## Configuration
 
-## Getting Started
+All settings are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join links in emails. Leave `SMTP_HOST`
+empty to disable email (messages are then only logged to the console). Event data (dates, rooms, base prices) is in
+`src/config.js`; prices, room counts, registration open/close, announcement, etc. are edited live in the admin panel
+and stored in the database.
 
-### Prerequisites
+To brand the pages for another event, edit `src/config.js` and the logo/links in `src/pages.js`.
 
-- A Google account with Google Drive and Gmail access
-- A Google Sheet (blank is fine — the app creates its own structure on first booking)
+## Migrating from the Apps Script version
 
-### Setup
+1. **Bookings**: export the "Bookings" sheet as `.xlsx` and import it:
+   `DATABASE_URL=postgres://... npm install && npm run import-xlsx -- bookings.xlsx`
+   (re-running skips bookings that already exist).
+2. **Settings are not in the sheet.** Apps Script kept admin settings (price overrides, room counts, registration
+   open/close, bypass token, announcement) in *Script Properties*. Re-enter them in the new admin panel, otherwise the
+   defaults from `src/config.js` apply. Compare prices before going live.
+3. Point your DNS / Cloudflare redirect at the new server instead of the `script.google.com` URL.
 
-**1. Create a new Google Apps Script project**
+The original scripts are kept in `legacy-apps-script/` with secrets removed (placeholders `REDACTED_...`).
 
-Go to [script.google.com](https://script.google.com), create a new project, and replace the contents of `Code.gs` with the contents of `NordicVUSHF2026_Booking.gs`.
+## Differences from the Apps Script version
 
-**2. Edit the CONFIG block**
+Security
+- The public availability call no longer returns the admin password (it returned the whole config object).
+- No password in the browser: admin login sets an HttpOnly, SameSite=Strict session cookie (12 h); login attempts are
+  throttled; the password is no longer stored in `localStorage` or sent with every request.
+- Guest-supplied text has `<` and `>` removed and callsigns are validated, because several pages render values as HTML.
+- CSV exports neutralize spreadsheet formulas.
+- Secrets and deployment URLs moved out of the code into `.env`.
 
-At the top of the file, update the `CONFIG` object (around line 30):
+Correctness
+- Bookings run in a database transaction under a lock, so simultaneous bookings cannot overbook a room or reuse a
+  booking reference. One active booking per callsign is enforced by the database.
+- Validation errors (empty callsign/name/email) now return the proper message instead of "Server error".
+- Solo-occupied rooms are charged the whole room price on the server (the booking page already showed this).
+- Recalculating prices no longer charges camper-spot joiners for the camper spot again.
+- Server enforces the admin switches for tents, single beds and solo rooms; joining a room no longer bypasses a closed
+  registration for non-room bookings.
 
-```javascript
-const CONFIG = {
-  SHEET_ID:           'YOUR_GOOGLE_SHEET_ID',
-  SHEET_NAME:         'Bookings',
-  WEBAPP_URL:         'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec',
-  FRIENDLY_URL:       'https://your-friendly-domain.example',   // or same as WEBAPP_URL
-  REPLY_TO_EMAIL:     'your-organizer@example.com',
-  EMAIL_SENDER_NAME:  'Your Event Name Booking System',
-  ADMIN_PASSWORD:     'choose-a-strong-password',
-  ORGANIZER:          'Your Organization Name',
-  // ... room definitions, prices, etc.
+Not carried over: the Excel export button of the report tool (use CSV) and the `?debug=admin` endpoint.
+
+## Development and tests
+
+```bash
+npm install
+# needs a PostgreSQL; schema is applied automatically on start
+DATABASE_URL=postgres://user:pass@localhost:5432/vushf ADMIN_PASSWORD=secret SESSION_SECRET=x node src/server.js
+BASE_URL=http://localhost:3000 ADMIN_PASSWORD=secret node tests/smoke.js   # creates TEST* bookings!
 ```
 
-Key things to set:
-- `SHEET_ID` — the ID from your Google Sheet URL
-- `WEBAPP_URL` — fill in after deploying (step 4)
-- `REPLY_TO_EMAIL` — where organizer notifications go
-- `ADMIN_PASSWORD` — used to access the admin panel
-- `ROOMS` — adjust room types, capacities and prices for your venue
+Structure: `src/service.js` (booking logic), `src/pricing.js`, `src/settings.js`, `src/emails.js`, `src/pages.js` (HTML
+pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc-shim.js` (maps the old
+`google.script.run` calls used by the pages to `/api/rpc/<method>`), `db/schema.sql`.
 
-**3. Configure Rooms**
+## Privacy
 
-Edit the `ROOMS` array to match your venue:
-
-```javascript
-ROOMS: [
-  { id: "2S", type: "double", persons: 2, floor: "upstairs", window: true,
-    count: 20, price_eur: 270, note_en: "Double room, upstairs" },
-  // ...
-]
-```
-
-**4. Deploy as Web App**
-
-- Click **Deploy → New deployment**
-- Type: **Web app**
-- Execute as: **Me**
-- Who has access: **Anyone** (required for public booking page)
-- Click **Deploy** and copy the URL
-- Paste the URL into `CONFIG.WEBAPP_URL`
-- Redeploy with the URL filled in
-
-**5. Open the booking page**
-
-Navigate to your deployment URL. The booking page should appear.
-
-### Admin Panel
-
-Append `?page=admin` to the URL, e.g.:
-```
-https://script.google.com/macros/s/YOUR_ID/exec?page=admin
-```
-
-Log in with the password set in `CONFIG.ADMIN_PASSWORD`.
-
-### Redeploying After Changes
-
-After editing the script, always create a **new deployment version** (Deploy → Manage deployments → Edit → New version). Reusing an existing version does not always update the served HTML.
-
----
-
-## Configuration Reference
-
-Most settings can be changed live from the admin panel under ⚙️ Settings without redeploying. Settings are saved to Script Properties and survive redeployment.
-
-| Setting | Description |
-|---------|-------------|
-| Registration open | Toggle to close bookings with an optional closing date |
-| Announcement banner | Shown on the booking front page — leave empty to hide |
-| Camper van info text | Shown when camper van is selected and in confirmation emails |
-| Tent info text | Shown when tent is selected and in confirmation emails |
-| Price disclaimer | Shown on booking page and in confirmation emails |
-| Room prices | Per room type, overrides CONFIG values |
-| Room counts | Per room type capacity override |
-| Camper van / tent spots | Total capacity |
-| Full board price | Meal package price |
-| Meeting fee | Weekend and single-day rates |
-| Single bed price | For organizer-assigned beds |
-| Camper van price | Per night |
-
----
-
-## Email Notifications
-
-| Trigger | Recipients |
-|---------|-----------|
-| New booking | Guest (confirmation + join instructions if primary), organizer |
-| Joiner joins a room/camper | Primary booker (room notice) |
-| Room becomes full | Primary booker (full room summary) |
-| Primary booker cancels | All joiners flagged NEEDS_ATTENTION + email notice |
-| Accommodation change (admin) | Guest |
-
----
-
-## Customising for Another Event
-
-1. Update `CONFIG` — name, dates, sheet ID, email, admin password
-2. Update `ROOMS` — room types and capacities for your venue
-3. Update `FULL_BOARD_INCLUDES_EN` — meal package contents
-4. Search for `rats.fi` and `Martinhovi` to find hardcoded venue/org references
-5. Update logo URLs in the HTML (search for `rats.fi/wp-content`)
-6. Review the `PAYMENT` section in confirmation email body for accepted payment methods
-
----
-
-## Security Notes
-
-Before making this repository public:
-
-- Replace `ADMIN_PASSWORD` in CONFIG with a placeholder value
-- Replace `SHEET_ID` with a placeholder
-- Replace `REPLY_TO_EMAIL` and any real email addresses
-- Replace `WEBAPP_URL` and `FRIENDLY_URL` with placeholders
-- Review `CONFIG.ROOMS` prices — remove real pricing if preferred
-
-The admin panel uses a simple password stored in the script. For a production system with sensitive data, consider adding Google account–based authentication.
-
----
-
-## Limitations
-
-- **Google Apps Script quotas** — email sending is subject to [GAS quotas](https://developers.google.com/apps-script/guides/services/quotas) (100 emails/day for free accounts, 1500/day for Workspace)
-- **Cold start** — first load after inactivity may take 3–5 seconds
-- **No real-time updates** — admin panel does not auto-refresh; use the Refresh button
-- **Single-file architecture** — the entire app is one `.gs` file; splitting requires [clasp](https://github.com/google/clasp)
-- **Sheets as database** — works well up to a few hundred rows; for larger events, consider migrating to a proper database
-
----
-
-## License
-
-MIT — free to use, adapt, and redistribute with attribution. Pull requests welcome.
-
----
-
-*Built with Google Apps Script for Nordic VUSHF Meeting 2026 by RATS – Radio Amateur Technology Society of Finland.*
-*73 de OH2LAK*
+The database contains personal data (names, emails, phone numbers, dietary requirements). Do not commit exports or
+database dumps; `.gitignore` excludes `.xlsx`, `.csv` and `.env`.

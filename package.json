@@ -1,0 +1,23 @@
+{
+  "name": "nordic-vushf2026-booking-system",
+  "version": "1.0.0",
+  "description": "Event booking system (Node.js + PostgreSQL), ported from the original Google Apps Script version",
+  "main": "src/server.js",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "import-xlsx": "node src/tools/import-xlsx.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "nodemailer": "^10.6.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

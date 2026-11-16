@@ -1,0 +1,55 @@
+-- Nordic VUSHF 2026 booking system schema (PostgreSQL)
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id               SERIAL PRIMARY KEY,
+  seq              INTEGER NOT NULL UNIQUE,          -- numeric part of BookingRef
+  booking_ref      TEXT NOT NULL UNIQUE,             -- e.g. OH2ABC-7
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  callsign         TEXT NOT NULL,
+  name             TEXT NOT NULL,
+  email            TEXT NOT NULL,
+  phone            TEXT NOT NULL DEFAULT '',
+  country          TEXT NOT NULL DEFAULT '',
+  type             TEXT NOT NULL CHECK (type IN ('room','camper','tent','singlebed','dayvisitor')),
+  room_id          TEXT NOT NULL DEFAULT '',
+  room_ref         TEXT NOT NULL,                    -- primary booking_ref of the room/spot
+  is_primary       BOOLEAN NOT NULL DEFAULT false,
+  thu_extra_night  BOOLEAN NOT NULL DEFAULT false,
+  full_board       BOOLEAN NOT NULL DEFAULT false,
+  dietary          TEXT NOT NULL DEFAULT '',
+  shirt_size       TEXT NOT NULL DEFAULT '',
+  total_price      NUMERIC(8,2) NOT NULL DEFAULT 0,
+  price_breakdown  TEXT NOT NULL DEFAULT '',
+  status           TEXT NOT NULL DEFAULT 'CONFIRMED'
+                   CHECK (status IN ('CONFIRMED','CHECKED_IN','NEEDS_ATTENTION','CANCELLED')),
+  room_number      TEXT NOT NULL DEFAULT '',
+  org_comment      TEXT NOT NULL DEFAULT '',
+  publish_consent  BOOLEAN NOT NULL DEFAULT true,
+  solo_room        BOOLEAN NOT NULL DEFAULT false,
+  day_visitor_days TEXT NOT NULL DEFAULT '' CHECK (day_visitor_days IN ('','fri','sat','both')),
+  meals            TEXT NOT NULL DEFAULT '',         -- comma-separated meal keys
+  is_organizer     BOOLEAN NOT NULL DEFAULT false,
+  free_text        TEXT NOT NULL DEFAULT ''
+);
+
+-- One active booking per callsign (cancelled bookings do not block a new one)
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_active_callsign_uq
+  ON bookings (callsign) WHERE status <> 'CANCELLED';
+CREATE INDEX IF NOT EXISTS bookings_room_ref_idx ON bookings (room_ref);
+CREATE INDEX IF NOT EXISTS bookings_room_id_idx  ON bookings (room_id);
+
+-- Admin-editable settings (replaces Apps Script Script Properties)
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Event log (replaces the "Log" sheet)
+CREATE TABLE IF NOT EXISTS event_log (
+  id         BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  level      TEXT NOT NULL,
+  event      TEXT NOT NULL,
+  callsign   TEXT NOT NULL DEFAULT '',
+  detail     TEXT NOT NULL DEFAULT ''
+);
