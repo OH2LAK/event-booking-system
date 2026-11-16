@@ -10,18 +10,34 @@ const CONFIG = {
 
 
   // --- Event info ---
-  EVENT_NAME:     "Nordic VUSHF Meeting 2026",
-  ORGANIZER:      "RATS – Radio Amateur Technology Society of Finland",
-  LOCATION:       "Hotelli Martinhovi, Raisio, Finland",
-  DATE_FRI:       "Friday 15 May 2026",
-  DATE_SAT:       "Saturday 16 May 2026",
-  DATE_SUN:       "Sunday 17 May 2026",
-  DATE_THU:       "Thursday 14 May 2026",  // optional extra night
+  // Placeholder defaults only. The real values are stored in the database (table event_config),
+  // edited in the admin panel ("Event setup") and applied by eventConfig.js at startup.
+  EVENT_NAME:     "Example Event 2027",
+  EVENT_SHORT:    "Example Event",
+  ORGANIZER:      "Example Organization",
+  ORGANIZER_SHORT:"Example Org",
+  LOCATION:       "Example Venue, Example City",
+  LOCATION_SHORT: "Example City",
+  DATES_TEXT:     "13-16 May 2027",
+  DATE_THU:       "Thursday 13 May 2027",  // optional extra night
+  DATE_FRI:       "Friday 14 May 2027",
+  DATE_SAT:       "Saturday 15 May 2027",
+  DATE_SUN:       "Sunday 16 May 2027",
+  DAY_FRI_SHORT:  "Friday 14.5",
+  DAY_SAT_SHORT:  "Saturday 15.5",
+  THU_NIGHT_LABEL:"13.5 \u2192 14.5",
   CHECKIN_TIME:   "From 15:00 on Thursday/Friday",
   CHECKOUT_TIME:  "Sunday by 12:00",
+  HOME_URL:       "",
+  HOME_LABEL:     "Back to the event page",
+  LOGO1_URL:      "",
+  LOGO2_URL:      "",
+  ACCENT_COLOR:   "#b45309",
+  SLUG:           "example-event",
+  MEAL_PACKAGE_SUB: "Fri dinner \u00b7 Sat lunch + dinner",
 
   // --- Email ---
-  EMAIL_SENDER_NAME: process.env.EMAIL_SENDER_NAME || "Nordic VUSHF 2026 / RATS",
+  EMAIL_SENDER_NAME: process.env.EMAIL_SENDER_NAME || "Example Event",
   REPLY_TO_EMAIL:    process.env.REPLY_TO_EMAIL || "",
 
 
@@ -29,14 +45,14 @@ const CONFIG = {
   SHEET_NAME: "Bookings",
 
   // --- Room inventory ---
-  // Upstairs rooms (NO LIFT — stairs only)
+  // Room types (ids are used by the admin panel; counts and prices can be changed there)
   ROOMS: [
-    { id: "1S-W",  type: "single",  persons: 1, floor: "upstairs", window: true,  count: 6,  price_eur: 220, note_en: "Single room, window, upstairs (stairs only)" },
-    { id: "1S-NW", type: "single",  persons: 1, floor: "upstairs", window: false, count: 3,  price_eur: 200, note_en: "⚠️ Single room, NO WINDOW, upstairs (stairs only)" },
-    { id: "2S",    type: "double",  persons: 2, floor: "upstairs", window: true,  count: 20, price_eur: 270, note_en: "Double room, upstairs (stairs only)" },
+    { id: "1S-W",  type: "single",  persons: 1, floor: "upstairs", window: true,  count: 6,  price_eur: 220, note_en: "Single room, window" },
+    { id: "1S-NW", type: "single",  persons: 1, floor: "upstairs", window: false, count: 3,  price_eur: 200, note_en: "Single room, no window" },
+    { id: "2S",    type: "double",  persons: 2, floor: "upstairs", window: true,  count: 20, price_eur: 270, note_en: "Double room" },
     // Downstairs rooms
     // Upstairs triple rooms
-    { id: "3S-U",  type: "triple",  persons: 3, floor: "upstairs",   window: true, count: 3, price_eur: 330, note_en: "Triple room, upstairs (stairs only)" },
+    { id: "3S-U",  type: "triple",  persons: 3, floor: "upstairs",   window: true, count: 3, price_eur: 330, note_en: "Triple room, upstairs" },
     // Downstairs rooms
     { id: "3S",    type: "triple",  persons: 3, floor: "downstairs", window: true, count: 1, price_eur: 330, note_en: "Triple room, downstairs" },
     { id: "4S",    type: "quad",    persons: 4, floor: "downstairs", window: true, count: 2, price_eur: 400, note_en: "Quad room, downstairs" },
@@ -53,8 +69,8 @@ const CONFIG = {
   // --- Meal package ---
   FULL_BOARD_PRICE: 75,
   FULL_BOARD_INCLUDES_EN: [
-    "Friday: BBQ dinner",
-    "Saturday: lunch + Ham Dinner",
+    "Friday: dinner",
+    "Saturday: lunch + dinner",
     "Note: breakfast is included in all room prices"
   ],
 

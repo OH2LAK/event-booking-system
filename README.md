@@ -1,12 +1,39 @@
-# Nordic VUSHF 2026 booking system
+# Event booking system
 
-Event booking system for the Nordic VUSHF Meeting (RATS ry, Hotel Martinhovi, Raisio). Originally a Google Apps Script
-web app; this repository contains the containerized **Node.js + PostgreSQL** version plus the original scripts.
+A self-hosted booking system for small and mid-sized events with accommodation: rooms, camper vans, tents, single beds and
+day visitors. It runs as a containerized **Node.js + PostgreSQL** app and is configured for your own event from the admin panel
+(name, organizer, dates, contact, logos, accent color).
 
 Features: room / camper / tent / single-bed / day-visitor bookings, joining an existing room with a booking reference,
 live availability, price calculation with admin-editable prices, confirmation and organizer emails, public
-"Who's coming?" list, admin panel (settings, pricing, room inventory, editable bookings table, CSV export), and a
+"Who's coming?" list, admin panel (event setup, settings, pricing, room inventory, editable bookings table, CSV export), and a
 report & check-in tool (hotel list, check-in desk, summary, printable slips).
+
+## Background
+
+The system was first built as a Google Apps Script web app for the **Nordic VUSHF Meeting 2026** (organized by RATS ry at
+Hotel Martinhovi, Raisio, Finland), where it handled the real bookings. It was then ported to Node.js + PostgreSQL and made
+event-neutral. The original scripts (with secrets redacted) are kept in `legacy-apps-script/`.
+
+## First-time event setup
+
+1. Start the app (see below) and open `/?admin=1`, then log in with `ADMIN_PASSWORD`.
+2. The **Event setup** card at the top opens automatically on a fresh install. Fill in event name, organizer, location, dates,
+   check-in/out times, contact email, logos and accent color, then press **Save event setup**.
+3. Until this is saved, visitors only see a "booking is not open yet" page.
+4. Then set registration dates, prices and room inventory further down the admin panel.
+
+Rooms currently use a fixed set of types and ids (see `src/config.js`); their counts and prices are editable in the admin panel.
+
+## Demo data and screenshots
+
+To get a fictional event with fake bookings (for documentation screenshots or trying things out) on an **empty** database:
+
+```bash
+npm run seed-demo        # needs DATABASE_URL; refuses to run on a non-empty database without --force
+```
+
+See `docs/SCREENSHOTS.md` for the list of screens to capture.
 
 ## Quick start (Docker)
 

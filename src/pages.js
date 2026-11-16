@@ -3,6 +3,17 @@
 // google.script.run.<method>(...); /rpc-shim.js maps those calls to POST /api/rpc/<method>.
 const { CONFIG, VERSION } = require('./config');
 
+const esc = v => String(v === undefined || v === null ? '' : v)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+// Logos from the event setup (up to two). Style strings carry the page-specific sizes.
+function logos(style1, style2) {
+  const one = (url, alt, style) => (url ? `<img src="${esc(url)}" alt="${esc(alt)}" style="${style}">` : '');
+  return one(CONFIG.LOGO1_URL, CONFIG.EVENT_SHORT, style1) + (CONFIG.LOGO1_URL && CONFIG.LOGO2_URL ? '\n    ' : '') + one(CONFIG.LOGO2_URL, CONFIG.ORGANIZER_SHORT, style2);
+}
+// Back link to the event's home page (hidden when no URL is configured).
+const homeStyle = () => (CONFIG.HOME_URL ? '' : 'display:none;');
+
 function getClientConfigJson_(joinRef, settings) {
   const s = settings;
   const cfg = {
@@ -60,7 +71,7 @@ function buildRegistrationClosedPage(settings) {
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nordic VUSHF Meeting 2026 — Registration</title>
+<title>${esc(CONFIG.EVENT_NAME)} — Registration</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#f0f2f5;--surface:#fff;--border:#d0d7de;--accent:#b45309;--accent2:#1d6fa5;--text:#1c2128;--muted:#57606a;--danger:#cf222e;--mono:'Share Tech Mono',monospace;--sans:'Barlow',sans-serif;}
@@ -80,10 +91,9 @@ function buildRegistrationClosedPage(settings) {
 <body>
 <div class="box">
   <div class="logos">
-    <img src="https://rats.fi/wp-content/uploads/2026/02/vushf26-logo-small.png" alt="Nordic VUSHF 2026" style="height:55px;width:auto;">
-    <img src="https://rats.fi/wp-content/uploads/2015/06/cropped-RATSrotta-286x300.jpg" alt="RATS" style="height:45px;width:auto;">
+    ${logos('height:55px;width:auto;', 'height:45px;width:auto;')}
   </div>
-  <div class="badge">Nordic VUSHF Meeting 2026 · RATS · Raisio</div>
+  <div class="badge">${esc(CONFIG.EVENT_NAME)} · ${esc(CONFIG.ORGANIZER_SHORT)} · ${esc(CONFIG.LOCATION_SHORT)}</div>
   <div class="closed-icon">🔒</div>
   <div class="msg">Registration is currently closed.</div>
   ${settings.CLOSED_MESSAGE ? `<div style="margin-bottom:1rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.9rem 1.25rem;font-size:0.95rem;line-height:1.6;text-align:left">${settings.CLOSED_MESSAGE}</div>` : ''}
@@ -102,7 +112,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nordic VUSHF Meeting 2026 — Registration</title>
+<title>${esc(CONFIG.EVENT_NAME)} — Registration</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -229,12 +239,11 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
   <div class="header">
     <div class="header-badge">Registration</div>
     <div class="logos">
-      <img src="https://rats.fi/wp-content/uploads/2026/02/vushf26-logo-small.png" alt="Nordic VUSHF Meeting 2026" style="max-height:110px;width:auto;">
-      <img src="https://rats.fi/wp-content/uploads/2015/06/cropped-RATSrotta-286x300.jpg" alt="RATS" style="max-height:90px;width:auto;">
+      ${logos('max-height:110px;width:auto;', 'max-height:90px;width:auto;')}
     </div>
-    <div class="sub">RATS – Radio Amateur Technology Society of Finland<br>Hotelli Martinhovi, Raisio, Finland</div>
+    <div class="sub">${esc(CONFIG.ORGANIZER)}<br>${esc(CONFIG.LOCATION)}</div>
     ${settings.REGISTRATION_CLOSES ? '<div style="margin-top:0.75rem;font-family:var(--mono);font-size:0.78rem;color:var(--muted)">Registration closes: ' + settings.REGISTRATION_CLOSES + '</div>' : ''}
-    <div style="margin-top:0.9rem"><a href="https://rats.fi/vushf2026/" style="font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">← Back to the meeting page</a></div>
+    <div style="margin-top:0.9rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">← ${esc(CONFIG.HOME_LABEL)}</a></div>
   </div>
 
   ${settings.ANNOUNCEMENT ? '<div id="announcement-banner" style="background:#fffbeb;border:1.5px solid var(--accent);border-radius:6px;padding:0.85rem 1.1rem;margin-bottom:1.5rem;font-size:0.95rem;color:var(--text);white-space:pre-line">' + settings.ANNOUNCEMENT + '</div>' : ''}
@@ -307,11 +316,11 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
 
     <div id="thu-section" class="card section" style="display:none">
       <h2>Extra night</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">All room bookings are Fri–Sun by default. Add Thursday night to arrive a day early. If you wish to book additional nights beyond Thursday, please let us know in the free text field below.</p>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">All room bookings run from ${esc(CONFIG.DATE_FRI)} to ${esc(CONFIG.DATE_SUN)} by default. Add Thursday night to arrive a day early. If you wish to book additional nights beyond Thursday, please let us know in the free text field below.</p>
       <label class="check-option">
         <input type="checkbox" id="thu-extra" onchange="onThuExtraChange()">
         <div>
-          <div class="opt-label">🌙 Add Thursday night (14.5 → 15.5)</div>
+          <div class="opt-label">🌙 Add Thursday night (${esc(CONFIG.THU_NIGHT_LABEL)})</div>
           <div class="opt-sub" id="thu-sub">Price based on selected room · ${CONFIG.THU_EXTRA_INCLUDES}</div>
         </div>
       </label>
@@ -371,12 +380,12 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
       <div style="display:flex;flex-direction:column;gap:0.5rem">
         <label class="radio-option">
           <input type="radio" name="dv-days" value="fri" onchange="updatePriceDisplay()">
-          <div><div class="opt-label">Friday 15.5 only</div>
+          <div><div class="opt-label">${esc(CONFIG.DAY_FRI_SHORT)} only</div>
           <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}</div></div>
         </label>
         <label class="radio-option">
           <input type="radio" name="dv-days" value="sat" onchange="updatePriceDisplay()">
-          <div><div class="opt-label">Saturday 16.5 only</div>
+          <div><div class="opt-label">${esc(CONFIG.DAY_SAT_SHORT)} only</div>
           <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}</div></div>
         </label>
         <label class="radio-option">
@@ -397,7 +406,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
             <input type="checkbox" id="full-board" onchange="onFullBoardChange()">
             <div>
               <div class="opt-label">Full board meal package — €${settings.FULL_BOARD_PRICE}/person</div>
-              <div class="opt-sub" id="full-board-sub">Fri BBQ dinner · Sat lunch + Ham Dinner</div>
+              <div class="opt-sub" id="full-board-sub">${esc(CONFIG.MEAL_PACKAGE_SUB)}</div>
             </div>
           </label>
         </div>
@@ -457,15 +466,15 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
   </div>
 
   <div class="footer">
-    Nordic VUSHF Meeting 2026 &nbsp;·&nbsp; RATS &nbsp;·&nbsp; 15–17 May 2026
-    <div style="margin-top:0.6rem"><a href="https://rats.fi/vushf2026/" style="color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);font-size:0.85rem">← Back to the meeting page</a></div>
+    ${esc(CONFIG.EVENT_NAME)} &nbsp;·&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;·&nbsp; ${esc(CONFIG.DATES_TEXT)}
+    <div style="margin-top:0.6rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);font-size:0.85rem">← ${esc(CONFIG.HOME_LABEL)}</a></div>
   </div>
 </div>
 
 <script>
 const CONFIG_CLIENT = ${getClientConfigJson_(joinRef, settings)};
 CONFIG_CLIENT.BYPASS_TOKEN = '${bypassToken || ''}';
-console.log('%c Nordic VUSHF 2026 Booking System %c v${VERSION} ', 'background:#1d4ed8;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
+console.log('%c ${esc(CONFIG.EVENT_SHORT)} Booking System %c v${VERSION} ', 'background:#1d4ed8;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
 
 let avail = null;
 let currentMode = null;
@@ -554,7 +563,7 @@ function onTypeChange() {
 function updateFullBoardSub() {
   var el = document.getElementById('full-board-sub');
   if (!el) return;
-  var base = 'Fri BBQ dinner \u00b7 Sat lunch + Ham Dinner';
+  var base = ${JSON.stringify(CONFIG.MEAL_PACKAGE_SUB)};
   if (currentAccType === 'room' || currentAccType === 'singlebed') {
     base += ' \u00b7 Note: breakfast is included in your room price';
   }
@@ -712,7 +721,7 @@ function initJoinFromRef(ref) {
     var joinInfoEl = document.getElementById('thu-info-join');
     var joinTextEl = document.getElementById('thu-info-join-text');
     var priceNote = ' · \u20AC' + thuRoom + ' room night (\u20AC' + thuPP + '/person)';
-    if (joinTextEl) joinTextEl.textContent = '\uD83C\uDF19 The primary booker has included Thursday night (14.5 \u2192 15.5). Your share is included in the total price.' + priceNote;
+    if (joinTextEl) joinTextEl.textContent = '\uD83C\uDF19 The primary booker has included Thursday night (' + ${JSON.stringify(CONFIG.THU_NIGHT_LABEL)} + '). Your share is included in the total price.' + priceNote;
     if (joinInfoEl) joinInfoEl.style.display = 'block';
     if (thuEl) { thuEl.checked = true; thuEl.disabled = true; }
   } else {
@@ -1009,7 +1018,7 @@ function buildPublicPage() {
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Who's Coming — Nordic VUSHF Meeting 2026</title>
+<title>Who's Coming — ${esc(CONFIG.EVENT_NAME)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1063,10 +1072,9 @@ function buildPublicPage() {
   <div class="header">
     <div class="header-badge">Participants</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-      <img src="https://rats.fi/wp-content/uploads/2026/02/vushf26-logo-small.png" alt="Nordic VUSHF Meeting 2026" style="max-height:100px;width:auto;">
-      <img src="https://rats.fi/wp-content/uploads/2015/06/cropped-RATSrotta-286x300.jpg" alt="RATS" style="max-height:80px;width:auto;">
+      ${logos('max-height:100px;width:auto;', 'max-height:80px;width:auto;')}
     </div>
-    <div class="sub">RATS – Radio Amateur Technology Society of Finland<br>Hotelli Martinhovi, Raisio, Finland</div>
+    <div class="sub">${esc(CONFIG.ORGANIZER)}<br>${esc(CONFIG.LOCATION)}</div>
   </div>
 
   <div id="count-bar" class="count-bar" style="display:none">
@@ -1090,7 +1098,7 @@ function buildPublicPage() {
   </div>
 
   <div class="footer">
-    Nordic VUSHF Meeting 2026 &nbsp;&middot;&nbsp; RATS &nbsp;&middot;&nbsp; 15&ndash;17 May 2026
+    ${esc(CONFIG.EVENT_NAME)} &nbsp;&middot;&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;&middot;&nbsp; ${esc(CONFIG.DATES_TEXT)}
   </div>
 </div>
 <script>
@@ -1167,11 +1175,10 @@ function getAdminPanelHtml() {
   return `
 <div id="admin-panel">
   <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:0.25rem">
-    <img src="https://rats.fi/wp-content/uploads/2026/02/vushf26-logo-small.png" alt="Nordic VUSHF 2026" style="height:60px;width:auto;">
-    <img src="https://rats.fi/wp-content/uploads/2015/06/cropped-RATSrotta-286x300.jpg" alt="RATS" style="height:50px;width:auto;">
+    ${logos('height:60px;width:auto;', 'height:50px;width:auto;')}
     <div style="flex:1">
-      <h1>Nordic <span>VUSHF</span> 2026 — Booking Admin</h1>
-      <div class="sub" style="margin-bottom:0">RATS · Hotelli Martinhovi, Raisio · 15–17 May 2026</div>
+      <h1>${esc(CONFIG.EVENT_SHORT)} — Booking Admin</h1>
+      <div class="sub" style="margin-bottom:0">${esc(CONFIG.ORGANIZER_SHORT)} · ${esc(CONFIG.LOCATION)} · ${esc(CONFIG.DATES_TEXT)}</div>
     </div>
     <div style="text-align:right;flex-shrink:0">
       <button id="header-refresh-btn" class="export-btn" style="float:none;margin:0 0 0.4rem 0" onclick="loadAdmin()">↺ Refresh</button>
@@ -1232,7 +1239,7 @@ function getAdminPanelHtml() {
         <div class="setting-label">Registration closed message
           <div class="hint">Shown on the booking page when registration is closed. Leave empty to show default text only.</div>
         </div>
-        <textarea id="s-closed-message" rows="3" style="width:100%;font-family:var(--sans);font-size:0.85rem;padding:0.4rem 0.6rem;border:1.5px solid #d1d5db;border-radius:3px;resize:vertical;box-sizing:border-box" placeholder="e.g. Registration for Nordic VUSHF 2026 is now closed. Thank you for your interest!"></textarea>
+        <textarea id="s-closed-message" rows="3" style="width:100%;font-family:var(--sans);font-size:0.85rem;padding:0.4rem 0.6rem;border:1.5px solid #d1d5db;border-radius:3px;resize:vertical;box-sizing:border-box" placeholder="e.g. Registration for ${esc(CONFIG.EVENT_SHORT)} is now closed. Thank you for your interest!"></textarea>
       </div>
       <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
         <div class="setting-label">Bypass link (secret registration link)
@@ -1391,8 +1398,8 @@ function getAdminPanelHtml() {
     <div class="modal-field" id="edit-dayvisitor-days-row" style="display:none">
       <label>Day visitor days</label>
       <select id="edit-dayvisitor-days">
-        <option value="fri">Friday 15.5 only</option>
-        <option value="sat">Saturday 16.5 only</option>
+        <option value="fri">${esc(CONFIG.DAY_FRI_SHORT)} only</option>
+        <option value="sat">${esc(CONFIG.DAY_SAT_SHORT)} only</option>
         <option value="both">Friday + Saturday (both days)</option>
       </select>
     </div>
@@ -1534,9 +1541,10 @@ function buildAdminPage(settings) {
 <html lang="en">
 <head>
 <script src="/rpc-shim.js"></script>
+<script src="/admin-event.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — Nordic VUSHF 2026</title>
+<title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -1641,7 +1649,7 @@ function buildAdminPage(settings) {
 <body>
 
 <div class="login-box" id="login-box">
-  <h2>🔒 Admin — Nordic VUSHF 2026</h2>
+  <h2>🔒 Admin — ${esc(CONFIG.EVENT_SHORT)}</h2>
   <input type="password" id="admin-pw" placeholder="Password">
   <button class="btn" id="login-btn">Login</button>
   <div style="color:var(--danger);font-size:0.8rem;margin-top:0.75rem" id="pw-err"></div>
@@ -1654,7 +1662,7 @@ var currentAdminData = null;
 let allRows = [];
 let allHeaders = [];
 const CONFIG_ADMIN = ${JSON.stringify(getAdminConfigJson_(settings))};
-console.log('%c Nordic VUSHF 2026 Admin %c v${VERSION} ', 'background:#7c3aed;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
+console.log('%c ${esc(CONFIG.EVENT_SHORT)} Admin %c v${VERSION} ', 'background:#7c3aed;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
 
 window.exportCSV = exportCSV;
 window.openEdit = openEdit;
@@ -1975,6 +1983,7 @@ function doLogin() {
             if (!html) { document.getElementById('pw-err').textContent = 'Panel load failed'; return; }
             document.body.innerHTML = html;
             loadAdmin();
+            if (window.initEventSetup) window.initEventSetup();
           })
           .withFailureHandler(function(err) {
             document.getElementById('pw-err').textContent = 'Error: ' + err.message;
@@ -2647,7 +2656,7 @@ function exportCSV() {
   const blob = new Blob([lines.join(String.fromCharCode(10))], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'NordicVUSHF2026_bookings.csv';
+  a.download = '${CONFIG.SLUG}_bookings.csv';
   a.click();
 }
 <\/script>

@@ -23,7 +23,14 @@ async function rpc(method, ...args) {
 const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', country: 'FI', ...o });
 
 (async () => {
-  for (const [p, needle] of [['/', 'Nordic VUSHF'], ['/?public=1', 'Who'], ['/?admin=1', 'admin']]) {
+  check('login for setup', (await rpc('checkAdminPassword', PW)).body.result === true, null);
+  const ec = (await rpc('getEventConfig')).body.result;
+  check('event config fields served', ec.success && ec.fields.length > 10, ec);
+  let sv = (await rpc('saveEventConfig', { EVENT_NAME: '', EVENT_SHORT: 'X', ORGANIZER: 'Y' })).body.result;
+  check('event config requires a name', !sv.success, sv);
+  sv = (await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456' })).body.result;
+  check('event config saved', sv.success, sv);
+  for (const [p, needle] of [['/', 'Smoke Test Event 2027'], ['/?public=1', 'Who'], ['/?admin=1', 'admin']]) {
     const r = await fetch(BASE + p); const t = await r.text();
     check(`GET ${p}`, r.status === 200 && t.toLowerCase().includes(needle.toLowerCase()), r.status);
   }
@@ -53,6 +60,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   check('8 concurrent bookings of a 1-room type -> exactly 1 success', wins === 1, wins);
 
   // admin
+  cookie = '';
   check('admin API without login -> 401', (await rpc('getAdminData')).status === 401, null);
   check('wrong password rejected', (await rpc('checkAdminPassword', 'definitely-wrong')).body.result === false, null);
   check('correct password accepted', (await rpc('checkAdminPassword', PW)).body.result === true, null);
@@ -78,7 +86,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   for (const v of ['hotel', 'checkin', 'summary']) {
     const r2 = await fetch(`${BASE}/report?view=${v}`, { headers: { cookie } });
     const t = await r2.text();
-    check(`report view ${v} renders`, r2.status === 200 && t.includes('Nordic VUSHF Meeting 2026') && !t.includes('undefined'), r2.status);
+    check(`report view ${v} renders`, r2.status === 200 && t.includes('Smoke Test Event 2027') && !t.includes('undefined'), r2.status);
   }
   const csv = await fetch(`${BASE}/report?fmt=csv`, { headers: { cookie } });
   const csvText = await csv.text();

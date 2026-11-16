@@ -53,3 +53,11 @@ CREATE TABLE IF NOT EXISTS event_log (
   callsign   TEXT NOT NULL DEFAULT '',
   detail     TEXT NOT NULL DEFAULT ''
 );
+
+-- Event identity and branding, edited in the admin panel ("Event setup").
+-- Single row (id = 1). While the row does not exist the app shows a "not set up yet" page.
+CREATE TABLE IF NOT EXISTS event_config (
+  id         SMALLINT PRIMARY KEY CHECK (id = 1),
+  config     JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

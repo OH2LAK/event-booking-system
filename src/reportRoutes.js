@@ -5,6 +5,7 @@ const repo = require('./repo');
 const auth = require('./auth');
 const report = require('./report');
 const { getSettings } = require('./settings');
+const { CONFIG } = require('./config');
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ function loginPage(view) {
 input{width:100%;padding:.55rem;border:1px solid #d1d5db;border-radius:4px;box-sizing:border-box;margin-bottom:.75rem}
 button{width:100%;padding:.55rem;border:0;border-radius:4px;background:#0f766e;color:#fff;font-weight:600;cursor:pointer}
 #err{color:#b91c1c;font-size:.85rem;min-height:1.2em;margin-top:.5rem}</style></head><body>
-<div class="box"><h1>Nordic VUSHF 2026<br>Report &amp; Check-in</h1>
+<div class="box"><h1>${String(CONFIG.EVENT_NAME).replace(/[<>&"]/g, '')}<br>Report &amp; Check-in</h1>
 <input type="password" id="pw" placeholder="Salasana" autofocus>
 <button id="go">Kirjaudu</button><div id="err"></div></div>
 <script>

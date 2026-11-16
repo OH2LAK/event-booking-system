@@ -14,6 +14,17 @@ the same password (`ADMIN_PASSWORD` in `.env`).
 
 The panel does not refresh itself. Use **Refresh** to see bookings made by others.
 
+## 1b. Event setup (first thing to do)
+
+The **Event setup** card at the top of the admin panel holds everything that identifies your event: name, short name,
+organizer, location, dates and day labels, check-in/out times, meal package description, contact email and sender name,
+logo URLs, accent color and home link. The values are stored in the database (`event_config` table) and used on the booking
+page, emails, report tool and CSV file names.
+
+On a fresh install the card opens by itself and visitors see a "booking is not open yet" page until you save it. Required:
+event name, short name and organizer. Logo and home URLs must start with `http://` or `https://`; the accent color is a hex value.
+Changes apply immediately (reload the booking page).
+
 ## 2. Dashboard (top of the page)
 
 Cards computed from the bookings table: total bookings, booked / total rooms per room type (with how many rooms are full

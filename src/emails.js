@@ -48,11 +48,11 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
     .filter(l => (data.type === 'room' || data.type === 'singlebed') ? true : !l.toLowerCase().includes('breakfast is included in all room'))
     .map(l => `  • ${l}`).join("\n");
 
-  const subject = `[Nordic VUSHF 2026] Booking confirmation — ${bookingRef}`;
+  const subject = `[${CONFIG.EVENT_SHORT}] Booking confirmation — ${bookingRef}`;
 
   const body = `
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  NORDIC VUSHF MEETING 2026
+  ${CONFIG.EVENT_NAME.toUpperCase()}
   BOOKING CONFIRMATION
   ${CONFIG.LOCATION}
   ${CONFIG.DATE_FRI} \u2013 ${CONFIG.DATE_SUN}
@@ -77,7 +77,7 @@ ${data.country ? `Country  : ${data.country}` : ""}
 ${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
-Days     : ${data.dayVisitorDays === "both" ? "Friday 15.5 + Saturday 16.5" : data.dayVisitorDays === "fri" ? "Friday 15.5 only" : "Saturday 16.5 only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van spot" : data.type === "tent" ? "Tent" : data.type}
+Days     : ${data.dayVisitorDays === "both" ? CONFIG.DAY_FRI_SHORT + " + " + CONFIG.DAY_SAT_SHORT : data.dayVisitorDays === "fri" ? CONFIG.DAY_FRI_SHORT + " only" : CONFIG.DAY_SAT_SHORT + " only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van spot" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "camper" ? `\n${emailSettings.CAMPER_INFO}` : ""}${data.type === "tent" ? `\n${emailSettings.TENT_INFO}` : ""}
 ${data.isPrimaryBooker && data.type === "room" ? `Room ref : ${bookingRef}
 
@@ -115,10 +115,10 @@ ${price.breakdown.split(" | ").join("\n")}
 
 ${data.fullBoard ? `Meal package includes:\n${mealLines}` : "Meal package: No"}
 ${!data.fullBoard && data.meals && Object.values(data.meals).some(Boolean) ? `Individual meals:\n${[
-  data.meals.friBbq   ? '  • Friday BBQ dinner' : '',
+  data.meals.friBbq   ? '  • Friday dinner' : '',
   data.meals.friLunch ? '  • Friday lunch' : '',
   data.meals.satLunch ? '  • Saturday lunch' : '',
-  data.meals.satHam   ? '  • Saturday Ham Dinner' : '',
+  data.meals.satHam   ? '  • Saturday dinner' : '',
 ].filter(Boolean).join('\n')}` : ""}
 
 ${data.dietary ? `Dietary requirements: ${data.dietary}` : ""}
@@ -168,11 +168,11 @@ async function sendRoomJoinNotification(primary, joiner, joinerRef, settings) {
   const liveRoomPrice = roomCfg
     ? ((s.ROOM_PRICES && s.ROOM_PRICES[roomCfg.id] !== undefined) ? s.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur)
     : null;
-  const subject = `[Nordic VUSHF 2026] ${joinerCallsign} has joined your room — ${primary.bookingRef}`;
+  const subject = `[${CONFIG.EVENT_SHORT}] ${joinerCallsign} has joined your room — ${primary.bookingRef}`;
 
   const body = `
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  NORDIC VUSHF MEETING 2026 — ROOM NOTICE
+  ${CONFIG.EVENT_NAME.toUpperCase()} — ROOM NOTICE
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 Dear ${primary.name},
@@ -222,7 +222,7 @@ async function sendRoomFullNotification(primary, roomCfg, allOccupants, settings
 
   const bodyCore = `
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  NORDIC VUSHF MEETING 2026 — ROOM NOTICE
+  ${CONFIG.EVENT_NAME.toUpperCase()} — ROOM NOTICE
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 Room full!
@@ -243,7 +243,7 @@ Room total price : \u20AC${liveRoomPrice}
 Per person       : \u20AC${Math.round(liveRoomPrice / roomCfg.persons)}
 `.trim();
 
-  const subjectPrimary = `[Nordic VUSHF 2026] Your room is full! — ${primary.bookingRef}`;
+  const subjectPrimary = `[${CONFIG.EVENT_SHORT}] Your room is full! — ${primary.bookingRef}`;
   const bodyPrimary = `${bodyCore}
 
 All spots in your room have now been booked.
@@ -264,7 +264,7 @@ ${CONFIG.EMAIL_SENDER_NAME}
     replyTo: CONFIG.REPLY_TO_EMAIL,
   });
 
-  const subjectOrg = `[Nordic VUSHF 2026] Room full: ${primary.bookingRef} — ${roomCfg.note_en}`;
+  const subjectOrg = `[${CONFIG.EVENT_SHORT}] Room full: ${primary.bookingRef} — ${roomCfg.note_en}`;
   const bodyOrg = `${bodyCore}
 
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550`;
@@ -283,11 +283,11 @@ async function sendOrganizerNotification(data, bookingRef, price, settings) {
     .filter(l => (data.type === 'room' || data.type === 'singlebed') ? true : !l.toLowerCase().includes('breakfast is included in all room'))
     .map(l => `  • ${l}`).join("\n");
 
-  const subject = `[Nordic VUSHF 2026] New booking: ${callsign} — ${bookingRef}`;
+  const subject = `[${CONFIG.EVENT_SHORT}] New booking: ${callsign} — ${bookingRef}`;
 
   const body = `
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  NORDIC VUSHF MEETING 2026 — NEW BOOKING NOTIFICATION
+  ${CONFIG.EVENT_NAME.toUpperCase()} — NEW BOOKING NOTIFICATION
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 New booking received:
@@ -308,7 +308,7 @@ Country  : ${data.country || "\u2014"}
 ${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
-Days     : ${data.dayVisitorDays === "both" ? "Friday 15.5 + Saturday 16.5" : data.dayVisitorDays === "fri" ? "Friday 15.5 only" : "Saturday 16.5 only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
+Days     : ${data.dayVisitorDays === "both" ? CONFIG.DAY_FRI_SHORT + " + " + CONFIG.DAY_SAT_SHORT : data.dayVisitorDays === "fri" ? CONFIG.DAY_FRI_SHORT + " only" : CONFIG.DAY_SAT_SHORT + " only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "room" && data.isPrimaryBooker ? `Role     : Primary booker (room holder)` : ""}
 ${data.type === "room" && !data.isPrimaryBooker ? `Role     : Joining existing room: ${data.roomRef}` : ""}
 Thu extra night: ${data.thuExtraNight ? "YES" : "No"}`}
@@ -321,10 +321,10 @@ ${price.breakdown.split(" | ").join("\n")}
 Meal package: ${data.fullBoard ? "YES" : "No"}
 ${data.fullBoard ? `${mealLines}` : ""}
 ${!data.fullBoard && data.meals && Object.values(data.meals).some(Boolean) ? `Individual meals: ${[
-  data.meals.friBbq   ? 'Fri BBQ' : '',
+  data.meals.friBbq   ? 'Fri dinner' : '',
   data.meals.friLunch ? 'Fri lunch' : '',
   data.meals.satLunch ? 'Sat lunch' : '',
-  data.meals.satHam   ? 'Sat Ham Dinner' : '',
+  data.meals.satHam   ? 'Sat dinner' : '',
 ].filter(Boolean).join(', ')}` : ""}
 Dietary: ${data.dietary || "\u2014"}
 T-shirt size: ${data.shirtSize || "\u2014"}
@@ -353,7 +353,7 @@ async function sendAccommodationChangeEmail_(booking, oldType, oldRoomCfg, newTy
     if (type === 'dayvisitor') return 'Day visitor';
     return type;
   };
-  const subject = `[Nordic VUSHF 2026] Accommodation change — ${booking.bookingRef}`;
+  const subject = `[${CONFIG.EVENT_SHORT}] Accommodation change — ${booking.bookingRef}`;
   const sep = '\u2500'.repeat(57);
   const dsep = '\u2550'.repeat(59);
   const priceDiff = newPrice.total - oldPrice.total;
@@ -361,7 +361,7 @@ async function sendAccommodationChangeEmail_(booking, oldType, oldRoomCfg, newTy
 
   const body = `
 ${dsep}
-  NORDIC VUSHF MEETING 2026
+  ${CONFIG.EVENT_NAME.toUpperCase()}
   ACCOMMODATION CHANGE NOTICE
   ${CONFIG.LOCATION}
   ${CONFIG.DATE_FRI} \u2013 ${CONFIG.DATE_SUN}

@@ -8,6 +8,8 @@ const service = require('./service');
 const pages = require('./pages');
 const reportRoutes = require('./reportRoutes');
 const { getSettings } = require('./settings');
+const eventConfig = require('./eventConfig');
+const { CONFIG } = require('./config');
 
 const app = express();
 app.set('trust proxy', true);
@@ -22,15 +24,24 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const secureCookies = (process.env.PUBLIC_URL || '').startsWith('https://');
 
+function notConfiguredPage() {
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">'
+    + '<title>Booking not available yet</title><style>body{font-family:system-ui,sans-serif;background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}'
+    + '.box{background:#fff;border:1px solid #d0d7de;border-radius:8px;padding:2rem;max-width:420px;text-align:center}</style></head>'
+    + '<body><div class="box"><h1 style="font-size:1.2rem">Booking is not open yet</h1>'
+    + '<p style="color:#57606a">This booking site has not been set up. Please check back later.</p></div></body></html>';
+}
+
 // ---- pages (same URL scheme as the Apps Script version) ----
 app.get('/', async (req, res, next) => {
   try {
     const settings = await getSettings();
     let html;
+    if (req.query.admin !== '1' && !eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
     if (req.query.admin === '1') html = pages.buildAdminPage(settings);
     else if (req.query.public === '1') html = pages.buildPublicPage();
     else html = pages.buildBookingPage(String(req.query.join || ''), String(req.query.bypass || ''), settings);
-    res.type('html').send(html);
+    res.type('html').send(html.replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
   } catch (e) { next(e); }
 });
 app.get('/healthz', async (req, res) => {
@@ -47,8 +58,10 @@ const PUBLIC = {
 };
 // Admin methods: the first argument (the old password parameter) is ignored; the session cookie is the credential.
 const ADMIN = {
+  getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
+  saveEventConfig: values => eventConfig.save(values),
   getAdminPanelHtml: () => {
-    const html = pages.getAdminPanelHtml();
+    const html = '<div id="event-setup"></div>' + pages.getAdminPanelHtml();
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
     const banner = '<div style="background:#b91c1c;color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
@@ -102,13 +115,14 @@ async function initDb() {
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
   await initDb();
+  await eventConfig.load();
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')
       + '\nChange them in .env and restart before exposing this app to the internet.\n');
   }
   const port = parseInt(process.env.PORT || '3000', 10);
-  app.listen(port, () => console.log('Nordic VUSHF booking system listening on :' + port));
+  app.listen(port, () => console.log('Event booking system listening on :' + port));
 }
 
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });

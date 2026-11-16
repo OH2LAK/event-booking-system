@@ -374,7 +374,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
   const { obj, price, roommates } = result;
   if (sendEmail && obj.email) {
     const changed = Object.keys(fields).filter(k => k !== 'OrgComment' && k !== 'RoomNumber' && k !== 'FreeText');
-    const subject = '[Nordic VUSHF 2026] Booking updated — ' + bookingRef;
+    const subject = '[' + CONFIG.EVENT_SHORT + '] Booking updated — ' + bookingRef;
     const body = `Dear ${obj.name} (${obj.callsign}),\n\nYour booking has been updated by the organizer.\n\n`
       + `Booking reference: ${bookingRef}\nUpdated fields: ${changed.join(', ')}\n\n`
       + '─────────────────────────────────────────\nCURRENT SERVICES\n─────────────────────────────────────────\n'
@@ -386,8 +386,8 @@ async function updateBooking(bookingRef, fields, sendEmail) {
     if (!rm.email) continue;
     const body = `Dear ${rm.name} (${rm.callsign.toUpperCase()}),\n\nThe primary booker of your room (${bookingRef}) has had their booking cancelled.\n`
       + `Your booking (${rm.booking_ref}) has been flagged as NEEDS_ATTENTION.\n\n`
-      + `Please contact the organizers at ${CONFIG.REPLY_TO_EMAIL} to arrange a new room or alternative.\n\nNordic VUSHF 2026 / RATS`;
-    await safeEmail(rm.callsign, () => emails.sendMail(rm.email, 'Nordic VUSHF 2026 — Your room booking needs attention', body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL }));
+      + `Please contact the organizers at ${CONFIG.REPLY_TO_EMAIL} to arrange a new room or alternative.\n\n${CONFIG.EMAIL_SENDER_NAME}`;
+    await safeEmail(rm.callsign, () => emails.sendMail(rm.email, CONFIG.EVENT_SHORT + ' — Your room booking needs attention', body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL }));
   }
   return { success: true, cascadedCount: result.cascadedCount };
 }

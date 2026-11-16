@@ -143,6 +143,18 @@ Keys written by the admin panel:
 | `ROOM_PRICE_<id>` | number | Room price override, e.g. `ROOM_PRICE_2S`. |
 | `ROOM_COUNT_<id>` | integer | Number of rooms of that type, e.g. `ROOM_COUNT_2S`. |
 
+## `event_config`
+
+Single-row table (`id` is always 1) holding the event identity set in the admin panel's Event setup card.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | smallint PK | Always 1 (CHECK constraint) |
+| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `DATE_THU..SUN`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... |
+| `updated_at` | timestamptz | Last save |
+
+No row means the event is not configured yet and the public booking page shows "not open yet".
+
 ## `event_log`
 
 Append-only diagnostic log (replaces the "Log" sheet).

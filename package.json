@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "import-xlsx": "node src/tools/import-xlsx.js"
+    "import-xlsx": "node src/tools/import-xlsx.js",
+    "seed-demo": "node src/tools/seed-demo.js"
   },
   "dependencies": {
     "express": "^4.21.0",

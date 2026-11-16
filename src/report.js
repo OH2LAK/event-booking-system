@@ -16,9 +16,9 @@ function setRC(settings) {
   };
   RC = {
     EVENT_NAME: CONFIG.EVENT_NAME, ORGANIZER: CONFIG.ORGANIZER, LOCATION: CONFIG.LOCATION,
-    DATES_EN: 'Fri–Sun 15–17 May 2026', DATES_FI: 'Pe–Su 15–17.5.2026',
-    CHECKIN_EN: 'Check-in from 15:00 on Thursday/Friday', CHECKIN_FI: 'Sisäänkirjautuminen to/pe alkaen klo 15:00',
-    CHECKOUT_EN: 'Check-out by 12:00 on Sunday', CHECKOUT_FI: 'Uloskirjautuminen su klo 12:00 mennessä',
+    DATES_EN: CONFIG.DATES_TEXT, DATES_FI: CONFIG.DATES_TEXT,
+    CHECKIN_EN: CONFIG.CHECKIN_TIME, CHECKIN_FI: CONFIG.CHECKIN_TIME,
+    CHECKOUT_EN: CONFIG.CHECKOUT_TIME, CHECKOUT_FI: CONFIG.CHECKOUT_TIME,
     ROOMS: CONFIG.ROOMS.map(r => ({ id: r.id, note_en: r.note_en.replace(/ \(stairs only\)/, ''), note_fi: fi[r.id] || r.note_en, persons: r.persons, price: settings.ROOM_PRICES[r.id] })),
     FULL_BOARD_PRICE: settings.FULL_BOARD_PRICE,
     MEETING_FEE_WEEKEND: settings.MEETING_FEE_WEEKEND,
@@ -26,8 +26,8 @@ function setRC(settings) {
     CAMPER_PRICE: settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS,
     TENT_PRICE: settings.TENT_PRICE_WEEKEND,
     THU_EXTRA_PRICE: settings.THU_EXTRA_NIGHT_PRICE,
-    MEALS_EN: ['Friday: BBQ dinner', 'Saturday: lunch', 'Saturday: Ham Dinner'],
-    MEALS_FI: ['Perjantai: BBQ-illallinen', 'Lauantai: lounas', 'Lauantai: Ham Dinner'],
+    MEALS_EN: ['Friday: dinner', 'Saturday: lunch', 'Saturday: dinner'],
+    MEALS_FI: ['Perjantai: illallinen', 'Lauantai: lounas', 'Lauantai: illallinen'],
   };
 }
 
@@ -118,11 +118,11 @@ function nav_(token, active) {
 function wrap_(title, body, token, active) {
   return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>VUSHF 2026 — ' + title + '</title>'
+    + '<title>' + esc_(CONFIG.EVENT_SHORT) + ' — ' + title + '</title>'
     + '<style>' + BASE_CSS + '</style>'
-    + '<script>console.log("%c Nordic VUSHF 2026 Report & Check-in %c v' + VERSION + ' ","background:#0f766e;color:#fff;font-weight:bold","background:#e5e7eb;color:#374151");</script>'
+    + '<script>console.log("%c ' + esc_(CONFIG.EVENT_SHORT) + ' Report & Check-in %c v' + VERSION + ' ","background:#0f766e;color:#fff;font-weight:bold","background:#e5e7eb;color:#374151");</script>'
     + '</head><body><div class="page">'
-    + '<h1>Nordic VUSHF Meeting 2026</h1>'
+    + '<h1>' + esc_(CONFIG.EVENT_NAME) + '</h1>'
     + '<div class="meta">' + RC.LOCATION + ' · ' + RC.DATES_EN + '</div>'
     + nav_(token, active) + body + '</div>'
     + '<script>function printPdf(){'
@@ -136,13 +136,13 @@ function wrap_(title, body, token, active) {
 }
 
 function mealLabel_(r) {
-  if (r.fullBoard) return '✓ Pe BBQ<br>✓ La lounas<br>✓ La Ham Dinner';
+  if (r.fullBoard) return '✓ Pe illallinen<br>✓ La lounas<br>✓ La illallinen';
   if (!r.meals) return '—';
   var m = r.meals.toLowerCase();
   var parts = [];
-  if (m.includes('fri') || m.includes('bbq'))           parts.push('Pe BBQ');
+  if (m.includes('fri') || m.includes('bbq'))           parts.push('Pe illallinen');
   if (m.includes('lunch'))                               parts.push('La lounas');
-  if (m.includes('dinner') || m.includes('ham dinner')) parts.push('La Ham Dinner');
+  if (m.includes('dinner') || m.includes('ham dinner')) parts.push('La illallinen');
   return parts.length ? parts.join('<br>') : r.meals;
 }
 
@@ -271,9 +271,9 @@ function hotelView_(rows, token) {
   body += '<h2>🍽 Ateriamäärät ravintolalle</h2>'
     + '<table style="max-width:380px"><thead><tr><th>Ateria</th><th class="num">kpl</th></tr></thead><tbody>'
     + '<tr><td>Täyshoitopaketit</td><td class="num bold">' + fb + '</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Pe BBQ-illallinen</td><td class="num">' + fri + '</td></tr>'
+    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Pe illallinen</td><td class="num">' + fri + '</td></tr>'
     + '<tr><td style="padding-left:1.5rem;color:#6b7280">La lounas</td><td class="num">' + satLunch + '</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">La Ham Dinner</td><td class="num">' + satDin + '</td></tr>'
+    + '<tr><td style="padding-left:1.5rem;color:#6b7280">La illallinen</td><td class="num">' + satDin + '</td></tr>'
     + '<tr><td>To-lisäyö (aamiaiset)</td><td class="num">' + thu + '</td></tr>'
     + '</tbody></table>';
 
@@ -422,7 +422,7 @@ function confirmationSlip_(rows, r, pw) {
     +   '<div style="text-align:right">'
     +     '<div style="font-size:0.68rem;color:#6b7280;text-transform:uppercase">Booking ref / Varausviite</div>'
     +     '<div style="font-size:1rem;font-weight:700;font-family:monospace;color:#1d4ed8">' + r.bookingRef + '</div>'
-    +     '<div style="font-size:0.68rem;color:#6b7280;margin-top:0.2rem">Nordic VUSHF Meeting 2026</div>'
+    +     '<div style="font-size:0.68rem;color:#6b7280;margin-top:0.2rem">' + esc_(CONFIG.EVENT_NAME) + '</div>'
     +   '</div>'
     + '</div>'
     + attnHtml
@@ -538,9 +538,9 @@ function summaryView_(rows, token) {
     + '<h2>Ateriamäärät</h2>'
     + '<table style="max-width:350px"><thead><tr><th>Ateria</th><th class="num">kpl</th></tr></thead><tbody>'
     + '<tr><td>Täyshoitopaketit</td><td class="num bold">'+fb+'</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Fri BBQ dinner</td><td class="num">'+fri+'</td></tr>'
+    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Fri dinner</td><td class="num">'+fri+'</td></tr>'
     + '<tr><td style="padding-left:1.5rem;color:#6b7280">Sat lunch</td><td class="num">'+lunch+'</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Sat Ham Dinner</td><td class="num">'+dinner+'</td></tr>'
+    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Sat dinner</td><td class="num">'+dinner+'</td></tr>'
     + '<tr><td>To-lisäyö (aamiaiset)</td><td class="num">'+thu+'</td></tr>'
     + '</tbody></table>';
 
@@ -566,7 +566,7 @@ function buildCsv_(rows) {
       return v.includes(';')||v.includes('"')||v.includes('\n')?'"'+v+'"':v;
     }).join(';'));
   });
-  return { filename: 'vushf2026-' + fmtNow_('yyyyMMdd-HHmm') + '.csv', content: '\uFEFF' + lines.join('\r\n') };
+  return { filename: CONFIG.SLUG + '-' + fmtNow_('yyyyMMdd-HHmm') + '.csv', content: '\uFEFF' + lines.join('\r\n') };
 }
 
 function printView_(rows, token, ref) {
@@ -628,7 +628,7 @@ function printView_(rows, token, ref) {
   }
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-    + '<title>VUSHF 2026 — ' + r.callsign + '</title>'
+    + '<title>' + esc_(CONFIG.EVENT_SHORT) + ' — ' + r.callsign + '</title>'
     + '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0}'
     + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;color:#1f2937;background:#fff;padding:1.5cm}'
@@ -665,11 +665,11 @@ function printView_(rows, token, ref) {
     // Header with logos
     + '<div class="header">'
     + '<div class="logos">'
-    + '<img src="https://rats.fi/wp-content/uploads/2026/02/vushf26-logo-small.png" style="height:50px;width:auto">'
-    + '<img src="https://rats.fi/wp-content/uploads/2015/06/cropped-RATSrotta-286x300.jpg" style="height:40px;width:auto">'
+    + (CONFIG.LOGO1_URL ? '<img src="' + esc_(CONFIG.LOGO1_URL) + '" style="height:50px;width:auto">' : '')
+    + (CONFIG.LOGO2_URL ? '<img src="' + esc_(CONFIG.LOGO2_URL) + '" style="height:40px;width:auto">' : '')
     + '</div>'
     + '<div class="event-title">'
-    + '<h1>Nordic VUSHF Meeting 2026</h1>'
+    + '<h1>' + esc_(CONFIG.EVENT_NAME) + '</h1>'
     + '<p>' + RC.LOCATION + ' · ' + RC.DATES_EN + ' / ' + RC.DATES_FI + '</p>'
     + '<p>Registration confirmation / Varausvahvistus</p>'
     + '</div>'
@@ -717,7 +717,7 @@ function printView_(rows, token, ref) {
     + '<div class="footer">'
     + RC.CHECKIN_EN + ' · ' + RC.CHECKOUT_EN + '<br>'
     + RC.CHECKIN_FI + ' · ' + RC.CHECKOUT_FI + '<br><br>'
-    + RC.ORGANIZER + ' · meeting@rats.fi'
+    + esc_(RC.ORGANIZER) + (CONFIG.REPLY_TO_EMAIL ? ' · ' + esc_(CONFIG.REPLY_TO_EMAIL) : '')
     + '</div>'
     + '<script>window.onload=function(){window.print();};</script>'
     + '</body></html>';
