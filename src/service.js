@@ -6,6 +6,7 @@ const repo = require('./repo');
 const emails = require('./emails');
 const { getSettings, saveSettings } = require('./settings');
 const { calculatePrice } = require('./pricing');
+const i18n = require('./i18n');
 
 const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor'];
 const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
@@ -139,20 +140,24 @@ async function getPublicGuestList() {
 
 async function submitBooking(input) {
   input = input || {};
-  const reject = (msg, callsign) => {
-    db.logEvent('WARN', 'booking_rejected', callsign || '', msg);
-    return { success: false, error: msg };
+  const lang = i18n.pickCode(input.language);
+  // reject(key, vars, callsign): the log gets English text, the guest gets text in their language.
+  // vars may be a function of the language code (for texts that contain localized names).
+  const reject = (key, vars, callsign) => {
+    const v = l => (typeof vars === 'function' ? vars(l) : vars);
+    db.logEvent('WARN', 'booking_rejected', callsign || '', i18n.t('en', key, v('en')));
+    return { success: false, error: i18n.t(lang, key, v(lang)) };
   };
 
   // --- validate and normalize input (FIX: reject is defined before use; lengths are capped) ---
   const callsign = str(input.callsign, 20).toUpperCase();
-  if (!/^[A-Z0-9\/-]{3,20}$/.test(callsign)) return reject('Invalid callsign');
+  if (!/^[A-Z0-9\/-]{3,20}$/.test(callsign)) return reject('err.callsign', null);
   const name = str(input.name, 100);
-  if (name.length < 2) return reject('Name required', callsign);
+  if (name.length < 2) return reject('err.name', null, callsign);
   const email = str(input.email, 200);
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reject('Valid email required', callsign);
-  if (!TYPES.includes(input.type)) return reject('Invalid booking type', callsign);
-  if (input.privacyAck !== true) return reject('Please confirm that you have read the privacy notice.', callsign);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reject('err.email', null, callsign);
+  if (!TYPES.includes(input.type)) return reject('err.type', null, callsign);
+  if (input.privacyAck !== true) return reject('err.privacy', null, callsign);
 
   const data = {
     callsign, name, email,
@@ -168,6 +173,7 @@ async function submitBooking(input) {
     visitorDays: S.pickDays(Array.isArray(input.visitorDays) ? input.visitorDays : S.keys(input.visitorDays)), freeText: str(input.freeText, 1000),
     meals: input.meals && typeof input.meals === 'object' ? input.meals : null,
     bypassToken: str(input.bypassToken, 100),
+    language: lang,
   };
 
   const outcome = await db.withBookingLock(async client => {
@@ -181,11 +187,11 @@ async function submitBooking(input) {
     const tokenBypass = settings.BYPASS_TOKEN && data.bypassToken && data.bypassToken === settings.BYPASS_TOKEN;
     if (!settings.REGISTRATION_OPEN && !joinBypass && !tokenBypass) {
       const closedByDate = settings.REGISTRATION_CLOSES && new Date() > new Date(settings.REGISTRATION_CLOSES + 'T23:59:59');
-      return reject(closedByDate ? 'Registration closed on ' + settings.REGISTRATION_CLOSES + '.' : 'Registration is closed.', callsign);
+      return closedByDate ? reject('err.closedOn', { date: settings.REGISTRATION_CLOSES }, callsign) : reject('err.closed', null, callsign);
     }
 
     const existing = bookings.find(b => b.callsign === callsign);
-    if (existing) return reject(`Callsign ${callsign} already has booking ${existing.bookingRef}. Contact organizer to modify.`, callsign);
+    if (existing) return reject('err.exists', { cs: callsign, ref: existing.bookingRef }, callsign);
 
     const seq = rows.reduce((m, r) => Math.max(m, r.seq), 0) + 1;
     const bookingRef = `${callsign}-${seq}`;
@@ -196,29 +202,29 @@ async function submitBooking(input) {
     const joiningRoom = data.type === 'room' && data.joinExisting && data.roomRef;
     if ((data.type !== 'room' && data.type !== 'singlebed') || S.mode() !== 'per_night') data.nights = [];
     else if (!joiningRoom) {
-      if (!data.nights.length) return reject('Please select at least one night.', callsign);
+      if (!data.nights.length) return reject('err.nights', null, callsign);
       if (data.nights.length === S.coreNightKeys().length) data.nights = [];
     }
 
     if (data.type === 'room') {
       if (data.joinExisting && data.roomRef) {
         const primary = bookings.find(b => b.bookingRef === data.roomRef && b.isPrimaryBooker === 'YES' && b.type === 'room');
-        if (!primary) return reject('Room reference not found: ' + data.roomRef, callsign);
-        if (primary.soloRoom === 'YES') return reject('This room is booked for sole occupancy and cannot be joined.', callsign);
+        if (!primary) return reject('err.refNotFound', { ref: data.roomRef }, callsign);
+        if (primary.soloRoom === 'YES') return reject('err.soloBooked', null, callsign);
         const roomCfg = roomCfgOf(primary.roomId);
         const occupants = bookings.filter(b => b.roomRef === data.roomRef && b.isPrimaryBooker !== 'YES').length + 1;
-        if (occupants >= roomCfg.persons) return reject(`Room ${data.roomRef} is full (${roomCfg.persons} persons max).`, callsign);
+        if (occupants >= roomCfg.persons) return reject('err.roomFullRef', { ref: data.roomRef, n: roomCfg.persons }, callsign);
         roomId = primary.roomId; roomRef = data.roomRef; primaryRow = primary;
         data.nights = S.mode() === 'per_night' ? S.pickNights(primary.nights) : [];
       } else {
         const roomCfg = roomCfgOf(data.roomId);
-        if (!roomCfg) return reject('Invalid room type', callsign);
+        if (!roomCfg) return reject('err.roomType', null, callsign);
         const occ = S.occupancy(bookings, data.roomId);
         const full = S.nightsOf({ nights: data.nights, extraNights: data.extraNights }).find(k => occ[k] >= settings.ROOM_COUNTS[roomCfg.id]);
-        if (full) return reject(`No ${roomCfg.note_en} rooms left` + (S.mode() === 'per_night' ? ` for ${S.nightLabel(full)}.` : '.'), callsign);
+        if (full) return reject(S.mode() === 'per_night' ? 'err.noRoomsNight' : 'err.noRooms', l => ({ room: i18n.roomNote(l, roomCfg.id), night: i18n.nightLabel(l, full) }), callsign);
         // FIX: solo occupancy is only allowed when enabled and for multi-person rooms
         if (data.soloDouble) {
-          if (!settings.ALLOW_SOLO_DOUBLE || roomCfg.persons < 2) return reject('Solo occupancy is not available for this room.', callsign);
+          if (!settings.ALLOW_SOLO_DOUBLE || roomCfg.persons < 2) return reject('err.soloNA', null, callsign);
           soloRoom = true;
         }
         isPrimary = true; roomId = data.roomId;
@@ -226,22 +232,22 @@ async function submitBooking(input) {
     } else if (data.type === 'camper') {
       if (data.joinExisting && data.roomRef) {
         const primary = bookings.find(b => b.bookingRef === data.roomRef && b.isPrimaryBooker === 'YES' && b.type === 'camper');
-        if (!primary) return reject('Camper spot reference not found: ' + data.roomRef, callsign);
+        if (!primary) return reject('err.camperRef', { ref: data.roomRef }, callsign);
         roomRef = data.roomRef; primaryRow = primary;
       } else {
         const camperBooked = bookings.filter(b => b.type === 'camper' && b.isPrimaryBooker === 'YES').length;
-        if (camperBooked >= settings.CAMPER_VAN_SPOTS) return reject('No camper van spots left.', callsign);
+        if (camperBooked >= settings.CAMPER_VAN_SPOTS) return reject('err.noCamper', null, callsign);
         isPrimary = true;
       }
     } else if (data.type === 'tent') {
       // FIX: the admin switch for tent bookings is enforced server-side as well
-      if (!settings.TENT_ENABLED) return reject('Tent bookings are not available.', callsign);
-      if (bookings.filter(b => b.type === 'tent').length >= settings.TENT_SPOTS) return reject('No tent spots left.', callsign);
+      if (!settings.TENT_ENABLED) return reject('err.tentNA', null, callsign);
+      if (bookings.filter(b => b.type === 'tent').length >= settings.TENT_SPOTS) return reject('err.noTent', null, callsign);
       isPrimary = true;
     } else if (data.type === 'singlebed') {
       // FIX: single-bed bookings must be enabled in settings and within the slot limit
       const singleBedBooked = bookings.filter(b => b.type === 'singlebed').length;
-      if (!settings.ALLOW_SINGLE_BED_BOOKING || singleBedBooked >= (settings.SINGLE_BED_SLOTS || 0)) return reject('No single bed spots available.', callsign);
+      if (!settings.ALLOW_SINGLE_BED_BOOKING || singleBedBooked >= (settings.SINGLE_BED_SLOTS || 0)) return reject('err.noSingle', null, callsign);
       let free = 0;
       bookings.filter(b => b.type === 'room' && b.isPrimaryBooker === 'YES' && b.soloRoom !== 'YES').forEach(b => {
         const cfg = roomCfgOf(b.roomId);
@@ -249,48 +255,50 @@ async function submitBooking(input) {
         const f = cfg.persons - bookings.filter(bb => bb.roomRef === b.bookingRef).length;
         if (f > 0) free += f;
       });
-      if (free <= 0) return reject('No single bed spots available.', callsign);
+      if (free <= 0) return reject('err.noSingle', null, callsign);
       isPrimary = true; roomId = 'singlebed';
     }
 
     if (data.extraNights.length && data.type !== 'room' && data.type !== 'singlebed')
-      return reject('Extra nights are only available with room or single-bed bookings.', callsign);
+      return reject('err.extraOnly', null, callsign);
     // Joiners always get exactly the extra nights of the room they join (never trust the client for this)
     if (data.type === 'room' && primaryRow) data.extraNights = S.pickExtras(primaryRow.extraNights);
     if (data.type === 'dayvisitor' && !data.visitorDays.length)
-      return reject('Please select which day(s) you will attend.', callsign);
+      return reject('err.days', null, callsign);
 
-    const price = calculatePrice({
+    const priceInput_ = {
       type: data.type, roomId, isPrimaryBooker: isPrimary, extraNights: data.extraNights, nights: data.nights,
       fullBoard: data.fullBoard, soloRoom, visitorDays: data.visitorDays,
       joinExisting: data.type === 'camper' && !isPrimary,
-    }, settings);
+    };
+    const price = calculatePrice(priceInput_, settings); // stored in the event's default language
+    const priceGuest = calculatePrice(priceInput_, settings, lang); // shown to the guest in their language
 
     const meals = data.meals ? Object.entries(data.meals).filter(([, v]) => v).map(([k]) => k).join(',') : '';
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
          is_primary, extra_nights, nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
-         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now())`,
+         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at, language)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now(),$24)`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(',')]
+        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(','), lang]
     );
 
     const existingJoiners = data.joinExisting && primaryRow
       ? bookings.filter(b => b.roomRef === data.roomRef && b.isPrimaryBooker !== 'YES') : [];
-    return { success: true, bookingRef, price, settings, primaryRow, existingJoiners, isPrimary, roomId };
+    return { success: true, bookingRef, price, priceGuest, settings, primaryRow, existingJoiners, isPrimary, roomId };
   });
 
   if (!outcome.success) return outcome;
 
   // --- notifications (after commit; failures never undo the booking) ---
-  const { bookingRef, price, settings, primaryRow, existingJoiners } = outcome;
+  const { bookingRef, price, priceGuest, settings, primaryRow, existingJoiners } = outcome;
   const mailData = Object.assign({}, data, {
     roomId: outcome.roomId, isPrimaryBooker: outcome.isPrimary,
     roomRef: data.joinExisting && primaryRow ? data.roomRef : bookingRef,
   });
-  await safeEmail(callsign, () => emails.sendConfirmationEmail(mailData, bookingRef, price, CONFIG.FRIENDLY_URL, settings, primaryRow));
+  await safeEmail(callsign, () => emails.sendConfirmationEmail(mailData, bookingRef, priceGuest, CONFIG.FRIENDLY_URL, settings, primaryRow));
 
   if (data.joinExisting && primaryRow && primaryRow.email) {
     await safeEmail(callsign, () => emails.sendRoomJoinNotification(primaryRow, data, bookingRef, settings));
@@ -303,7 +311,7 @@ async function submitBooking(input) {
   await safeEmail(callsign, () => emails.sendOrganizerNotification(mailData, bookingRef, price, settings));
 
   db.logEvent('OK', 'booking_confirmed', callsign, `ref=${bookingRef} type=${data.type} price=€${price.total}`);
-  return { success: true, bookingRef, price };
+  return { success: true, bookingRef, price: priceGuest };
 }
 
 // ----------------------------------------------------------------------------
@@ -398,20 +406,13 @@ async function updateBooking(bookingRef, fields, sendEmail) {
   const { obj, price, roommates } = result;
   if (sendEmail && obj.email) {
     const changed = Object.keys(fields).filter(k => k !== 'OrgComment' && k !== 'RoomNumber' && k !== 'FreeText');
-    const subject = '[' + CONFIG.EVENT_SHORT + '] Booking updated — ' + bookingRef;
-    const body = `Dear ${obj.name} (${obj.callsign}),\n\nYour booking has been updated by the organizer.\n\n`
-      + `Booking reference: ${bookingRef}\nUpdated fields: ${changed.join(', ')}\n\n`
-      + '─────────────────────────────────────────\nCURRENT SERVICES\n─────────────────────────────────────────\n'
-      + String(price.breakdown || '').replace(/ \| /g, '\n') + `\n\nTOTAL: €${price.total}\n\n`
-      + `─────────────────────────────────────────\nIf you have questions, please contact us: ${CONFIG.REPLY_TO_EMAIL}\n\n${CONFIG.ORGANIZER}`;
-    await safeEmail(obj.callsign, () => emails.sendMail(obj.email, subject, body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL }));
+    const m = emails.bookingUpdatedMail(obj, bookingRef, changed, price);
+    await safeEmail(obj.callsign, () => emails.sendMail(obj.email, m.subject, m.body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL, lang: m.lang }));
   }
   for (const rm of roommates) {
     if (!rm.email) continue;
-    const body = `Dear ${rm.name} (${rm.callsign.toUpperCase()}),\n\nThe primary booker of your room (${bookingRef}) has had their booking cancelled.\n`
-      + `Your booking (${rm.booking_ref}) has been flagged as NEEDS_ATTENTION.\n\n`
-      + `Please contact the organizers at ${CONFIG.REPLY_TO_EMAIL} to arrange a new room or alternative.\n\n${CONFIG.EMAIL_SENDER_NAME}`;
-    await safeEmail(rm.callsign, () => emails.sendMail(rm.email, CONFIG.EVENT_SHORT + ' — Your room booking needs attention', body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL }));
+    const m = emails.roommateCancelledMail(rm, bookingRef);
+    await safeEmail(rm.callsign, () => emails.sendMail(rm.email, m.subject, m.body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL, lang: m.lang }));
   }
   return { success: true, cascadedCount: result.cascadedCount };
 }

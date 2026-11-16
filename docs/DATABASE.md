@@ -1,12 +1,16 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are three tables.
+applied automatically when the app starts (and by the `db` container on first start). There are seven tables.
 
 ```
-bookings      one row per registered person (all booking types)
-settings      key/value store for settings edited in the admin panel
-event_log     audit/diagnostic log written by the app
+bookings         one row per registered person (all booking types)
+settings         key/value store for settings edited in the admin panel
+room_types       room type catalog (names, capacity, prices)
+event_config     event identity, privacy and language settings (single row)
+event_structure  days, nights, extra nights and meal package (single row)
+translations     admin-edited texts per language (see LANGUAGES.md)
+event_log        audit/diagnostic log written by the app
 ```
 
 Money amounts are euros. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
@@ -43,6 +47,7 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `org_comment` | text | `''` | Internal organizer note. The app writes a note here when it flags a booking `NEEDS_ATTENTION`. |
 | `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). The booking form sends it explicitly and it is **opt-in** (unticked box = `false`); the column default only affects rows inserted outside the app. |
 | `privacy_ack_at` | timestamptz | `NULL` | When the participant confirmed the privacy notice on the booking form. `NULL` for imported or older rows. |
+| `language` | text | `''` | Language code the guest used when booking (`en`, `fi`, `sv`, `no`, `da`, `is`, `et`, `lv`, `lt`, `pl`, `de`). Emails to this guest use it. `''` = event default. |
 | `solo_room` | boolean | `false` | One person occupies a multi-person room alone and pays the whole room price; the room cannot be joined. |
 | `visitor_days` | text | `''` | Comma-separated day keys from the event structure that a day visitor attends, e.g. `d1,d2`; otherwise empty. |
 | `day_visitor_days` | text | `''` | **Deprecated**: legacy column (`fri`/`sat`/`both`), no longer written. Migrated into `visitor_days` on first start. |
@@ -175,6 +180,19 @@ Single-row table (`id` is always 1) holding the event identity set in the admin 
 
 No row means the event is not configured yet and the public booking page shows "not open yet".
 
+## `translations`
+
+Admin-edited texts for multi-language support (see [LANGUAGES.md](LANGUAGES.md)). One row per language and text key.
+
+| Column | Type | Notes |
+|---|---|---|
+| `lang` | text | Language code |
+| `key` | text | Catalog key such as `form.confirm`, or `content.*` for event content you typed (for example `content.event.EVENT_NAME`) |
+| `value` | text | The text shown instead of the built-in one. `<` and `>` are removed on save. |
+| `updated_at` | timestamptz | Last save |
+
+Primary key `(lang, key)`. Delete a row to return to the built-in text. The `event_config` keys `LANGUAGES` (comma list) and `DEFAULT_LANGUAGE` choose what is offered.
+
 ## `event_structure`
 
 Single-row table (`id` is always 1) describing the shape of the event, edited in the admin panel's **Event structure** card.
@@ -222,6 +240,7 @@ The admin table and the importer still use the old sheet header names.
 | RoomRef | `room_ref` | Meals | `meals` |
 | IsPrimaryBooker | `is_primary` | ThuExtraNight | `extra_nights` (now generic extra-night keys) |
 | FullBoard | `full_board` | Dietary / ShirtSize / TotalPrice | `dietary` / `shirt_size` / `total_price` |
+| Language | `language` | (new, no sheet equivalent) | |
 
 In the sheet, booleans were `YES`/`NO` text; in the database they are real booleans.
 
@@ -232,6 +251,12 @@ Connect with `psql vushf` (native install) or `docker compose exec db psql -U vu
 ```sql
 -- Bookings by type (active only)
 SELECT type, count(*) FROM bookings WHERE status <> 'CANCELLED' GROUP BY type ORDER BY type;
+
+-- Guests per language ('' = event default)
+SELECT language, count(*) FROM bookings WHERE status <> 'CANCELLED' GROUP BY language ORDER BY language;
+
+-- Texts edited in the admin panel for one language
+SELECT key, left(value, 60) AS value, updated_at FROM translations WHERE lang = 'fi' ORDER BY key;
 
 -- Who is in which room
 SELECT room_ref, room_id, string_agg(callsign, ', ' ORDER BY is_primary DESC) AS occupants, max(room_number) AS room_no

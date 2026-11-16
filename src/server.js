@@ -13,6 +13,7 @@ const rooms = require('./rooms');
 const structure = require('./structure');
 const gdpr = require('./gdpr');
 const privacy = require('./privacy');
+const i18n = require('./i18n');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -42,17 +43,22 @@ function notConfiguredPage() {
 app.get('/', async (req, res, next) => {
   try {
     const settings = await getSettings();
+    const lang = i18n.pickLang(req);
     let html;
     if (req.query.admin !== '1' && !eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
     if (req.query.admin === '1') { res.set('X-Frame-Options', 'DENY'); html = pages.buildAdminPage(settings); }
-    else if (req.query.public === '1') html = pages.buildPublicPage();
-    else html = pages.buildBookingPage(String(req.query.join || ''), String(req.query.bypass || ''), settings);
-    res.type('html').send(html.replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
+    else if (req.query.public === '1') html = pages.buildPublicPage(lang, i18n.switcher(lang, req));
+    else html = pages.buildBookingPage(String(req.query.join || ''), String(req.query.bypass || ''), settings, lang, i18n.switcher(lang, req));
+    html = html.replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR);
+    // Hidden easter egg: optional pIqaD script toggle for Klingon (needs public/fonts/piqad.woff2)
+    if (lang === 'tlh' && req.query.admin !== '1') html = html.replace('</body>', '<script src="/piqad.js"></script></body>');
+    res.type('html').send(html);
   } catch (e) { next(e); }
 });
 app.get('/privacy', (req, res) => {
   if (!eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
-  res.type('html').send(privacy.noticePage().replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
+  const lang = i18n.pickLang(req);
+  res.type('html').send(privacy.noticePage(lang, i18n.switcher(lang, req)).replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
 });
 app.get('/healthz', async (req, res) => {
   try { await db.query('SELECT 1'); res.json({ ok: true }); } catch (e) { res.status(503).json({ ok: false }); }
@@ -76,10 +82,12 @@ const ADMIN = {
   saveStructure: input => structure.save(input),
   exportBooking: ref => gdpr.exportBooking(ref),
   eraseBooking: (ref, opts) => gdpr.eraseBooking(ref, opts),
+  getTranslations: async lang => i18n.getTranslations(String(lang || '') || (i18n.enabledCodes().find(c => c !== i18n.defaultLang()) || i18n.defaultLang()), await getSettings()),
+  saveTranslations: (lang, map) => i18n.saveTranslations(String(lang || ''), map),
   getShutdownPreview: () => gdpr.shutdownPreview(),
   shutdownEvent: opts => gdpr.shutdownErase(opts),
   getAdminPanelHtml: () => {
-    let html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div>' + pages.getAdminPanelHtml();
+    let html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
       const late = rs.state === 'overdue';
@@ -140,6 +148,7 @@ async function initDb() {
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
   await initDb();
+  await i18n.load();
   await eventConfig.load();
   await rooms.load();
   await structure.load();

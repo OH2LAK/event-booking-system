@@ -94,3 +94,14 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights TEXT NOT NULL DEFAULT '';
 
 -- GDPR: when the person confirmed the privacy notice at registration (NULL for imported or older rows)
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS privacy_ack_at TIMESTAMPTZ;
+-- Language the guest used when booking (emails to this guest are sent in it); '' = event default
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT '';
+
+-- Admin-edited texts per language (overrides of the built-in catalog and translated event content)
+CREATE TABLE IF NOT EXISTS translations (
+  lang       TEXT NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (lang, key)
+);

@@ -3,6 +3,7 @@
 // google.script.run.<method>(...); /rpc-shim.js maps those calls to POST /api/rpc/<method>.
 const { CONFIG, VERSION } = require('./config');
 const privacy = require('./privacy');
+const i18n = require('./i18n');
 
 const esc = v => String(v === undefined || v === null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -15,11 +16,13 @@ function logos(style1, style2) {
 // Back link to the event's home page (hidden when no URL is configured).
 const homeStyle = () => (CONFIG.HOME_URL ? '' : 'display:none;');
 
-function getClientConfigJson_(joinRef, settings) {
+function getClientConfigJson_(joinRef, settings, lang) {
   const s = settings;
   const cfg = {
     INITIAL_JOIN: joinRef || '',
-    ROOMS: CONFIG.ROOMS,
+    ROOMS: i18n.localizedRooms(lang),
+    LANG: lang,
+    LANG_QS: i18n.qsLang(lang),
     CAMPER_VAN_SPOTS: settings.CAMPER_VAN_SPOTS,
     CAMPER_VAN_PRICE_PER_NIGHT: s.CAMPER_VAN_PRICE_PER_NIGHT,
     CAMPING_NIGHTS: CONFIG.CAMPING_NIGHTS,
@@ -27,7 +30,7 @@ function getClientConfigJson_(joinRef, settings) {
     TENT_PRICE_WEEKEND: s.TENT_PRICE_WEEKEND,
     TENT_ENABLED: s.TENT_ENABLED,
     FULL_BOARD_PRICE: s.FULL_BOARD_PRICE,
-    STRUCTURE: CONFIG.STRUCTURE,
+    STRUCTURE: i18n.localizedStructure(lang),
     ALLOW_SOLO_DOUBLE: s.ALLOW_SOLO_DOUBLE,
     ALLOW_SINGLE_BED_BOOKING: s.ALLOW_SINGLE_BED_BOOKING,
     SINGLE_BED_PRICE: s.SINGLE_BED_PRICE,
@@ -44,33 +47,39 @@ function getClientConfigJson_(joinRef, settings) {
   return JSON.stringify(cfg);
 }
 
-function buildBookingPage(joinRef, bypassToken, settings) {
+function buildBookingPage(joinRef, bypassToken, settings, lang, sw) {
+  lang = lang || i18n.defaultLang(); sw = sw || '';
   // Join links always work — joiner should be able to join even if registration is closed
   const validBypass = (joinRef && joinRef.length > 0)
     || (settings.BYPASS_TOKEN && bypassToken && bypassToken === settings.BYPASS_TOKEN);
   if (!validBypass) {
     if (!settings.REGISTRATION_OPEN) {
-      return buildRegistrationClosedPage(settings);
+      return buildRegistrationClosedPage(settings, lang, sw);
     }
     if (settings.REGISTRATION_CLOSES) {
       var deadline = new Date(settings.REGISTRATION_CLOSES + 'T23:59:59');
       if (new Date() > deadline) {
-        return buildRegistrationClosedPage(settings);
+        return buildRegistrationClosedPage(settings, lang, sw);
       }
     }
   }
-  return buildBookingPageHtml_(joinRef, settings, bypassToken);
+  return buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw);
 }
 
-function buildRegistrationClosedPage(settings) {
+function buildRegistrationClosedPage(settings, lang, sw) {
+  const t = (k, v) => i18n.t(lang, k, v);
+  const te = (k, v) => esc(t(k, v));
+  const EV = k => esc(i18n.ev(lang, k));
+  settings = i18n.localizedSettings(lang, settings);
+  const STRUCT = i18n.localizedStructure(lang);
+  sw = sw || '';
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(CONFIG.EVENT_NAME)} — Registration</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<title>${EV('EVENT_NAME')} — ${te('form.registration')}</title>
 <style>
   :root{--bg:#f0f2f5;--surface:#fff;--border:#d0d7de;--accent:#b45309;--accent2:#1d6fa5;--text:#1c2128;--muted:#57606a;--danger:#cf222e;--mono:'Share Tech Mono',monospace;--sans:'Barlow',sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -88,30 +97,36 @@ function buildRegistrationClosedPage(settings) {
 </head>
 <body>
 <div class="box">
+  ${sw}
   <div class="logos">
     ${logos('height:55px;width:auto;', 'height:45px;width:auto;')}
   </div>
-  <div class="badge">${esc(CONFIG.EVENT_NAME)} · ${esc(CONFIG.ORGANIZER_SHORT)} · ${esc(CONFIG.LOCATION_SHORT)}</div>
+  <div class="badge">${EV('EVENT_NAME')} · ${esc(CONFIG.ORGANIZER_SHORT)} · ${esc(CONFIG.LOCATION_SHORT)}</div>
   <div class="closed-icon">🔒</div>
-  <div class="msg">Registration is currently closed.</div>
+  <div class="msg">${te('form.closedMsg')}</div>
   ${settings.CLOSED_MESSAGE ? `<div style="margin-bottom:1rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.9rem 1.25rem;font-size:0.95rem;line-height:1.6;text-align:left">${settings.CLOSED_MESSAGE}</div>` : ''}
-  <div style="margin-bottom:0.5rem">If you have questions or wish to register, please contact the organizers:</div>
+  <div style="margin-bottom:0.5rem">${te('form.closedContact')}</div>
   <div class="contact">${CONFIG.REPLY_TO_EMAIL}</div>
-  ${settings.REGISTRATION_CLOSES ? '<div class="closes">Registration closed: ' + settings.REGISTRATION_CLOSES + '</div>' : ''}
+  ${settings.REGISTRATION_CLOSES ? '<div class="closes">' + te('form.registrationClosed', {date: settings.REGISTRATION_CLOSES}) + '</div>' : ''}
 </div>
 </body>
 </html>`;
 }
 
-function buildBookingPageHtml_(joinRef, settings, bypassToken) {
+function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
+  const t = (k, v) => i18n.t(lang, k, v);
+  const te = (k, v) => esc(t(k, v));
+  const EV = k => esc(i18n.ev(lang, k));
+  settings = i18n.localizedSettings(lang, settings);
+  const STRUCT = i18n.localizedStructure(lang);
+  sw = sw || '';
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${esc(CONFIG.EVENT_NAME)} — Registration</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<title>${EV('EVENT_NAME')} — ${te('form.registration')}</title>
 <style>
   :root {
     --bg:#f0f2f5; --surface:#ffffff; --border:#d0d7de;
@@ -231,76 +246,77 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
 </style>
 </head>
 <body>
-<div id="loading"><div class="spinner"></div><div style="color:var(--muted);font-family:var(--mono);font-size:.9rem">Processing...</div></div>
+<div id="loading"><div class="spinner"></div><div style="color:var(--muted);font-family:var(--mono);font-size:.9rem">${te('form.processing')}</div></div>
 
 <div class="container">
+  ${sw}
   <div class="header">
-    <div class="header-badge">Registration</div>
+    <div class="header-badge">${te('form.registration')}</div>
     <div class="logos">
       ${logos('max-height:110px;width:auto;', 'max-height:90px;width:auto;')}
     </div>
-    <div class="sub">${esc(CONFIG.ORGANIZER)}<br>${esc(CONFIG.LOCATION)}</div>
-    ${settings.REGISTRATION_CLOSES ? '<div style="margin-top:0.75rem;font-family:var(--mono);font-size:0.78rem;color:var(--muted)">Registration closes: ' + settings.REGISTRATION_CLOSES + '</div>' : ''}
-    <div style="margin-top:0.9rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">← ${esc(CONFIG.HOME_LABEL)}</a></div>
+    <div class="sub">${EV('ORGANIZER')}<br>${EV('LOCATION')}</div>
+    ${settings.REGISTRATION_CLOSES ? '<div style="margin-top:0.75rem;font-family:var(--mono);font-size:0.78rem;color:var(--muted)">' + te('form.registrationCloses', {date: settings.REGISTRATION_CLOSES}) + '</div>' : ''}
+    <div style="margin-top:0.9rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">← ${EV('HOME_LABEL')}</a></div>
   </div>
 
   ${settings.ANNOUNCEMENT ? '<div id="announcement-banner" style="background:#fffbeb;border:1.5px solid var(--accent);border-radius:6px;padding:0.85rem 1.1rem;margin-bottom:1.5rem;font-size:0.95rem;color:var(--text);white-space:pre-line">' + settings.ANNOUNCEMENT + '</div>' : ''}
 
   <div class="avail-bar">
-    <h3>Room availability</h3>
-    <div class="avail-grid" id="avail-grid"><div style="color:var(--muted);font-family:var(--mono);font-size:.85rem">Loading...</div></div>
+    <h3>${te('form.availability')}</h3>
+    <div class="avail-grid" id="avail-grid"><div style="color:var(--muted);font-family:var(--mono);font-size:.85rem">${te('form.loading')}</div></div>
   </div>
 
   <div id="landing-section">
     <div class="landing">
       <div class="choice-card" id="card-new" onclick="selectMode('new')">
         <div class="choice-icon">🏨 🚐</div>
-        <div class="choice-title">Book accommodation</div>
-        <div class="choice-desc">Reserve a room or camper van spot</div>
+        <div class="choice-title">${te('form.bookAcc')}</div>
+        <div class="choice-desc">${te('form.bookAccDesc')}</div>
       </div>
       <div class="choice-card" id="card-join" onclick="selectMode('join')">
         <div class="choice-icon">🔑</div>
-        <div class="choice-title">Join a booking</div>
-        <div class="choice-desc">Join an already booked room or camper van spot with a booking reference</div>
+        <div class="choice-title">${te('form.joinTitle')}</div>
+        <div class="choice-desc">${te('form.joinDesc')}</div>
       </div>
       <div class="choice-card" id="card-dayvisitor" onclick="selectMode('dayvisitor')">
         <div class="choice-icon">🎫</div>
-        <div class="choice-title">Day visitor</div>
-        <div class="choice-desc">Attending one or more event days without overnight stay</div>
+        <div class="choice-title">${te('form.dayVisitor')}</div>
+        <div class="choice-desc">${te('form.dayVisitorDesc')}</div>
       </div>
       <div class="choice-card" id="card-who" onclick="openPublicPage()">
         <div class="choice-icon">📋</div>
-        <div class="choice-title">Who's coming?</div>
-        <div class="choice-desc">See participants already registered</div>
+        <div class="choice-title">${te('form.whoTitle')}</div>
+        <div class="choice-desc">${te('form.whoDesc')}</div>
       </div>
     </div>
   </div>
 
   <div id="form-section" class="section">
-    <button class="back-btn" onclick="goBack()">← Back</button>
+    <button class="back-btn" onclick="goBack()">${te('form.back')}</button>
 
     <div id="acc-type-section" class="card section">
-      <h2>Accommodation type</h2>
+      <h2>${te('form.accType')}</h2>
       <div class="options">
         <label class="radio-option">
           <input type="radio" name="acc-type" value="room" onchange="onTypeChange()">
-          <div><div class="opt-label">🏨 Hotel room</div>
-          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · Choose a room type below</div></div>
+          <div><div class="opt-label">${te('form.hotelRoom')}</div>
+          <div class="opt-sub">${te('form.hotelRoomSub', {n: STRUCT.coreNights})}</div></div>
         </label>
         <label class="radio-option">
           <input type="radio" name="acc-type" value="camper" onchange="onTypeChange()">
-          <div><div class="opt-label">🚐 Camper van spot</div>
-          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · Includes electricity · €${settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS}</div></div>
+          <div><div class="opt-label">${te('form.camperSpot')}</div>
+          <div class="opt-sub">${te('form.camperSub', {n: STRUCT.coreNights, price: settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS})}</div></div>
         </label>
         <label class="radio-option" id="tent-option" ${!settings.TENT_ENABLED ? 'style="display:none"' : ''}>
           <input type="radio" name="acc-type" value="tent" onchange="onTypeChange()">
-          <div><div class="opt-label">⛺ Tent spot</div>
-          <div class="opt-sub">Fri–Sun weekend · €${settings.TENT_PRICE_WEEKEND}</div></div>
+          <div><div class="opt-label">${te('form.tentSpot')}</div>
+          <div class="opt-sub">${te('form.tentSub', {price: settings.TENT_PRICE_WEEKEND})}</div></div>
         </label>
         <label class="radio-option" id="singlebed-option" style="display:none">
           <input type="radio" name="acc-type" value="singlebed" onchange="onTypeChange()">
-          <div><div class="opt-label">🛏️ Single bed (organizer-assigned room)</div>
-          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · All single rooms are full — organizers will assign your room · €${settings.SINGLE_BED_PRICE}</div></div>
+          <div><div class="opt-label">${te('form.singleBed')}</div>
+          <div class="opt-sub">${te('form.singleBedSub', {n: STRUCT.coreNights, price: settings.SINGLE_BED_PRICE})}</div></div>
         </label>
       </div>
       <div id="camper-info-box" class="info-box" style="display:none;margin-top:1rem">${settings.CAMPER_INFO}</div>
@@ -308,44 +324,44 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
     </div>
 
     <div id="nights-section" class="card section" style="display:none">
-      <h2>Nights</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">Select the nights you will stay. The price is calculated per night.</p>
-      ${CONFIG.STRUCTURE.accommodation === 'per_night' ? CONFIG.STRUCTURE.days.slice(0, CONFIG.STRUCTURE.coreNights).map(d => `<label class="check-option">
+      <h2>${te('form.nights')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">${te('form.nightsHelp')}</p>
+      ${STRUCT.accommodation === 'per_night' ? STRUCT.days.slice(0, STRUCT.coreNights).map(d => `<label class="check-option">
         <input type="checkbox" name="nt" value="${esc(d.key)}" checked onchange="onNightsChange()">
-        <div><div class="opt-label">Night of ${esc(d.label)}</div></div>
+        <div><div class="opt-label">${te('form.nightOf', {day: d.label})}</div></div>
       </label>`).join('\n') : ''}
     </div>
 
     <div id="room-type-section" class="card section">
-      <h2>Room type</h2>
+      <h2>${te('form.roomType')}</h2>
       <div class="options" id="room-type-options"></div>
     </div>
 
     <div id="thu-section" class="card section" style="display:none">
-      <h2>Extra nights</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">Room bookings cover ${esc(CONFIG.DATES_TEXT)} by default. You can add extra nights below. If you need further nights, please say so in the free text field.</p>
-      ${CONFIG.STRUCTURE.extraNights.map(x => `<label class="check-option">
+      <h2>${te('form.extraNights')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">${te('form.extraNightsHelp', {dates: i18n.ev(lang, 'DATES_TEXT')})}</p>
+      ${STRUCT.extraNights.map(x => `<label class="check-option">
         <input type="checkbox" name="xn" value="${esc(x.key)}" onchange="onThuExtraChange()">
         <div>
-          <div class="opt-label">🌙 Add extra night: ${esc(x.label)}</div>
-          <div class="opt-sub" data-xsub="${esc(x.key)}">Price based on selected room${x.includes ? ' · ' + esc(x.includes) : ''}</div>
+          <div class="opt-label">${te('form.addExtraNight', {label: x.label})}</div>
+          <div class="opt-sub" data-xsub="${esc(x.key)}">${te('form.priceBasedOnRoom')}${x.includes ? ' · ' + esc(x.includes) : ''}</div>
         </div>
       </label>`).join('\n')}
     </div>
 
     <div id="thu-info-join" class="card section" style="display:none">
-      <h2>Extra night</h2>
-      <div class="info-box" id="thu-info-join-text">The primary booker has included extra night(s).</div>
+      <h2>${te('form.extraNight')}</h2>
+      <div class="info-box" id="thu-info-join-text">${te('form.joinExtraInfo')}</div>
     </div>
 
     <div id="join-section" class="card section">
-      <h2>Join a booking</h2>
+      <h2>${te('form.joinTitle')}</h2>
       <div id="join-ref-entry" style="margin-bottom:1rem">
         <div class="field">
-          <label>Booking reference <span style="font-weight:400;color:var(--muted)">(from the primary booker's confirmation email)</span></label>
+          <label>${te('form.bookingRef')} <span style="font-weight:400;color:var(--muted)">${te('form.bookingRefHint')}</span></label>
           <div style="display:flex;gap:0.5rem;align-items:flex-start">
-            <input type="text" id="join-ref-input" placeholder="e.g. OH2LAK-7" autocomplete="off" style="text-transform:uppercase;flex:1" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')lookupJoinRef()">
-            <button onclick="lookupJoinRef()" style="padding:0.55rem 1.1rem;background:var(--accent2);color:#fff;border:none;border-radius:4px;font-family:var(--sans);font-size:0.95rem;font-weight:600;cursor:pointer;white-space:nowrap">Look up →</button>
+            <input type="text" id="join-ref-input" placeholder="${te('form.bookingRefPh')}" autocomplete="off" style="text-transform:uppercase;flex:1" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')lookupJoinRef()">
+            <button onclick="lookupJoinRef()" style="padding:0.55rem 1.1rem;background:var(--accent2);color:#fff;border:none;border-radius:4px;font-family:var(--sans);font-size:0.95rem;font-weight:600;cursor:pointer;white-space:nowrap">${te('form.lookUp')}</button>
           </div>
         </div>
       </div>
@@ -354,71 +370,71 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
     </div>
 
     <div id="guest-section" class="card section">
-      <h2>Your details</h2>
+      <h2>${te('form.yourDetails')}</h2>
       <div class="row2">
         <div class="field">
-          <label>Callsign *</label>
+          <label>${te('form.callsign')}</label>
           <input type="text" id="callsign" placeholder="OH2LAK" autocomplete="off" style="text-transform:uppercase">
         </div>
         <div class="field">
-          <label>Name *</label>
-          <input type="text" id="name" placeholder="Firstname Lastname">
+          <label>${te('form.name')}</label>
+          <input type="text" id="name" placeholder="${te('form.namePh')}">
         </div>
       </div>
       <div class="row2">
         <div class="field">
-          <label>Email *</label>
+          <label>${te('form.email')}</label>
           <input type="email" id="email" placeholder="you@example.com">
         </div>
         <div class="field">
-          <label>Phone</label>
+          <label>${te('form.phone')}</label>
           <input type="tel" id="phone" placeholder="+358 40 123 4567">
         </div>
       </div>
       <div class="field">
-        <label>Country *</label>
-        <input type="text" id="country" placeholder="Finland">
+        <label>${te('form.country')}</label>
+        <input type="text" id="country" placeholder="${te('form.countryPh')}">
       </div>
     </div>
 
     <div id="dayvisitor-section" class="card section" style="display:none">
-      <h2>Attendance days</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">Which day(s) will you be attending? You can select several.</p>
+      <h2>${te('form.attendDays')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">${te('form.attendHelp')}</p>
       <div style="display:flex;flex-direction:column;gap:0.5rem">
-        ${CONFIG.STRUCTURE.days.map(d => `<label class="check-option">
+        ${STRUCT.days.map(d => `<label class="check-option">
           <input type="checkbox" name="dv-day" value="${esc(d.key)}" onchange="updatePriceDisplay()">
           <div><div class="opt-label">${esc(d.label)}</div>
-          <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}${CONFIG.STRUCTURE.days.length > 1 ? ' per day (€' + settings.MEETING_FEE_WEEKEND + ' for all days)' : ''}</div></div>
+          <div class="opt-sub">${STRUCT.days.length > 1 ? te('form.meetingFeeDayAll', {day: settings.MEETING_FEE_DAY, all: settings.MEETING_FEE_WEEKEND}) : te('form.meetingFeeDay', {day: settings.MEETING_FEE_DAY})}</div></div>
         </label>`).join('\n')}
       </div>
     </div>
 
     <div id="addons-section" class="card section">
-      <h2>Add-ons</h2>
+      <h2>${te('form.addons')}</h2>
 
       <style>.pkg-off{display:none !important}</style>
-      <div id="individual-meals-section" class="${CONFIG.STRUCTURE.package.enabled ? '' : 'pkg-off'}" style="display:none;margin-bottom:1rem">
-        <div style="font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">🍽️ Meals</div>
+      <div id="individual-meals-section" class="${STRUCT.package.enabled ? '' : 'pkg-off'}" style="display:none;margin-bottom:1rem">
+        <div style="font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">${te('form.meals')}</div>
         <div id="full-board-row">
           <label class="check-option">
             <input type="checkbox" id="full-board" onchange="onFullBoardChange()">
             <div>
-              <div class="opt-label">Meal package — €${settings.FULL_BOARD_PRICE}/person</div>
-              <div class="opt-sub" id="full-board-sub">${esc(CONFIG.MEAL_PACKAGE_SUB)}</div>
+              <div class="opt-label">${te('form.mealPackage', {price: settings.FULL_BOARD_PRICE})}</div>
+              <div class="opt-sub" id="full-board-sub">${esc(STRUCT.package.sub)}</div>
             </div>
           </label>
         </div>
         <hr style="margin:0.9rem 0;border:none;border-top:1px solid var(--border)">
       </div>
       <div class="field" style="margin-top:1rem">
-        <label>Dietary requirements <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-        <input type="text" id="dietary" placeholder="e.g. vegetarian, gluten-free">
-        <div class="hint">Dietary needs can reveal health or religious information. By filling this in you give your explicit consent to us using it for catering only.</div>
+        <label>${te('form.dietary')} <span style="font-weight:400;color:var(--muted)">${te('form.optional')}</span></label>
+        <input type="text" id="dietary" placeholder="${te('form.dietaryPh')}">
+        <div class="hint">${te('form.dietaryHint')}</div>
       </div>
       <div class="field">
-        <label>T-shirt size <span style="font-weight:400;color:var(--muted)">(optional — for planning only, not a purchase)</span></label>
+        <label>${te('form.shirt')} <span style="font-weight:400;color:var(--muted)">${te('form.shirtOpt')}</span></label>
         <select id="shirt-size">
-          <option value="">— No preference —</option>
+          <option value="">${te('form.noPref')}</option>
           <option value="XS">XS</option>
           <option value="S">S</option>
           <option value="M">M</option>
@@ -427,32 +443,32 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
           <option value="XXL">XXL</option>
           <option value="3XL">3XL</option>
         </select>
-        <div class="hint">For planning purposes only — not a commitment to purchase</div>
+        <div class="hint">${te('form.shirtHint')}</div>
       </div>
       <div class="field">
-        <label>Additional information <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-        <textarea id="free-text" rows="3" placeholder="Any additional requests or information for the organizers..." style="width:100%;font-family:var(--sans);font-size:0.95rem;padding:0.5rem 0.75rem;border:1.5px solid #d1d5db;border-radius:4px;resize:vertical;box-sizing:border-box"></textarea>
-        <div class="hint">Please do not enter sensitive personal details (for example health information) unless they are needed for your stay.</div>
+        <label>${te('form.addInfo')} <span style="font-weight:400;color:var(--muted)">${te('form.optional')}</span></label>
+        <textarea id="free-text" rows="3" placeholder="${te('form.addInfoPh')}" style="width:100%;font-family:var(--sans);font-size:0.95rem;padding:0.5rem 0.75rem;border:1.5px solid #d1d5db;border-radius:4px;resize:vertical;box-sizing:border-box"></textarea>
+        <div class="hint">${te('form.addInfoHint')}</div>
       </div>
     </div>
 
     <div class="section" id="gdpr-section">
-      <div class="section-title">Privacy</div>
+      <div class="section-title">${te('form.privacy')}</div>
       <div style="background:#f6f8fa;border:1px solid var(--border);border-radius:6px;padding:0.75rem 0.9rem;font-size:0.85rem;color:var(--text);margin-bottom:0.75rem">
-        ${esc(privacy.shortText())}
-        <div style="margin-top:0.4rem">Data controller: <strong>${esc(privacy.controllerName())}</strong>${privacy.contactEmail() ? ' · <a href="mailto:' + esc(privacy.contactEmail()) + '">' + esc(privacy.contactEmail()) + '</a>' : ''}</div>
+        ${esc(privacy.shortText(lang))}
+        <div style="margin-top:0.4rem">${te('form.dataController')} <strong>${esc(privacy.controllerName())}</strong>${privacy.contactEmail() ? ' · <a href="mailto:' + esc(privacy.contactEmail()) + '">' + esc(privacy.contactEmail()) + '</a>' : ''}</div>
       </div>
       <label class="check-option">
         <input type="checkbox" id="privacy-ack">
         <div>
-          <div class="opt-label">I have read the <a href="${esc(privacy.noticeUrl())}" target="_blank" rel="noopener">privacy notice</a> and understand how my data is used *</div>
+          <div class="opt-label">${esc(t('form.ack', {link: '@@LINK@@'})).replace('@@LINK@@', '<a href="' + esc(privacy.noticeUrl(lang)) + '" target="_blank" rel="noopener">' + te('form.privacyNotice') + '</a>')}</div>
         </div>
       </label>
       <label class="check-option">
         <input type="checkbox" id="publish-consent">
         <div>
-          <div class="opt-label">Show my callsign and first name on the public "Who's coming?" page <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
-          <div class="opt-sub" style="color:var(--muted);margin-top:0.25rem">Not ticked = you are not shown. No other personal data is ever published. You can withdraw this at any time by contacting the organizers.</div>
+          <div class="opt-label">${te('form.publish')} <span style="font-weight:400;color:var(--muted)">${te('form.optional')}</span></div>
+          <div class="opt-sub" style="color:var(--muted);margin-top:0.25rem">${te('form.publishHint')}</div>
         </div>
       </label>
     </div>
@@ -460,29 +476,31 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
     <div id="price-section" class="section"><div id="price-box"></div><div id="price-disclaimer" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;font-style:italic"></div></div>
     <div id="submit-section" class="section">
       <div id="form-msg" class="msg"></div>
-      <button class="submit-btn" id="submit-btn" onclick="submitForm()">Confirm booking</button>
-      <p style="text-align:center;font-size:0.8rem;color:var(--muted);margin-top:0.75rem">Payment on arrival · Cash, Visa, Mastercard · No Amex/Diners</p>
+      <button class="submit-btn" id="submit-btn" onclick="submitForm()">${te('form.confirm')}</button>
+      <p style="text-align:center;font-size:0.8rem;color:var(--muted);margin-top:0.75rem">${te('form.payment')}</p>
     </div>
   </div>
 
   <div id="success-screen" class="success-screen">
     <div class="success-icon">✅</div>
-    <h2 style="margin-bottom:0.5rem">Booking confirmed!</h2>
-    <p style="color:var(--muted);margin-bottom:1rem">A confirmation email has been sent to you.</p>
+    <h2 style="margin-bottom:0.5rem">${te('form.successTitle')}</h2>
+    <p style="color:var(--muted);margin-bottom:1rem">${te('form.successMsg')}</p>
     <div class="success-ref" id="success-ref"></div>
     <div id="success-join-link" style="display:none;margin-top:1.25rem"></div>
     <div id="success-details" style="margin-top:1.5rem;text-align:left"></div>
-    <button onclick="this.textContent='↺ Loading...'; this.disabled=true; this.style.opacity='0.6'; hardRefresh();" style="margin-top:2rem;padding:0.8rem 2.5rem;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:1rem;font-family:var(--sans);font-weight:600;cursor:pointer;letter-spacing:0.05em">READY</button>
+    <button onclick="this.textContent=T('js.loading'); this.disabled=true; this.style.opacity='0.6'; hardRefresh();" style="margin-top:2rem;padding:0.8rem 2.5rem;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:1rem;font-family:var(--sans);font-weight:600;cursor:pointer;letter-spacing:0.05em">${te('form.ready')}</button>
   </div>
 
   <div class="footer">
-    ${esc(CONFIG.EVENT_NAME)} &nbsp;·&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;·&nbsp; ${esc(CONFIG.DATES_TEXT)}
-    <div style="margin-top:0.6rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);font-size:0.85rem">← ${esc(CONFIG.HOME_LABEL)}</a></div>
+    ${EV('EVENT_NAME')} &nbsp;·&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;·&nbsp; ${EV('DATES_TEXT')}
+    <div style="margin-top:0.6rem"><a href="${esc(CONFIG.HOME_URL)}" style="${homeStyle()}color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border);font-size:0.85rem">← ${EV('HOME_LABEL')}</a></div>
   </div>
 </div>
 
 <script>
-const CONFIG_CLIENT = ${getClientConfigJson_(joinRef, settings)};
+const I18N = ${i18n.safeJson(i18n.dict(lang, 'js.'))};
+function T(k, v) { var s = Object.prototype.hasOwnProperty.call(I18N, k) ? I18N[k] : k; if (v) { for (var n in v) { s = s.split('{' + n + '}').join(v[n]); } } return s; }
+const CONFIG_CLIENT = ${getClientConfigJson_(joinRef, settings, lang)};
 CONFIG_CLIENT.BYPASS_TOKEN = '${bypassToken || ''}';
 console.log('%c ${esc(CONFIG.EVENT_SHORT)} Booking System %c v${VERSION} ', 'background:#1d4ed8;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
 
@@ -531,17 +549,17 @@ function selectMode(mode) {
 }
 
 function openPublicPage() {
-  window.open(CONFIG_CLIENT.WEBAPP_URL + '?public=1', '_blank');
+  window.open(CONFIG_CLIENT.WEBAPP_URL + '?public=1' + (CONFIG_CLIENT.LANG_QS ? '&' + CONFIG_CLIENT.LANG_QS : ''), '_blank');
 }
 
 function hardRefresh() {
   var base = CONFIG_CLIENT.FRIENDLY_URL || CONFIG_CLIENT.WEBAPP_URL;
-  window.location.replace(base + '?t=' + Date.now());
+  window.location.replace(base + '?t=' + Date.now() + (CONFIG_CLIENT.LANG_QS ? '&' + CONFIG_CLIENT.LANG_QS : ''));
 }
 
 function goBack() {
   var btn = event && event.target ? event.target : null;
-  if (btn) { btn.textContent = '↺ Loading...'; btn.disabled = true; btn.style.opacity = '0.6'; }
+  if (btn) { btn.textContent = T('js.loading'); btn.disabled = true; btn.style.opacity = '0.6'; }
   hardRefresh();
 }
 
@@ -575,7 +593,7 @@ function onTypeChange() {
 function updateFullBoardSub() {
   var el = document.getElementById('full-board-sub');
   if (!el) return;
-  el.textContent = ${JSON.stringify(CONFIG.MEAL_PACKAGE_SUB)};
+  el.textContent = ${JSON.stringify(STRUCT.package.sub)};
 }
 
 function onFullBoardChange() {
@@ -591,7 +609,7 @@ function roomStayPrice(roomPrice, nightKeys) {
   var sel = perNight() ? (nightKeys ? nightKeys.length : selectedNights().length) : n;
   return (sel && sel !== n) ? Math.round(roomPrice * sel / n) : roomPrice;
 }
-function nightLabelOf(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? 'Night of ' + d.short : extraLabel(k); }
+function nightLabelOf(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? T('js.nightOf', {day: d.short}) : extraLabel(k); }
 // Per-night availability: a room type is bookable only if it is free on every selected night
 function applyNightAvailability() {
   if (!avail || !avail.rooms) return;
@@ -605,7 +623,7 @@ function applyNightAvailability() {
     radio.disabled = full;
     if (full && radio.checked) { radio.checked = false; radio.closest('.radio-option').classList.remove('selected'); }
     var tag = radio.closest('.radio-option').querySelector('.full-tag');
-    if (tag) tag.textContent = full ? (perNight() ? ' — FULL for selected nights' : ' — FULL') : '';
+    if (tag) tag.textContent = full ? (perNight() ? T('js.fullNights') : T('js.full')) : '';
   });
 }
 function onNightsChange() { applyNightAvailability(); updatePriceDisplay(); }
@@ -630,9 +648,9 @@ function renderAvailability(data) {
     const full = a && a.available <= 0;
     html += '<div class="avail-item' + (full ? ' full' : '') + '"><span>' + r.note_en.replace(/\u26a0\ufe0f /,'') + '</span><span class="count">' + (a ? a.available + '/' + a.total : '?') + '</span></div>';
   });
-  html += '<div class="avail-item' + (data.camperSpotsLeft <= 0 ? ' full' : '') + '"><span>Camper van spots</span><span class="count">' + data.camperSpotsLeft + '/' + CONFIG_CLIENT.CAMPER_VAN_SPOTS + '</span></div>';
+  html += '<div class="avail-item' + (data.camperSpotsLeft <= 0 ? ' full' : '') + '"><span>' + T('js.camperSpots') + '</span><span class="count">' + data.camperSpotsLeft + '/' + CONFIG_CLIENT.CAMPER_VAN_SPOTS + '</span></div>';
   if (data.tentEnabled) {
-    html += '<div class="avail-item' + (data.tentSpotsLeft <= 0 ? ' full' : '') + '"><span>Tent spots</span><span class="count">' + data.tentSpotsLeft + '/' + CONFIG_CLIENT.TENT_SPOTS + '</span></div>';
+    html += '<div class="avail-item' + (data.tentSpotsLeft <= 0 ? ' full' : '') + '"><span>' + T('js.tentSpots') + '</span><span class="count">' + data.tentSpotsLeft + '/' + CONFIG_CLIENT.TENT_SPOTS + '</span></div>';
   }
   grid.innerHTML = html;
 
@@ -657,9 +675,9 @@ function renderRoomTypes(data) {
     const livePrice = (data.prices && data.prices.rooms && data.prices.rooms[r.id] !== undefined) ? data.prices.rooms[r.id] : r.price_eur;
     html += '<label class="radio-option" id="rt-' + r.id + '">'
       + '<input type="radio" name="room-type" value="' + r.id + '"' + (full ? ' disabled' : '') + ' onchange="onRoomTypeChange()">'
-      + '<div><div class="opt-label">' + r.note_en + '<span class="full-tag">' + (full ? ' — FULL' : '') + '</span></div>'
-      + '<div class="opt-sub">\u20AC' + livePrice + ' / room \u00b7 ' + r.persons + ' person' + (r.persons > 1 ? 's' : '') + '</div>'
-      + (isDouble && CONFIG_CLIENT.ALLOW_SOLO_DOUBLE ? '<div style="margin-top:0.5rem"><label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;cursor:pointer"><input type="checkbox" id="solo-double" onchange="updatePriceDisplay()"> Book entire room for myself (solo use)</label></div>' : '')
+      + '<div><div class="opt-label">' + r.note_en + '<span class="full-tag">' + (full ? T('js.full') : '') + '</span></div>'
+      + '<div class="opt-sub">' + T(r.persons > 1 ? 'js.roomLinePl' : 'js.roomLine', {price: livePrice, n: r.persons}) + '</div>'
+      + (isDouble && CONFIG_CLIENT.ALLOW_SOLO_DOUBLE ? '<div style="margin-top:0.5rem"><label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;cursor:pointer"><input type="checkbox" id="solo-double" onchange="updatePriceDisplay()"> ' + T('js.solo') + '</label></div>' : '')
       + '</div></label>';
   });
   container.innerHTML = html;
@@ -678,8 +696,8 @@ function onRoomTypeChange() {
     const nightPP = r.persons > 1 ? Math.round(nightRoom / r.persons) : nightRoom;
     document.querySelectorAll('[data-xsub]').forEach(function(el) {
       var x = (CONFIG_CLIENT.STRUCTURE.extraNights || []).find(function(y){ return y.key === el.getAttribute('data-xsub'); });
-      var txt = '\u20AC' + nightRoom + ' room night';
-      if (r.persons > 1) txt += ' (\u20AC' + nightPP + '/person)';
+      var txt = T('js.roomNight', {room: nightRoom});
+      if (r.persons > 1) txt += ' ' + T('js.perPersonParen', {pp: nightPP});
       if (x && x.includes) txt += ' \u00b7 ' + x.includes;
       el.textContent = txt;
     });
@@ -724,14 +742,14 @@ function initJoinFromRef(ref) {
   }
 
   if (!room && !camper) {
-    if (infoEl) { infoEl.style.display = 'block'; infoEl.textContent = 'Booking reference "' + ref + '" not found. Please check the reference and try again.'; infoEl.style.background = '#fef2f2'; infoEl.style.borderColor = '#fca5a5'; infoEl.style.color = '#b91c1c'; }
+    if (infoEl) { infoEl.style.display = 'block'; infoEl.textContent = T('js.refNotFound', {ref: ref}); infoEl.style.background = '#fef2f2'; infoEl.style.borderColor = '#fca5a5'; infoEl.style.color = '#b91c1c'; }
     ['guest-section','gdpr-section','addons-section','price-section','submit-section'].forEach(function(id){ hide(id); });
     return;
   }
 
   // --- CAMPER JOIN ---
   if (camper) {
-    if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — 🚐 Camper van spot · booked by <strong>' + camper.callsign + '</strong> · ' + camper.occupants + ' registered so far'; }
+    if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — ' + T('js.camperJoinInfo', {cs: camper.callsign, n: camper.occupants}); }
     document.getElementById('thu-section').style.display = 'none'; hideNights();
     document.getElementById('thu-info-join').style.display = 'none';
     resetExtras();
@@ -747,16 +765,16 @@ function initJoinFromRef(ref) {
   // --- ROOM JOIN ---
   if (room.spotsLeft <= 0) {
     if (infoEl) infoEl.style.display = 'none';
-    if (fullEl) { fullEl.style.display = 'block'; fullEl.textContent = 'This room (' + ref + ', ' + room.roomType + ') is already full — no spots remaining.'; }
+    if (fullEl) { fullEl.style.display = 'block'; fullEl.textContent = T('js.roomFull', {ref: ref, type: room.roomType}); }
     ['guest-section','gdpr-section','addons-section','price-section','submit-section'].forEach(function(id){ hide(id); });
     return;
   }
 
   // Room has space — show info and form
-  var spotsText = room.spotsLeft + ' spot' + (room.spotsLeft > 1 ? 's' : '') + ' remaining';
+  var spotsText = T(room.spotsLeft > 1 ? 'js.spotsN' : 'js.spots1', {n: room.spotsLeft});
   var joinExtras = room.extraNights || [];
-  var joinNights = (perNight() && room.nights && room.nights.length) ? ' · nights: ' + room.nights.map(nightLabelOf).join(', ') : '';
-  var thuNote = joinNights + (joinExtras.length ? ' · 🌙 Extra night included: ' + joinExtras.map(extraLabel).join(', ') : '');
+  var joinNights = (perNight() && room.nights && room.nights.length) ? T('js.nightsList', {list: room.nights.map(nightLabelOf).join(', ')}) : '';
+  var thuNote = joinNights + (joinExtras.length ? T('js.extraIncluded', {list: joinExtras.map(extraLabel).join(', ')}) : '');
   if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — ' + room.roomType + ' · <strong>' + spotsText + '</strong>' + thuNote; }
 
   // Extra nights are inherited from the room
@@ -767,8 +785,8 @@ function initJoinFromRef(ref) {
     var nightPP = Math.round(nightRoom / (room.roomPersons || 1));
     var joinInfoEl = document.getElementById('thu-info-join');
     var joinTextEl = document.getElementById('thu-info-join-text');
-    var priceNote = ' · \u20AC' + nightRoom + ' room night (\u20AC' + nightPP + '/person) each';
-    if (joinTextEl) joinTextEl.textContent = '\uD83C\uDF19 The primary booker has included: ' + joinExtras.map(extraLabel).join(', ') + '. Your share is included in the total price.' + priceNote;
+    var priceNote = ' · ' + T('js.roomNightEach', {room: nightRoom, pp: nightPP});
+    if (joinTextEl) joinTextEl.textContent = T('js.joinExtraText', {list: joinExtras.map(extraLabel).join(', ')}) + priceNote;
     if (joinInfoEl) joinInfoEl.style.display = 'block';
     joinExtras.forEach(function(k) { var cb = document.querySelector('input[name="xn"][value="' + k + '"]'); if (cb) { cb.checked = true; cb.disabled = true; } });
   } else {
@@ -796,33 +814,33 @@ function updatePriceDisplay() {
     const selRoom   = ref && avail && avail.openRooms   ? avail.openRooms.find(function(r){ return r.ref === ref; })   : null;
     const selCamper = ref && avail && avail.openCampers ? avail.openCampers.find(function(c){ return c.ref === ref; }) : null;
     if (selCamper) {
-      rows.push({label:'Camper van spot: shared with ' + ref + ' (costs split separately)', val:'—'});
-      rows.push({label:'Meeting fee (full event)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pCamperShared', {ref: ref}), val:'—'});
+      rows.push({label:T('js.pMeetingFull'), val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:'Meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:T('js.pMeal'), val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else if (selRoom) {
       const joinStay = roomStayPrice(selRoom.roomPrice, selRoom.nights || []);
       const joinPP = Math.round(joinStay / (selRoom.roomPersons || 1));
-      rows.push({label:'Room share (' + selRoom.roomType + ')', val:'\u20AC' + joinPP + '/person (room \u20AC' + joinStay + ')'});
+      rows.push({label:T('js.pRoomShare', {type: selRoom.roomType}), val:T('js.pPersonRoom', {pp: joinPP, room: joinStay})});
       total += joinPP;
       (selRoom.extraNights || []).forEach(function(k) {
         const nightRoom = extraNightRoomPrice(selRoom.roomPrice);
         const persons = selRoom.roomPersons || 1;
         const nightPP = Math.round(nightRoom / persons);
-        rows.push({label:'\uD83C\uDF19 Extra night: ' + extraLabel(k) + ' (\u20AC'+nightRoom+' room night \u00f7 '+persons+' persons)', val:'\u20AC'+nightPP+'/person'});
+        rows.push({label:T('js.pExtraDiv', {label: extraLabel(k), room: nightRoom, n: persons}), val:T('js.pEuroPerPerson', {pp: nightPP})});
         total += nightPP;
       });
-      rows.push({label:'Meeting fee (full event)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pMeetingFull'), val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:'Meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:T('js.pMeal'), val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else {
-      rows.push({label:'Joining existing booking', val:'Enter a reference above to see price'});
+      rows.push({label:T('js.pJoining'), val:T('js.pEnterRef')});
     }
   } else if (currentAccType === 'room') {
     const rt = document.querySelector('input[name="room-type"]:checked');
@@ -834,8 +852,8 @@ function updatePriceDisplay() {
         const isSolo = soloEl && soloEl.checked;
         const stayPrice = roomStayPrice(livePrice);
         const pp = isSolo ? stayPrice : Math.round(stayPrice / r.persons);
-        const nightsNote = (perNight() && stayPrice !== livePrice) ? ', ' + selectedNights().length + ' of ' + CONFIG_CLIENT.STRUCTURE.coreNights + ' nights' : '';
-        rows.push({label:'Room (' + r.note_en + nightsNote + (isSolo ? ', solo)' : ')'), val:'\u20AC' + pp + (isSolo ? '' : '/person (room \u20AC' + stayPrice + ')')});
+        const nightsNote = (perNight() && stayPrice !== livePrice) ? ', ' + T('js.pNightsOf', {sel: selectedNights().length, all: CONFIG_CLIENT.STRUCTURE.coreNights}) : '';
+        rows.push({label:T(isSolo ? 'js.pRoomSolo' : 'js.pRoom', {desc: r.note_en + nightsNote}), val: isSolo ? '\u20AC' + pp : T('js.pPersonRoom', {pp: pp, room: stayPrice})});
         total += pp;
       }
     }
@@ -848,37 +866,35 @@ function updatePriceDisplay() {
         const soloEl2 = document.getElementById('solo-double');
         const isSolo2 = soloEl2 && soloEl2.checked;
         const nightPP = isSolo2 ? nightRoom : Math.round(nightRoom / r2.persons);
-        var label = '\uD83C\uDF19 Extra night: ' + extraLabel(k) + ' (\u20AC'+nightRoom+' room night';
-        if (!isSolo2 && r2.persons > 1) label += ' \u00f7 '+r2.persons+' persons';
-        label += ')';
-        rows.push({label:label, val:'\u20AC'+nightPP+(isSolo2||r2.persons===1?'':'/person')});
+        var label = (!isSolo2 && r2.persons > 1) ? T('js.pExtraDiv', {label: extraLabel(k), room: nightRoom, n: r2.persons}) : T('js.pExtraRoomOnly', {label: extraLabel(k), room: nightRoom});
+        rows.push({label:label, val:(isSolo2||r2.persons===1) ? '\u20AC'+nightPP : T('js.pEuroPerPerson', {pp: nightPP})});
         total += nightPP;
       });
     }
   } else if (currentAccType === 'camper') {
     const t = CONFIG_CLIENT.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG_CLIENT.CAMPING_NIGHTS;
-    rows.push({label:'Camper van (' + CONFIG_CLIENT.CAMPING_NIGHTS + ' nights)', val:'\u20AC'+t}); total += t;
+    rows.push({label:T('js.pCamper', {n: CONFIG_CLIENT.CAMPING_NIGHTS}), val:'\u20AC'+t}); total += t;
   } else if (currentAccType === 'tent') {
-    rows.push({label:'Tent spot (whole event)', val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
+    rows.push({label:T('js.pTent'), val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
     total += CONFIG_CLIENT.TENT_PRICE_WEEKEND;
   } else if (currentAccType === 'singlebed') {
     const bedStay = roomStayPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
-    rows.push({label:'Single bed (organizer-assigned room)', val:'\u20AC'+bedStay});
+    rows.push({label:T('js.pSingleBed'), val:'\u20AC'+bedStay});
     total += bedStay;
     selectedExtras().forEach(function(k) {
       const nightPrice = extraNightRoomPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
-      rows.push({label:'\uD83C\uDF19 Extra night: ' + extraLabel(k), val:'\u20AC'+nightPrice});
+      rows.push({label:T('js.pExtraPlain', {label: extraLabel(k)}), val:'\u20AC'+nightPrice});
       total += nightPrice;
     });
   } else if (currentAccType === 'dayvisitor') {
     var dvSel = selectedVisitorDays();
     if (dvSel.length) {
       if (dvSel.length > 1 && dvSel.length === CONFIG_CLIENT.STRUCTURE.days.length) {
-        rows.push({label:'Meeting fee (all days)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+        rows.push({label:T('js.pMeetingAll'), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
         total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       } else {
         dvSel.forEach(function(k) {
-          rows.push({label:'Meeting fee (' + dayShort(k) + ')', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_DAY});
+          rows.push({label:T('js.pMeetingDay', {day: dayShort(k)}), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_DAY});
           total += CONFIG_CLIENT.MEETING_FEE_DAY;
         });
       }
@@ -887,19 +903,19 @@ function updatePriceDisplay() {
   if (currentMode !== 'join') {
     const boardEl = document.getElementById('full-board');
     if (boardEl && boardEl.checked) {
-      rows.push({label:'Meal package', val:'\u20AC'+CONFIG_CLIENT.FULL_BOARD_PRICE});
+      rows.push({label:T('js.pMeal'), val:'\u20AC'+CONFIG_CLIENT.FULL_BOARD_PRICE});
       total += CONFIG_CLIENT.FULL_BOARD_PRICE;
     }
     // Meeting fee for all non-day-visitor types
     if (currentAccType && currentAccType !== 'dayvisitor' && rows.length > 0) {
-      rows.push({label:'Meeting fee (full event)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pMeetingFull'), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
     }
   }
   if (!rows.length) { box.innerHTML = ''; return; }
   let html = '<div class="price-box">';
   rows.forEach(function(r) { html += '<div class="price-row"><span>' + r.label + '</span><span>' + r.val + '</span></div>'; });
-  html += '<div class="price-row total"><span>TOTAL</span><span>\u20AC' + total + (tbd ? ' + TBD' : '') + '</span></div></div>';
+  html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>\u20AC' + total + (tbd ? ' + TBD' : '') + '</span></div></div>';
   box.innerHTML = html;
 }
 
@@ -907,7 +923,7 @@ function submitForm() {
   const msg = document.getElementById('form-msg');
   msg.className = 'msg'; msg.textContent = '';
   if (!document.getElementById('privacy-ack').checked) {
-    msg.className = 'msg error visible'; msg.textContent = 'Please confirm that you have read the privacy notice.'; return;
+    msg.className = 'msg error visible'; msg.textContent = T('js.errAck'); return;
   }
   const data = {
     callsign:    document.getElementById('callsign').value.trim().toUpperCase(),
@@ -921,13 +937,14 @@ function submitForm() {
     fullBoard:   document.getElementById('full-board').checked,
     meals: {},
     privacyAck:     document.getElementById('privacy-ack').checked,
+    language:       CONFIG_CLIENT.LANG,
     publishConsent: document.getElementById('publish-consent').checked,
     extraNights:    [],
     bypassToken:    CONFIG_CLIENT.BYPASS_TOKEN || '',
   };
   if (currentMode === 'join') {
     const ref = document.getElementById('room-ref-select').value;
-    if (!ref) { showError('Please enter a booking reference to join.'); return; }
+    if (!ref) { showError(T('js.errRef')); return; }
     data.roomRef = ref;
     data.joinExisting = true;
     // Detect if joining a camper spot or a room
@@ -938,24 +955,24 @@ function submitForm() {
     data.type = currentAccType; data.joinExisting = false;
     if (currentAccType === 'room') {
       const rt = document.querySelector('input[name="room-type"]:checked');
-      if (!rt) { showError('Please select a room type.'); return; }
+      if (!rt) { showError(T('js.errRoomType')); return; }
       data.roomId = rt.value;
-      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError('Please select at least one night.'); return; } }
+      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError(T('js.errNight')); return; } }
       const soloEl = document.getElementById('solo-double');
       data.soloDouble = soloEl ? soloEl.checked : false;
       data.extraNights = selectedExtras();
     } else if (currentAccType === 'singlebed') {
       data.extraNights = selectedExtras();
-      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError('Please select at least one night.'); return; } }
+      if (perNight()) { data.nights = selectedNights(); if (!data.nights.length) { showError(T('js.errNight')); return; } }
     } else if (currentAccType === 'dayvisitor') {
       data.visitorDays = selectedVisitorDays();
-      if (!data.visitorDays.length) { showError('Please select which day(s) you will attend.'); return; }
+      if (!data.visitorDays.length) { showError(T('js.errDays')); return; }
     }
   }
-  if (!data.callsign || data.callsign.length < 3) { showError('Please enter a valid callsign.'); return; }
-  if (!data.name)    { showError('Please enter your name.'); return; }
-  if (!data.email)   { showError('Please enter a valid email.'); return; }
-  if (!data.country) { showError('Please enter your country.'); return; }
+  if (!data.callsign || data.callsign.length < 3) { showError(T('js.errCallsign')); return; }
+  if (!data.name)    { showError(T('js.errName')); return; }
+  if (!data.email)   { showError(T('js.errEmail')); return; }
+  if (!data.country) { showError(T('js.errCountry')); return; }
 
   document.getElementById('loading').classList.add('visible');
   document.getElementById('submit-btn').disabled = true;
@@ -971,29 +988,29 @@ function submitForm() {
         document.getElementById('success-ref').textContent = result.bookingRef;
         if (data.type === 'room' && !data.joinExisting) {
           const base = CONFIG_CLIENT.FRIENDLY_URL || CONFIG_CLIENT.WEBAPP_URL;
-          const joinUrl = base + '?join=' + encodeURIComponent(result.bookingRef);
+          const joinUrl = base + '?join=' + encodeURIComponent(result.bookingRef) + (CONFIG_CLIENT.LANG_QS ? '&' + CONFIG_CLIENT.LANG_QS : '');
           document.getElementById('success-join-link').style.display = 'block';
           document.getElementById('success-join-link').innerHTML =
-            '<div class="info-box" style="text-align:left"><strong>Share this link with your roommates:</strong><br>'
+            '<div class="info-box" style="text-align:left"><strong>' + T('js.shareLink') + '</strong><br>'
             + '<a href="' + joinUrl + '" style="font-family:var(--mono);font-size:.85rem;word-break:break-all;color:var(--accent2)">' + joinUrl + '</a><br>'
-            + '<span style="font-size:.82rem;color:var(--muted)">Opens the form with your room pre-selected.</span></div>';
+            + '<span style="font-size:.82rem;color:var(--muted)">' + T('js.opensForm') + '</span></div>';
         }
         if (result.price) {
           let html = '<div class="price-box">';
           result.price.breakdown.split(' | ').forEach(function(line) { html += '<div class="price-row"><span>' + line + '</span></div>'; });
-          html += '<div class="price-row total"><span>TOTAL</span><span>\u20AC' + result.price.total + '</span></div></div>';
+          html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>\u20AC' + result.price.total + '</span></div></div>';
           document.getElementById('success-details').innerHTML = html;
         }
       } else {
         // Known error from server — re-enable button so user can fix and retry
         document.getElementById('submit-btn').disabled = false;
-        showError((result && result.error) ? result.error : 'Booking failed — please try again.');
+        showError((result && result.error) ? result.error : T('js.errFailed'));
       }
     })
     .withFailureHandler(function(err) {
       document.getElementById('loading').classList.remove('visible');
       document.getElementById('submit-btn').disabled = false;
-      showError('Server error: ' + (err && err.message ? err.message : String(err)));
+      showError(T('js.errServer', {msg: err && err.message ? err.message : String(err)}));
     })
     .submitBooking(data);
 }
@@ -1051,7 +1068,7 @@ window.onload = function() {
       renderOpenRooms(data);  // initialises join form if INITIAL_JOIN is set
     })
     .withFailureHandler(function(err) {
-      document.getElementById('avail-grid').innerHTML = '<div style="color:var(--danger)">Error: ' + err.message + '</div>';
+      document.getElementById('avail-grid').innerHTML = '<div style="color:var(--danger)">' + T('js.errGeneric', {msg: err.message}) + '</div>';
     })
     .getAvailability();
 };
@@ -1060,15 +1077,19 @@ window.onload = function() {
 </html>`;
 }
 
-function buildPublicPage() {
+function buildPublicPage(lang, sw) {
+  lang = lang || i18n.defaultLang();
+  const t = (k, v) => i18n.t(lang, k, v);
+  const te = (k, v) => esc(t(k, v));
+  const EV = k => esc(i18n.ev(lang, k));
+  sw = sw || '';
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head>
 <script src="/rpc-shim.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Who's Coming — ${esc(CONFIG.EVENT_NAME)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<title>${te('form.whoTitle')} — ${EV('EVENT_NAME')}</title>
 <style>
   :root {
     --bg:#f0f2f5; --surface:#ffffff; --border:#d0d7de;
@@ -1118,39 +1139,42 @@ function buildPublicPage() {
 </head>
 <body>
 <div class="container">
+  ${sw}
   <div class="header">
-    <div class="header-badge">Participants</div>
+    <div class="header-badge">${te('pub.participants')}</div>
     <div style="display:flex;align-items:center;justify-content:center;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap;">
       ${logos('max-height:100px;width:auto;', 'max-height:80px;width:auto;')}
     </div>
-    <div class="sub">${esc(CONFIG.ORGANIZER)}<br>${esc(CONFIG.LOCATION)}</div>
+    <div class="sub">${EV('ORGANIZER')}<br>${EV('LOCATION')}</div>
   </div>
 
   <div id="count-bar" class="count-bar" style="display:none">
     <div class="count-num" id="guest-count">0</div>
-    <div class="count-label"><strong>Registered participants</strong></div>
+    <div class="count-label"><strong>${te('pub.registered')}</strong></div>
   </div>
 
   <div id="loading" class="loading">
     <div class="spinner"></div>
-    Loading participants...
+    ${te('pub.loading')}
   </div>
 
   <div id="guest-grid" class="guest-grid"></div>
 
   <div style="text-align:center">
-    <button class="refresh-btn" onclick="loadGuests()">&#8635; Refresh</button>
+    <button class="refresh-btn" onclick="loadGuests()">&#8635; ${te('pub.refresh')}</button>
     <div class="updated" id="updated-time"></div>
     <div style="margin-top:0.75rem">
-      <a href="${CONFIG.FRIENDLY_URL || CONFIG.WEBAPP_URL}" style="font-family:var(--sans);font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">← Back to main page</a>
+      <a href="${esc((CONFIG.FRIENDLY_URL || CONFIG.WEBAPP_URL) + (i18n.qsLang(lang) ? '?' + i18n.qsLang(lang) : ''))}" style="font-family:var(--sans);font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">${te('pub.back')}</a>
     </div>
   </div>
 
   <div class="footer">
-    ${esc(CONFIG.EVENT_NAME)} &nbsp;&middot;&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;&middot;&nbsp; ${esc(CONFIG.DATES_TEXT)}
+    ${EV('EVENT_NAME')} &nbsp;&middot;&nbsp; ${esc(CONFIG.ORGANIZER_SHORT)} &nbsp;&middot;&nbsp; ${EV('DATES_TEXT')}
   </div>
 </div>
 <script>
+const I18N = ${i18n.safeJson(i18n.dict(lang, 'js.'))};
+function T(k, v) { var s = Object.prototype.hasOwnProperty.call(I18N, k) ? I18N[k] : k; if (v) { for (var n in v) { s = s.split('{' + n + '}').join(v[n]); } } return s; }
 function loadGuests() {
   document.getElementById('loading').style.display = 'block';
   document.getElementById('guest-grid').innerHTML = '';
@@ -1164,21 +1188,21 @@ function loadGuests() {
 
       const grid = document.getElementById('guest-grid');
       if (guests.length === 0) {
-        grid.innerHTML = '<div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem;font-size:1rem">No registrations yet — be the first!</div>';
+        grid.innerHTML = '<div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:2rem;font-size:1rem">' + T('js.noRegs') + '</div>';
         return;
       }
       grid.innerHTML = guests.map(function(g) {
         var badge = '';
         if (g.isOrganizer) {
-          badge = '<div class="guest-type organizer">👷 staff</div>';
+          badge = '<div class="guest-type organizer">' + T('js.staff') + '</div>';
         } else if (g.type === 'camper') {
-          badge = '<div class="guest-type camper">🚐 camper</div>';
+          badge = '<div class="guest-type camper">' + T('js.camper') + '</div>';
         } else if (g.type === 'tent') {
-          badge = '<div class="guest-type tent">⛺ tent</div>';
+          badge = '<div class="guest-type tent">' + T('js.tent') + '</div>';
         } else if (g.type === 'dayvisitor') {
-          badge = '<div class="guest-type dayvisitor">🎫 day visitor</div>';
+          badge = '<div class="guest-type dayvisitor">' + T('js.dayvisitor') + '</div>';
         } else if (g.type === 'room' || g.type === 'singlebed') {
-          badge = '<div class="guest-type hotel">🏨 hotel</div>';
+          badge = '<div class="guest-type hotel">' + T('js.hotel') + '</div>';
         }
         return '<div class="guest-card">'
           + '<div class="guest-callsign">' + g.callsign + '</div>'
@@ -1188,12 +1212,12 @@ function loadGuests() {
       }).join('');
 
       document.getElementById('updated-time').textContent =
-        'Updated: ' + new Date().toLocaleTimeString();
+        T('js.updated', {time: new Date().toLocaleTimeString()});
     })
     .withFailureHandler(function(err) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('guest-grid').innerHTML =
-        '<div style="color:red;grid-column:1/-1">Error: ' + err.message + '</div>';
+        '<div style="color:red;grid-column:1/-1">' + T('js.errGeneric', {msg: err.message}) + '</div>';
     })
     .getPublicGuestList();
 }
@@ -1597,10 +1621,10 @@ function buildAdminPage(settings) {
 <script src="/admin-rooms.js"></script>
 <script src="/admin-structure.js"></script>
 <script src="/admin-privacy.js"></script>
+<script src="/admin-translations.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg:#0d1117;--surface:#161b22;--border:#30363d;
@@ -2042,6 +2066,7 @@ function doLogin() {
             if (window.initStructure) window.initStructure();
             if (window.initRoomCatalog) window.initRoomCatalog();
             if (window.initPrivacy) window.initPrivacy();
+            if (window.initTranslations) window.initTranslations();
           })
           .withFailureHandler(function(err) {
             document.getElementById('pw-err').textContent = 'Error: ' + err.message;

@@ -2,6 +2,8 @@ node_modules/
 .env
 *.xlsx
 *.csv
+!docs/translations.csv
 pgdata/
 .DS_Store
 backups/
+.i18n-build/

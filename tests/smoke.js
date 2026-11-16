@@ -243,6 +243,90 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   ex = (await rpc('exportBooking', refG1)).body.result;
   check('other people\'s log entries are untouched', ex.success && ex.data.logEntries.length >= 1, ex.data && ex.data.logEntries);
 
+  // ---- i18n: languages, switcher, translated pages/emails/errors, admin overrides ----
+  {
+    const ALL_LANGS = 'en,fi,sv,no,da,is,et,lv,lt,pl,de';
+    const base = { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+      EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30', RETENTION_HOLD: '' };
+    r = (await rpc('saveEventConfig', { ...base, LANGUAGES: 'en,xx', DEFAULT_LANGUAGE: 'en' })).body.result;
+    check('unknown language code is rejected in Event setup', !r.success, r);
+    r = (await rpc('saveEventConfig', { ...base, LANGUAGES: 'en,fi', DEFAULT_LANGUAGE: 'de' })).body.result;
+    check('default language must be an enabled language', !r.success, r);
+    r = (await rpc('saveEventConfig', { ...base, LANGUAGES: ALL_LANGS, DEFAULT_LANGUAGE: 'en' })).body.result;
+    check('all eleven languages can be enabled', r.success, r);
+    const page = async (path, hdr) => (await fetch(BASE + path, { headers: hdr || {} })).text();
+    const expectPage = { fi: ['Majoitustyyppi', 'Tietosuojaseloste'], sv: ['Typ av boende', 'Integritetspolicy'], de: ['Art der Unterkunft', 'Datenschutzerklärung'], is: ['Tegund gistingar', 'Persónuverndarstefna'],
+      no: ['Type overnatting', 'Personvernerklæring'], da: ['Overnatningstype', 'Privatlivspolitik'], et: ['Majutuse tüüp', 'Privaatsusteade'],
+      lv: ['Naktsmītnes veids', 'Privātuma paziņojums'], lt: ['Apgyvendinimo tipas', 'Privatumo pranešimas'], pl: ['Rodzaj zakwaterowania', 'Informacja o ochronie danych'], en: ['Accommodation type', 'Privacy notice'] };
+    for (const l of Object.keys(expectPage)) {
+      const home = await page('/?lang=' + l), priv = await page('/privacy?lang=' + l);
+      check(`booking page and privacy notice in ${l}`, home.includes(`<html lang="${l}"`) && home.includes(expectPage[l][0]) && priv.includes(expectPage[l][1]) && !/\{\w+\}/.test(priv), l);
+    }
+    const sw = await page('/?lang=fi');
+    check('language switcher links to every enabled language', ALL_LANGS.split(',').every(l => sw.includes('lang=' + l)));
+    check('Accept-Language picks the language when no ?lang is given', (await page('/', { 'accept-language': 'sv-SE,sv;q=0.9' })).includes('<html lang="sv"'));
+    check('Norwegian browser tags (nb) map to no', (await page('/', { 'accept-language': 'nb-NO,nb;q=0.9,en;q=0.5' })).includes('<html lang="no"'));
+    check('unknown ?lang falls back to the default language', (await page('/?lang=xx')).includes('<html lang="en"'));
+
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTL1', type: 'dayvisitor', visitorDays: ['d1'], language: 'fi' }))).body.result;
+    check('price breakdown is returned in the guest\'s language', r.success && /Osallistumismaksu/.test(r.price.breakdown), r);
+    const refL1 = r.bookingRef;
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTL1', type: 'dayvisitor', visitorDays: ['d1'], language: 'is' }))).body.result;
+    check('server error messages are translated', !r.success && /Kallmerki/.test(r.error), r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTL2', type: 'dayvisitor', visitorDays: ['d1'], language: 'xx' }))).body.result;
+    check('unknown booking language falls back to the default language', r.success && /Meeting fee/.test(r.price.breakdown), r);
+    let ex = (await rpc('exportBooking', refL1)).body.result;
+    check('the booking stores the guest\'s language', ex.success && JSON.stringify(ex.data).includes('"language": "fi"') || JSON.stringify(ex.data).includes('"language":"fi"'), ex.data && ex.data.booking);
+
+    // admin overrides
+    let tr = (await rpc('getTranslations', 'fi')).body.result;
+    check('translation editor lists UI texts and event content', tr.success && tr.ui.length > 250 && tr.content.length > 0 && tr.missing === 0, tr.missing);
+    tr = (await rpc('getTranslations', 'xx')).body.result;
+    check('translation editor rejects an unknown language', !tr.success, tr);
+    r = (await rpc('saveTranslations', 'fi', { 'form.confirm': 'Vahvista varaus TESTI', 'form.back': '<b>Takaisin</b>' })).body.result;
+    check('translation override is saved', r.success, r);
+    let fi = await page('/?lang=fi');
+    check('override shows on the page and < > are stripped', fi.includes('Vahvista varaus TESTI') && !fi.includes('<b>Takaisin</b>') && fi.includes('bTakaisin/b'), 'override');
+    r = (await rpc('saveTranslations', 'fi', { 'form.confirm': '', 'form.back': '' })).body.result;
+    fi = await page('/?lang=fi');
+    check('emptying an override restores the built-in text', r.success && !fi.includes('Vahvista varaus TESTI') && fi.includes('Vahvista varaus'), r);
+    r = (await rpc('saveTranslations', 'de', { 'content.event.EVENT_NAME': 'Testveranstaltung 2027' })).body.result;
+    check('event content can be translated per language', r.success && (await page('/?lang=de')).includes('Testveranstaltung 2027') && (await page('/?lang=en')).includes('Smoke Test Event 2027'), r);
+    await rpc('saveTranslations', 'de', { 'content.event.EVENT_NAME': '' });
+    r = (await rpc('saveTranslations', 'xx', { 'form.confirm': 'x' })).body.result;
+    check('saving for an unknown language fails', !r.success, r);
+    const cat = {}; for (const l of ALL_LANGS.split(',')) cat[l] = require('../src/locales/' + l + '.json');
+    const ph = t => (String(t).match(/\{\w+\}/g) || []).sort().join(',');
+    const broken = [];
+    for (const k of Object.keys(cat.en)) for (const l of ALL_LANGS.split(',').filter(x => x !== 'en')) if (cat[l][k] === undefined || ph(cat[l][k]) !== ph(cat.en[k])) broken.push(l + ':' + k);
+    check('all catalogs have every key with the same placeholders', broken.length === 0, broken.slice(0, 5));
+    // Easter-egg languages: partial catalogs (no priv.* / mail.*), hidden from help text
+    const partial = ['tlh', 'fkv', 'fit'];
+    const bad2 = [];
+    for (const l of partial) {
+      const c = require('../src/locales/' + l + '.json');
+      for (const k of Object.keys(c)) if (cat.en[k] === undefined || ph(c[k]) !== ph(cat.en[k]) || /[<>]/.test(c[k])) bad2.push(l + ':' + k);
+      if (Object.keys(c).some(k => /^(priv|mail)\./.test(k))) bad2.push(l + ':has legal keys');
+    }
+    check('partial catalogs are a clean subset of en', bad2.length === 0, bad2.slice(0, 5));
+    r = (await rpc('saveEventConfig', { ...base, LANGUAGES: 'en,tlh,fkv,fit', DEFAULT_LANGUAGE: 'en' })).body.result;
+    check('tlh, fkv and fit can be enabled by code', r.success, r);
+    const fr = await fetch(BASE + '/fonts/piqad.woff2');
+    check('pIqaD font is served as woff2', fr.ok && (await fr.arrayBuffer()).byteLength > 1000, fr.status);
+    const pj = await (await fetch(BASE + '/piqad.js')).text();
+    const { toPiqad, isKlingon } = require('../public/piqad.js');
+    check('pIqaD skips non-Klingon text', isKlingon('tlhIngan Hol') && isKlingon('ghItlh SoQ: 2') && !isKlingon('Explorer Radio Camp') && !isKlingon('Suomi') && !isKlingon('Visa, Mastercard'));
+    check('pIqaD transliteration maps tlhIngan Hol', toPiqad('tlhIngan Hol') === '\uF8E4\uF8D7\uF8DC\uF8D0\uF8DB \uF8D6\uF8DD\uF8D9' && pj.length > 500);
+    check('piqad.js only on tlh pages', (await page('/?lang=tlh')).includes('/piqad.js') && !(await page('/?lang=fkv')).includes('/piqad.js'));
+    for (const l of partial) {
+      const pg = await page('/?lang=' + l);
+      check('page renders in ' + l, pg.includes('lang="' + l + '"') && pg.includes(require('../src/locales/' + l + '.json')['form.registration']));
+      const pv = await page('/privacy?lang=' + l);
+      check('privacy notice for ' + l + ' falls back to English', pv.includes(require('../src/locales/en.json')['priv.title']));
+    }
+    await rpc('saveEventConfig', { ...base, LANGUAGES: 'en', DEFAULT_LANGUAGE: 'en' });
+  }
+
   // shutdown (destructive): only against a throwaway database
   if (process.env.SMOKE_ALLOW_SHUTDOWN === '1') {
     let pvw = (await rpc('getShutdownPreview')).body.result;

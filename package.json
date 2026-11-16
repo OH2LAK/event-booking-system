@@ -11,7 +11,10 @@
   "scripts": {
     "start": "node src/server.js",
     "import-xlsx": "node src/tools/import-xlsx.js",
-    "seed-demo": "node src/tools/seed-demo.js"
+    "seed-demo": "node src/tools/seed-demo.js",
+    "check-locales": "node scripts/locales.js check",
+    "export-locales": "node scripts/locales.js export",
+    "import-locales": "node scripts/locales.js import"
   },
   "dependencies": {
     "express": "^4.21.0",

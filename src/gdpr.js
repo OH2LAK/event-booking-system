@@ -52,18 +52,6 @@ async function exportBooking(ref) {
   };
 }
 
-function erasureNoticeText(row) {
-  const mail = privacy.contactEmail();
-  return `Dear ${row.name},\n\n`
-    + `This is the last message you will receive from us about your registration for ${CONFIG.EVENT_NAME} (booking ${row.booking_ref}).\n\n`
-    + 'All personal data we held about you in the booking system is being erased now: your name, callsign, email address, phone number, '
-    + 'country, dietary and other registration details, and related log entries. '
-    + 'We will not contact you again about this event.\n\n'
-    + 'Messages we sent earlier remain in your own mailbox, which we cannot reach.\n'
-    + (mail ? `If you have questions, or did not expect this, contact ${mail}.\n` : '')
-    + `\n${CONFIG.EMAIL_SENDER_NAME}`;
-}
-
 // ---- Art. 17: erase one booking. The notice email is sent FIRST and its failure never blocks the erasure. ----
 async function eraseBooking(ref, opts) {
   opts = opts || {};
@@ -85,7 +73,8 @@ async function eraseBooking(ref, opts) {
     else if (!row.email) notice.error = 'The booking has no email address.';
     else {
       try {
-        await emails.sendMail(row.email, `[${CONFIG.EVENT_SHORT}] Your personal data has been erased`, erasureNoticeText(row), { noFooter: true });
+        const m = emails.erasureMail(row);
+        await emails.sendMail(row.email, m.subject, m.body, { noFooter: true, lang: m.lang });
         notice.sent = true;
       } catch (e) { notice.error = 'The notice email could not be sent: ' + e.message; }
     }
@@ -123,16 +112,6 @@ async function shutdownPreview() {
   return { success: true, retention: privacy.status(), counts: await counts(), last: await lastShutdown(), confirmPhrase: CONFIRM_PHRASE, emailEnabled: emails.isEnabled() };
 }
 
-function shutdownNoticeText(name) {
-  const mail = privacy.contactEmail();
-  return `Dear ${name},\n\n`
-    + `${CONFIG.EVENT_NAME} is now closed. In line with our privacy notice, all personal data collected for the registration `
-    + '(name, callsign, email, phone, dietary and other details) is being erased from the booking system now.\n\n'
-    + 'This is the last message you will receive from us about the event.\n'
-    + (mail ? `If you have questions, contact ${mail}.\n` : '')
-    + `\nThank you for taking part!\n${CONFIG.EMAIL_SENDER_NAME}`;
-}
-
 async function shutdownErase(opts) {
   opts = opts || {};
   if (opts.confirm !== CONFIRM_PHRASE) return { success: false, error: `Type ${CONFIRM_PHRASE} to confirm.` };
@@ -149,13 +128,13 @@ async function shutdownErase(opts) {
   if (notices.requested) {
     if (!emails.isEnabled()) notices.note = 'Email is not configured on this server, so no notices were sent.';
     else {
-      const rows = (await db.query('SELECT callsign, name, email FROM bookings ORDER BY id')).rows;
+      const rows = (await db.query('SELECT callsign, name, email, booking_ref, language FROM bookings ORDER BY id')).rows;
       const seen = new Set();
       for (const r of rows) {
         const key = String(r.email || '').toLowerCase();
         if (!key || seen.has(key)) continue;
         seen.add(key);
-        try { await emails.sendMail(r.email, `[${CONFIG.EVENT_SHORT}] Your personal data is being erased`, shutdownNoticeText(r.name), { noFooter: true }); notices.sent++; }
+        try { const m = emails.shutdownMail(r); await emails.sendMail(r.email, m.subject, m.body, { noFooter: true, lang: m.lang }); notices.sent++; }
         catch (e) { notices.failed.push({ callsign: r.callsign, email: r.email }); }
       }
     }

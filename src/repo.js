@@ -32,6 +32,7 @@ const COLS = [
   ['IsOrganizer', 'is_organizer', 'b'],
   ['FreeText', 'free_text', 't'],
   ['Meals', 'meals', 't'],
+  ['Language', 'language', 't'],
 ];
 const HEADERS = COLS.map(c => c[0]);
 const BY_HEADER = Object.fromEntries(COLS.map(c => [c[0], c]));

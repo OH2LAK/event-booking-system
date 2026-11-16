@@ -18,7 +18,7 @@ the first event.
 | Right to erasure (Art. 17) | **Erase data…** in the booking edit dialog deletes the booking, removes related log entries and, if you choose, emails the person first that their data is being erased. |
 | Erasure of the whole event | **Event shutdown** (admin panel, "Data protection and event shutdown") erases all bookings and logs, closes registration, physically removes the deleted rows and verifies the result. |
 | Security of processing (Art. 32) | Admin and report areas need a login; sessions use signed HttpOnly cookies (`Secure` over HTTPS); login attempts are throttled; the database port is not published; responses are sent with `Cache-Control: no-store`; admin pages cannot be framed; the app does not log email addresses. |
-| Transparency about cookies | Visitors get no cookies and no third-party content. Only logged-in organizers get one session cookie. |
+| Transparency about cookies | Visitors get no cookies. The pages load no fonts, scripts or images from other sites (earlier versions loaded Google Fonts, which sent visitors' IP addresses to Google; that is removed). Only logged-in organizers get one session cookie. If you set logo URLs in Event setup that point to another site, the visitor's browser contacts that site: host the logos on your own server. |
 | Accountability (Art. 5(2)) | The time a participant confirmed the notice is stored (`privacy_ack_at`). Shutdowns leave a record without personal data (date, counts, verified yes/no). |
 
 ## What you must still do

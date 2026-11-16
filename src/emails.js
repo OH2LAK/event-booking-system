@@ -3,6 +3,7 @@
 // If SMTP_HOST is empty, emails are logged to the console instead of being sent.
 const nodemailer = require('nodemailer');
 const { CONFIG } = require('./config');
+const i18n = require('./i18n');
 const S = require('./structure');
 const daysText = list => S.pickDays(list).map(k => S.dayByKey(k).short).join(' + ');
 const nightsLine = data => (S.mode() === 'per_night' && (data.type === 'room' || data.type === 'singlebed'))
@@ -31,7 +32,7 @@ async function sendMail(to, subject, text, opts) {
     return;
   }
   // Privacy footer on every message to a participant (not on organizer notifications or erasure notices)
-  if (!opts.noFooter && to !== CONFIG.REPLY_TO_EMAIL) text = text + '\n\n' + require('./privacy').footerText();
+  if (!opts.noFooter && to !== CONFIG.REPLY_TO_EMAIL) text = text + '\n\n' + require('./privacy').footerText(opts.lang);
   const fromAddr = process.env.EMAIL_FROM || process.env.SMTP_USER || CONFIG.REPLY_TO_EMAIL;
   await t.sendMail({
     from: `"${(opts.name || CONFIG.EMAIL_SENDER_NAME).replace(/"/g, '')}" <${fromAddr}>`,
@@ -41,239 +42,188 @@ async function sendMail(to, subject, text, opts) {
   });
 }
 
+// ---- guest-facing emails: sent in the booking's language (organizer copies stay in English) ----
+const DBL = '═'.repeat(59), SGL = '─'.repeat(57);
+const sec = title => `${SGL}\n${title}\n${SGL}`;
+const head = lines => [DBL].concat(lines.filter(Boolean).map(l => '  ' + l), [DBL]).join('\n');
+const kv = rows => {
+  const r = rows.filter(x => x[1] !== undefined && x[1] !== null && x[1] !== '');
+  const w = Math.max.apply(null, r.map(x => x[0].length));
+  return r.map(x => x[0].padEnd(w) + ' : ' + x[1]).join('\n');
+};
+const langOf = x => { const l = String(x || '').toLowerCase(); return i18n.enabledCodes().includes(l) ? l : i18n.defaultLang(); };
+const roomNote = (lang, id) => { const r = i18n.localizedRooms(lang).find(x => x.id === id); return r ? r.note_en : ''; };
+const livePrice = (settings, roomCfg) => (settings.ROOM_PRICES && settings.ROOM_PRICES[roomCfg.id] !== undefined) ? settings.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur;
+
+function helpers(lang) {
+  const t = (k, v) => i18n.t(lang, k, v);
+  const LS = i18n.localizedStructure(lang);
+  const dayShort = k => (LS.days.find(d => d.key === k) || {}).short || k;
+  const extra = k => LS.extraNights.find(x => x.key === k);
+  return {
+    t, LS,
+    days: list => S.pickDays(list).map(dayShort).join(' + '),
+    nightLabel: k => { const x = extra(k); return x ? x.label : t('js.nightOf', { day: dayShort(k) }); },
+    extras: list => S.pickExtras(list).map(k => { const x = extra(k) || { label: k }; return x.label + (x.includes ? ' (' + x.includes + ')' : ''); }).join(', '),
+    typeLabel: (type, roomId) => {
+      if (type === 'room') return (roomId && roomNote(lang, roomId)) || t('mail.tRoom');
+      if (type === 'camper') return t('mail.tCamper');
+      if (type === 'tent') return t('mail.tTent');
+      if (type === 'singlebed') return t('mail.tSingle');
+      if (type === 'dayvisitor') return t('mail.tDayVisitor');
+      return type;
+    },
+    mealLines: isRoomLike => {
+      const orig = CONFIG.FULL_BOARD_INCLUDES_EN || [];
+      const loc = (LS.package && LS.package.includes) || orig;
+      return orig.map((o, i) => ({ keep: isRoomLike || !String(o).toLowerCase().includes('breakfast is included in all room'), text: loc[i] || o }))
+        .filter(x => x.keep).map(x => '  • ' + x.text).join('\n');
+    },
+  };
+}
+const signoff = () => `73,\n${CONFIG.EMAIL_SENDER_NAME}`;
+const mailOpts = (lang, extra) => Object.assign({ name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL, lang }, extra || {});
+
 async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, settings, primaryRow) {
+  const lang = langOf(data.language);
+  const H = helpers(lang), t = H.t;
   const callsign = data.callsign.toUpperCase();
-  const emailSettings = settings;
+  const s = i18n.localizedSettings(lang, settings);
   let roomCfg = data.roomId ? CONFIG.ROOMS.find(r => r.id === data.roomId) : null;
   const primaryBooker_ = (data.roomRef && !data.isPrimaryBooker) ? (primaryRow || null) : null;
   if (!roomCfg && primaryBooker_ && primaryBooker_.roomId) roomCfg = CONFIG.ROOMS.find(r => r.id === primaryBooker_.roomId);
-  const liveRoomPrice = roomCfg
-    ? ((emailSettings.ROOM_PRICES && emailSettings.ROOM_PRICES[roomCfg.id] !== undefined)
-        ? emailSettings.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur)
-    : null;
-  const mealLines = CONFIG.FULL_BOARD_INCLUDES_EN
-    .filter(l => (data.type === 'room' || data.type === 'singlebed') ? true : !l.toLowerCase().includes('breakfast is included in all room'))
-    .map(l => `  • ${l}`).join("\n");
+  const isRoomLike = data.type === 'room' || data.type === 'singlebed';
+  const ev = k => i18n.ev(lang, k);
+  const parts = [];
+  parts.push(head([ev('EVENT_NAME').toUpperCase(), t('mail.confirmTitle'), ev('LOCATION'), ev('DATES_TEXT')]));
+  parts.push(`${t('mail.dear', { name: data.name })}\n\n${t('mail.confirmed')}\n\n${t('mail.refLabel', { ref: bookingRef })}`);
+  parts.push(sec(t('mail.secGuest')) + '\n' + kv([
+    [t('mail.lCallsign'), callsign], [t('mail.lName'), data.name], [t('mail.lEmail'), data.email],
+    [t('mail.lPhone'), data.phone], [t('mail.lCountry'), data.country]]));
 
-  const subject = `[${CONFIG.EVENT_SHORT}] Booking confirmation — ${bookingRef}`;
+  if (data.type === 'dayvisitor') {
+    parts.push(sec(t('mail.secAttendance')) + '\n' + kv([[t('mail.lType'), t('mail.tDayVisitor')], [t('mail.lDays'), H.days(data.visitorDays)]]));
+  } else {
+    const rows = [[t('mail.lType'), H.typeLabel(data.type, roomCfg && roomCfg.id)]];
+    const blocks = [];
+    if (data.type === 'camper' && s.CAMPER_INFO) blocks.push(s.CAMPER_INFO);
+    if (data.type === 'tent' && s.TENT_INFO) blocks.push(s.TENT_INFO);
+    const url = `${webAppUrl}?join=${encodeURIComponent(bookingRef)}` + (i18n.enabledCodes().length > 1 ? '&lang=' + lang : '');
+    if (data.isPrimaryBooker && data.type === 'room') {
+      rows.push([t('mail.lRoomRef'), bookingRef]);
+      blocks.push(`${t('mail.shareRoomTitle')}\n${t('mail.shareRoomBody', { ref: bookingRef, url })}`);
+    }
+    if (data.isPrimaryBooker && data.type === 'camper') {
+      rows.push([t('mail.lSpotRef'), bookingRef]);
+      blocks.push(`${t('mail.shareCamperTitle')}\n${t('mail.shareCamperBody', { ref: bookingRef, url })}`);
+    }
+    if (!data.isPrimaryBooker) {
+      blocks.push(t(data.type === 'camper' ? 'mail.joiningCamper' : 'mail.joiningRoom', { ref: data.roomRef })
+        + (primaryBooker_ ? t('mail.bookedBy', { who: primaryBooker_.callsign.toUpperCase() + ' ' + primaryBooker_.name }) : ''));
+    }
+    if (S.mode() === 'per_night' && isRoomLike)
+      rows.push([t('mail.lNights'), data.nights && data.nights.length ? S.pickNights(data.nights).map(H.nightLabel).join(', ') : t('mail.lAllNights')]);
+    if (data.extraNights && data.extraNights.length) rows.push([t('mail.lExtra'), H.extras(data.extraNights)]);
+    parts.push(sec(t('mail.secAccommodation')) + '\n' + kv(rows) + (blocks.length ? '\n\n' + blocks.join('\n\n') : ''));
+  }
 
-  const body = `
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  ${CONFIG.EVENT_NAME.toUpperCase()}
-  BOOKING CONFIRMATION
-  ${CONFIG.LOCATION}
-  ${CONFIG.DATES_TEXT}
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  const extraLines = [];
+  extraLines.push(data.fullBoard ? `${t('mail.mealIncludes')}\n${H.mealLines(isRoomLike)}` : t('mail.mealNo'));
+  if (data.dietary) extraLines.push(t('mail.dietary', { v: data.dietary }));
+  if (data.shirtSize) extraLines.push(t('mail.shirt', { v: data.shirtSize }));
+  if (data.freeText) extraLines.push(`${t('mail.freeText')}\n${data.freeText}`);
+  parts.push(sec(t('mail.secServices')) + '\n' + String(price.breakdown).split(' | ').join('\n') + '\n\n' + extraLines.join('\n\n'));
+  parts.push(SGL + '\n' + t('mail.total', { n: price.total }) + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''));
+  parts.push(sec(t('mail.secPayment')) + '\n' + t('mail.payBody')
+    + (data.isPrimaryBooker && data.type === 'room' && roomCfg ? '\n\n' + t('mail.roomBookerNote', { n: livePrice(settings, roomCfg) }) : ''));
+  parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
+  parts.push(`${SGL}\n${t('mail.questions')}\n${CONFIG.REPLY_TO_EMAIL}\n\n${signoff()}\n${DBL}`);
 
-Dear ${data.name},
-
-Your booking has been confirmed!
-
-BOOKING REFERENCE: ${bookingRef}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-GUEST DETAILS
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-Callsign : ${callsign}
-Name     : ${data.name}
-Email    : ${data.email}
-${data.phone ? `Phone    : ${data.phone}` : ""}
-${data.country ? `Country  : ${data.country}` : ""}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
-Days     : ${daysText(data.visitorDays)}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van spot" : data.type === "tent" ? "Tent" : data.type}
-${data.type === "camper" ? `\n${emailSettings.CAMPER_INFO}` : ""}${data.type === "tent" ? `\n${emailSettings.TENT_INFO}` : ""}
-${data.isPrimaryBooker && data.type === "room" ? `Room ref : ${bookingRef}
-
-! IMPORTANT — SHARING YOUR ROOM !
-Anyone joining your room MUST use one of these options:
-
-  1) Use "Join a booking" on the booking page and enter your
-     booking reference: ${bookingRef}
-
-  2) Or use this direct join link (pre-fills the reference):
-     ${webAppUrl}?join=${encodeURIComponent(bookingRef)}
-
-Roommates who do NOT use the join option will be registered
-as separate guests and may be assigned a different room.` : ""}
-${data.isPrimaryBooker && data.type === "camper" ? `Spot ref : ${bookingRef}
-
-! IMPORTANT — SHARING YOUR CAMPER SPOT !
-Anyone travelling in the same vehicle MUST use one of these options:
-
-  1) Use "Join a booking" on the booking page and enter your
-     booking reference: ${bookingRef}
-
-  2) Or use this direct join link (pre-fills the reference):
-     ${webAppUrl}?join=${encodeURIComponent(bookingRef)}
-
-Co-travellers who do NOT use the join option will be registered
-as separate camper spots.` : ""}
-${!data.isPrimaryBooker ? `Joining ${data.type === 'camper' ? 'camper spot' : 'room'}: ${data.roomRef}${primaryBooker_ ? " — booked by " + primaryBooker_.callsign.toUpperCase() + " " + primaryBooker_.name : ""}` : ""}
-${nightsLine(data)}
-${data.extraNights && data.extraNights.length ? `Extra nights: ${extrasText(data.extraNights)}` : ""}`}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-ORDERED SERVICES
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${price.breakdown.split(" | ").join("\n")}
-
-${data.fullBoard ? `Meal package includes:\n${mealLines}` : "Meal package: No"}
-
-${data.dietary ? `Dietary requirements: ${data.dietary}` : ""}
-${data.shirtSize ? `T-shirt size: ${data.shirtSize}` : ""}
-${data.freeText ? `\nAdditional information sent:\n${data.freeText}` : ""}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-TOTAL: \u20AC${price.total}
-${emailSettings.PRICE_DISCLAIMER ? `\n* ${emailSettings.PRICE_DISCLAIMER}` : ""}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-PAYMENT
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-All payments are to be completed upon arrival at the venue.
-
-Accepted payment methods:
-  • Cash
-  • Debit and credit cards (Visa, Mastercard)
-  x No Amex or Diners Club
-
-${data.isPrimaryBooker && data.type === "room" && roomCfg ? `NOTE: The room total is \u20AC${liveRoomPrice}. As the room booker you are responsible for settling the room costs with your roommates.` : ""}
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
-CHECK-IN: ${CONFIG.CHECKIN_TIME}
-CHECK-OUT: ${CONFIG.CHECKOUT_TIME}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-If you have any questions, please contact us:
-${CONFIG.REPLY_TO_EMAIL}
-
-73,
-${CONFIG.EMAIL_SENDER_NAME}
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-`.trim();
-
-  await sendMail(data.email, subject, body, {
-    name: CONFIG.EMAIL_SENDER_NAME,
-    replyTo: CONFIG.REPLY_TO_EMAIL,
-  });
+  await sendMail(data.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.confirmSubject', { ref: bookingRef })}`, parts.join('\n\n'), mailOpts(lang));
 }
 
 async function sendRoomJoinNotification(primary, joiner, joinerRef, settings) {
-  const joinerCallsign = joiner.callsign.toUpperCase();
+  const lang = langOf(primary.language);
+  const H = helpers(lang), t = H.t;
+  const jc = joiner.callsign.toUpperCase();
   const roomCfg = primary.roomId ? CONFIG.ROOMS.find(r => r.id === primary.roomId) : null;
-  const s = settings;
-  const liveRoomPrice = roomCfg
-    ? ((s.ROOM_PRICES && s.ROOM_PRICES[roomCfg.id] !== undefined) ? s.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur)
-    : null;
-  const subject = `[${CONFIG.EVENT_SHORT}] ${joinerCallsign} has joined your room — ${primary.bookingRef}`;
-
-  const body = `
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  ${CONFIG.EVENT_NAME.toUpperCase()} — ROOM NOTICE
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-
-Dear ${primary.name},
-
-${joinerCallsign} (${joiner.name}) has joined your room booking.
-
-Booking reference  : ${primary.bookingRef}
-Their reference    : ${joinerRef}
-${roomCfg ? `Room type          : ${roomCfg.note_en}` : ""}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-ROOM COSTS
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${roomCfg ? `Room total price : \u20AC${liveRoomPrice}\nPer person (${roomCfg.persons} persons) : \u20AC${Math.round(liveRoomPrice / roomCfg.persons)}` : ""}
-
-IMPORTANT: As the primary room booker, you are responsible
-for settling the total room cost with your roommates.
-Please agree amongst yourselves who pays what upon arrival.
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-PAYMENT
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-All payments are completed upon arrival at the venue.
-Accepted: Cash, Visa, Mastercard
-Not accepted: Amex, Diners Club
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
-If you have any questions, please contact us: ${CONFIG.REPLY_TO_EMAIL}
-
-73,
-${CONFIG.EMAIL_SENDER_NAME}
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-`.trim();
-
-  await sendMail(primary.email, subject, body, {
-    name: CONFIG.EMAIL_SENDER_NAME,
-    replyTo: CONFIG.REPLY_TO_EMAIL,
-  });
+  const parts = [];
+  parts.push(head([`${i18n.ev(lang, 'EVENT_NAME').toUpperCase()} — ${t('mail.roomNotice')}`]));
+  parts.push(`${t('mail.dear', { name: primary.name })}\n\n${t('mail.joinBody', { cs: jc, name: joiner.name })}\n\n`
+    + kv([[t('mail.lRef'), primary.bookingRef], [t('mail.lTheirRef'), joinerRef], [t('mail.lRoomType'), roomCfg ? roomNote(lang, roomCfg.id) : '']]));
+  if (roomCfg) {
+    const total = livePrice(settings, roomCfg);
+    parts.push(sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), '€' + total], [t('mail.perPersonN', { n: roomCfg.persons }), '€' + Math.round(total / roomCfg.persons)]]));
+  }
+  parts.push(t('mail.settle'));
+  parts.push(sec(t('mail.secPayment')) + '\n' + t('mail.payShort'));
+  parts.push(`${SGL}\n\n${t('mail.questionsInline', { mail: CONFIG.REPLY_TO_EMAIL })}\n\n${signoff()}\n${DBL}`);
+  await sendMail(primary.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.joinSubject', { cs: jc, ref: primary.bookingRef })}`, parts.join('\n\n'), mailOpts(lang));
 }
 
 async function sendRoomFullNotification(primary, roomCfg, allOccupants, settings) {
-  const s = settings;
-  const liveRoomPrice = (s.ROOM_PRICES && s.ROOM_PRICES[roomCfg.id] !== undefined) ? s.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur;
-  const occupantList = allOccupants.map((b, i) =>
-    `  ${i+1}. ${b.callsign.toUpperCase()} — ${b.name}${b.isPrimaryBooker === "YES" ? " (primary booker)" : ""}`
-  ).join("\n");
+  const total = livePrice(settings, roomCfg);
+  const core = lang => {
+    const t = (k, v) => i18n.t(lang, k, v);
+    const list = allOccupants.map((b, i) => `  ${i + 1}. ${b.callsign.toUpperCase()} — ${b.name}${b.isPrimaryBooker === 'YES' ? t('mail.primaryTag') : ''}`).join('\n');
+    return [head([`${i18n.ev(lang, 'EVENT_NAME').toUpperCase()} — ${t('mail.roomNotice')}`]),
+      t('mail.roomFull') + '\n\n' + kv([[t('mail.lRef'), primary.bookingRef], [t('mail.lRoomType'), roomNote(lang, roomCfg.id)], [t('mail.lCapacity'), t('mail.capacityVal', { n: roomCfg.persons })]]),
+      sec(t('mail.secOccupants')) + '\n' + list,
+      sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), '€' + total], [t('mail.perPersonN', { n: roomCfg.persons }), '€' + Math.round(total / roomCfg.persons)]])].join('\n\n');
+  };
+  const lang = langOf(primary.language), t = (k, v) => i18n.t(lang, k, v);
+  await sendMail(primary.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.fullSubject', { ref: primary.bookingRef })}`,
+    `${core(lang)}\n\n${t('mail.allBooked')}\n\n${t('mail.settle')}\n\n${SGL}\n${t('mail.questionsInline', { mail: CONFIG.REPLY_TO_EMAIL })}\n\n${signoff()}\n${DBL}`, mailOpts(lang));
+  // organizer copy (English)
+  await sendMail(CONFIG.REPLY_TO_EMAIL, `[${CONFIG.EVENT_SHORT}] Room full: ${primary.bookingRef} — ${roomNote('en', roomCfg.id)}`, `${core('en')}\n\n${DBL}`, mailOpts('en'));
+}
 
-  const bodyCore = `
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-  ${CONFIG.EVENT_NAME.toUpperCase()} — ROOM NOTICE
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+async function sendAccommodationChangeEmail_(booking, oldType, oldRoomCfg, newType, newRoomCfg, oldPrice, newPrice, settings) {
+  const lang = langOf(booking.language);
+  const H = helpers(lang), t = H.t;
+  const s = i18n.localizedSettings(lang, settings);
+  const ev = k => i18n.ev(lang, k);
+  const diff = newPrice.total - oldPrice.total;
+  const diffStr = diff === 0 ? t('mail.noChange') : (diff > 0 ? '+€' + diff : '−€' + Math.abs(diff));
+  const parts = [
+    head([ev('EVENT_NAME').toUpperCase(), t('mail.changeTitle'), ev('LOCATION'), ev('DATES_TEXT')]),
+    `${t('mail.dear', { name: booking.name })}\n\n${t('mail.changeIntro')}\n\n${t('mail.refLabel', { ref: booking.bookingRef })}`,
+    sec(t('mail.secChange')) + '\n' + kv([
+      [t('mail.lPrevious'), H.typeLabel(oldType, oldRoomCfg && oldRoomCfg.id)], [t('mail.lNew'), H.typeLabel(newType, newRoomCfg && newRoomCfg.id)]])
+      + '\n\n' + kv([[t('mail.lPrevTotal'), '€' + oldPrice.total], [t('mail.lNewTotal'), '€' + newPrice.total], [t('mail.lDiff'), diffStr]]),
+    sec(t('mail.secNewBreakdown')) + '\n' + String(newPrice.breakdown).split(' | ').join('\n') + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''),
+    sec(t('mail.secPayment')) + '\n' + t('mail.payChange'),
+    `${SGL}\n${t('mail.questions')}\n${CONFIG.REPLY_TO_EMAIL}\n\n${signoff()}\n${DBL}`,
+  ];
+  await sendMail(booking.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.changeSubject', { ref: booking.bookingRef })}`, parts.join('\n\n'), mailOpts(lang, { bcc: CONFIG.REPLY_TO_EMAIL }));
+}
 
-Room full!
-
-Booking reference : ${primary.bookingRef}
-Room type         : ${roomCfg.note_en}
-Capacity          : ${roomCfg.persons} persons
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-ROOM OCCUPANTS
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${occupantList}
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-ROOM COSTS
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-Room total price : \u20AC${liveRoomPrice}
-Per person       : \u20AC${Math.round(liveRoomPrice / roomCfg.persons)}
-`.trim();
-
-  const subjectPrimary = `[${CONFIG.EVENT_SHORT}] Your room is full! — ${primary.bookingRef}`;
-  const bodyPrimary = `${bodyCore}
-
-All spots in your room have now been booked.
-
-IMPORTANT: As the primary room booker, you are responsible
-for settling the total room cost with your roommates.
-Please agree amongst yourselves who pays what upon arrival.
-
-\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-If you have any questions, please contact us: ${CONFIG.REPLY_TO_EMAIL}
-
-73,
-${CONFIG.EMAIL_SENDER_NAME}
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550`;
-
-  await sendMail(primary.email, subjectPrimary, bodyPrimary, {
-    name: CONFIG.EMAIL_SENDER_NAME,
-    replyTo: CONFIG.REPLY_TO_EMAIL,
-  });
-
-  const subjectOrg = `[${CONFIG.EVENT_SHORT}] Room full: ${primary.bookingRef} — ${roomCfg.note_en}`;
-  const bodyOrg = `${bodyCore}
-
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550`;
-
-  await sendMail(CONFIG.REPLY_TO_EMAIL, subjectOrg, bodyOrg, {
-    name: CONFIG.EMAIL_SENDER_NAME,
-    replyTo: CONFIG.REPLY_TO_EMAIL,
-  });
+// Plain notices used by the admin tools (booking update, cascade, erasure, shutdown), in the guest's language
+function bookingUpdatedMail(obj, bookingRef, changed, price) {
+  const lang = langOf(obj.language), t = (k, v) => i18n.t(lang, k, v);
+  return { lang, subject: `[${CONFIG.EVENT_SHORT}] ${t('mail.updSubject', { ref: bookingRef })}`,
+    body: `${t('mail.dear', { name: obj.name + ' (' + obj.callsign + ')' })}\n\n${t('mail.updIntro')}\n\n`
+      + kv([[t('mail.lRef'), bookingRef], [t('mail.lUpdated'), changed.join(', ')]])
+      + `\n\n${sec(t('mail.secCurrent'))}\n${String(price.breakdown || '').replace(/ \| /g, '\n')}\n\n${t('mail.total', { n: price.total })}\n\n${SGL}\n${t('mail.questionsInline', { mail: CONFIG.REPLY_TO_EMAIL })}\n\n${i18n.ev(lang, 'ORGANIZER')}` };
+}
+function roommateCancelledMail(rm, primaryRef) {
+  const lang = langOf(rm.language), t = (k, v) => i18n.t(lang, k, v);
+  return { lang, subject: t('mail.cascSubject', { ev: CONFIG.EVENT_SHORT }),
+    body: `${t('mail.dear', { name: rm.name + ' (' + rm.callsign.toUpperCase() + ')' })}\n\n${t('mail.cascBody', { ref: primaryRef, ref2: rm.booking_ref, mail: CONFIG.REPLY_TO_EMAIL })}\n\n${CONFIG.EMAIL_SENDER_NAME}` };
+}
+function erasureMail(row) {
+  const lang = langOf(row.language), t = (k, v) => i18n.t(lang, k, v);
+  const mail = require('./privacy').contactEmail();
+  return { lang, subject: `[${CONFIG.EVENT_SHORT}] ${t('mail.eraseSubject')}`,
+    body: `${t('mail.dear', { name: row.name })}\n\n${t('mail.eraseBody', { event: i18n.ev(lang, 'EVENT_NAME'), ref: row.booking_ref })}\n`
+      + (mail ? t('mail.eraseContact', { mail }) + '\n' : '') + `\n${CONFIG.EMAIL_SENDER_NAME}` };
+}
+function shutdownMail(row) {
+  const lang = langOf(row.language), t = (k, v) => i18n.t(lang, k, v);
+  const mail = require('./privacy').contactEmail();
+  return { lang, subject: `[${CONFIG.EVENT_SHORT}] ${t('mail.shutSubject')}`,
+    body: `${t('mail.dear', { name: row.name })}\n\n${t('mail.shutBody', { event: i18n.ev(lang, 'EVENT_NAME') })}\n`
+      + (mail ? t('mail.shutContact', { mail }) + '\n' : '') + `\n${t('mail.thanks')}\n${CONFIG.EMAIL_SENDER_NAME}` };
 }
 
 async function sendOrganizerNotification(data, bookingRef, price, settings) {
@@ -340,72 +290,6 @@ ${price.total === 0 ? "(Price pending — check with organizers)" : ""}
   });
 }
 
-async function sendAccommodationChangeEmail_(booking, oldType, oldRoomCfg, newType, newRoomCfg, oldPrice, newPrice, settings) {
-  const typeLabel = (type, cfg) => {
-    if (type === 'room')       return cfg ? cfg.note_en : 'Room';
-    if (type === 'camper')     return 'Camper van spot';
-    if (type === 'tent')       return 'Tent';
-    if (type === 'singlebed')  return 'Single bed (organizer-assigned)';
-    if (type === 'dayvisitor') return 'Day visitor';
-    return type;
-  };
-  const subject = `[${CONFIG.EVENT_SHORT}] Accommodation change — ${booking.bookingRef}`;
-  const sep = '\u2500'.repeat(57);
-  const dsep = '\u2550'.repeat(59);
-  const priceDiff = newPrice.total - oldPrice.total;
-  const diffStr = priceDiff === 0 ? 'No change' : (priceDiff > 0 ? '+€' + priceDiff : '\u2212€' + Math.abs(priceDiff));
-
-  const body = `
-${dsep}
-  ${CONFIG.EVENT_NAME.toUpperCase()}
-  ACCOMMODATION CHANGE NOTICE
-  ${CONFIG.LOCATION}
-  ${CONFIG.DATES_TEXT}
-${dsep}
-
-Dear ${booking.name},
-
-The organizers have updated your accommodation booking.
-
-BOOKING REFERENCE: ${booking.bookingRef}
-
-${sep}
-CHANGE DETAILS
-${sep}
-Previous : ${typeLabel(oldType, oldRoomCfg)}
-New      : ${typeLabel(newType, newRoomCfg)}
-
-Previous total : \u20AC${oldPrice.total}
-New total      : \u20AC${newPrice.total}
-Difference     : ${diffStr}
-
-${sep}
-NEW PRICE BREAKDOWN
-${sep}
-${newPrice.breakdown.split(' | ').join('\n')}
-
-${settings.PRICE_DISCLAIMER ? `\n* ${settings.PRICE_DISCLAIMER}` : ''}
-${sep}
-PAYMENT
-${sep}
-All payments are completed upon arrival at the venue.
-Accepted: Cash · Visa · Mastercard  (no Amex/Diners)
-
-${sep}
-If you have any questions, please contact us:
-${CONFIG.REPLY_TO_EMAIL}
-
-73,
-${CONFIG.EMAIL_SENDER_NAME}
-${dsep}
-`.trim();
-
-  await sendMail(booking.email, subject, body, {
-    name: CONFIG.EMAIL_SENDER_NAME,
-    replyTo: CONFIG.REPLY_TO_EMAIL,
-    bcc: CONFIG.REPLY_TO_EMAIL,
-  });
-}
 
 module.exports = {
   sendMail,
@@ -415,4 +299,5 @@ module.exports = {
   sendRoomFullNotification,
   sendOrganizerNotification,
   sendAccommodationChangeEmail_,
+  bookingUpdatedMail, roommateCancelledMail, erasureMail, shutdownMail,
 };

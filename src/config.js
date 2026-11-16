@@ -26,6 +26,7 @@ const CONFIG = {
   // Privacy and data retention (edited in the admin panel: Event setup)
   CONTROLLER_NAME: "", CONTROLLER_ADDRESS: "", PRIVACY_CONTACT_EMAIL: "", PRIVACY_URL: "",
   EVENT_END_DATE: "", RETENTION_DAYS: "30", RETENTION_HOLD: "",
+  LANGUAGES: "en", DEFAULT_LANGUAGE: "en",
   LOGO1_URL:      "",
   LOGO2_URL:      "",
   ACCENT_COLOR:   "#b45309",

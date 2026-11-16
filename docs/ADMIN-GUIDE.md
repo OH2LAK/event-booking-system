@@ -151,6 +151,13 @@ left, or when the room's current joiners would not fit the new type. Tick **Send
 email the old/new accommodation, the price difference and the new breakdown (organizers are in BCC). The price is
 recalculated.
 
+## 6b. Languages and translations
+
+Enable languages in **Event setup -> Languages** and edit texts in the **Translations** card (below the privacy card).
+Guests pick their language on the booking pages and get emails in it. See [LANGUAGES.md](LANGUAGES.md). Remember to
+translate your own texts (announcement, day labels, package texts, room type names) under **Event content**, and have the
+privacy notice translations checked before you rely on them. The admin panel and this report stay in English.
+
 ## 7. Report and check-in tool (`/report`)
 
 Log in with the same password. Top buttons:

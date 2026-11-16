@@ -3,6 +3,7 @@
 // ("Event setup") and applied onto the shared CONFIG object so every module sees the current values.
 const { CONFIG } = require('./config');
 const db = require('./db');
+const I18N = require('./i18n');
 
 // type: text | textarea | url | email | color | date | number
 const FIELDS = [
@@ -15,6 +16,8 @@ const FIELDS = [
   { group: 'Dates and times', key: 'DATES_TEXT', label: 'Event dates (short text)', type: 'text', max: 60, help: 'e.g. 13-16 May 2027' },
   { group: 'Dates and times', key: 'CHECKIN_TIME', label: 'Check-in text', type: 'text', max: 100 },
   { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
+  { group: 'Languages', key: 'LANGUAGES', label: 'Enabled languages', type: 'langs', max: 60, help: 'Comma-separated codes: en, fi, sv, no, da, is, et, lv, lt, pl, de. Guests can switch between them on the booking pages.' },
+  { group: 'Languages', key: 'DEFAULT_LANGUAGE', label: 'Default language', type: 'text', max: 2, help: 'One of the enabled codes. Event texts you enter in this panel (event name, announcement, ...) are in this language; translate them in "Translations".' },
   { group: 'Contact and email', key: 'REPLY_TO_EMAIL', label: 'Organizer email', type: 'email', max: 150, help: 'Reply-To address; organizer notifications are sent here.' },
   { group: 'Contact and email', key: 'EMAIL_SENDER_NAME', label: 'Email sender name', type: 'text', max: 80 },
   { group: 'Privacy and data retention', key: 'CONTROLLER_NAME', label: 'Data controller (name)', type: 'text', max: 150, help: 'Who is responsible for the personal data collected here. Empty = organizer name.' },
@@ -72,6 +75,17 @@ function validate(input) {
     if (v.length > f.max) return { error: `${f.label} is too long (max ${f.max} characters)` };
     if (f.type === 'url' && v && !/^https?:\/\/[^\s"'`]+$/i.test(v)) return { error: `${f.label} must start with http:// or https://` };
     if (f.type === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return { error: `${f.label} is not a valid email address` };
+    if (f.type === 'langs') {
+      const codes = v.toLowerCase().split(/[\s,;]+/).filter(Boolean);
+      if (!codes.length) v = 'en';
+      else if (codes.some(c => !I18N.CODES.includes(c))) return { error: `${f.label}: allowed codes are ${I18N.CODES.join(', ')}` };
+      else v = Array.from(new Set(codes)).join(',');
+    }
+    if (f.key === 'DEFAULT_LANGUAGE') {
+      v = v.toLowerCase() || 'en';
+      const enabled = String(out.LANGUAGES || 'en').split(',');
+      if (!enabled.includes(v)) return { error: `${f.label} must be one of the enabled languages (${enabled.join(', ')})` };
+    }
     if (f.type === 'date' && v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v + 'T00:00:00Z')))) return { error: `${f.label} must be a date like 2027-05-16` };
     if (f.type === 'number') {
       if (v === '') v = String(CONFIG[f.key] || '30');
