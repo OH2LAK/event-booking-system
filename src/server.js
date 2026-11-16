@@ -9,6 +9,7 @@ const pages = require('./pages');
 const reportRoutes = require('./reportRoutes');
 const { getSettings } = require('./settings');
 const eventConfig = require('./eventConfig');
+const rooms = require('./rooms');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -60,8 +61,10 @@ const PUBLIC = {
 const ADMIN = {
   getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
   saveEventConfig: values => eventConfig.save(values),
+  getRoomCatalog: () => ({ success: true, rooms: CONFIG.ROOMS }),
+  saveRoomCatalog: list => rooms.save(list),
   getAdminPanelHtml: () => {
-    const html = '<div id="event-setup"></div>' + pages.getAdminPanelHtml();
+    const html = '<div id="event-setup"></div><div id="room-catalog"></div>' + pages.getAdminPanelHtml();
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
     const banner = '<div style="background:#b91c1c;color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
@@ -116,6 +119,7 @@ async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
   await initDb();
   await eventConfig.load();
+  await rooms.load();
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')

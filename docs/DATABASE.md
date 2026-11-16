@@ -140,8 +140,24 @@ Keys written by the admin panel:
 | `MEAL_FRI_BBQ`, `MEAL_SAT_HAM_DINNER`, `MEAL_LUNCH` | number | Individual meal prices (stored; not currently added to `total_price`). |
 | `THU_EXTRA_NIGHT_PRICE` | number | Fixed Thursday-night price; absent = derived from the room price. |
 | `CAMPER_VAN_SPOTS`, `TENT_SPOTS` | integer | Camper / tent capacity. |
-| `ROOM_PRICE_<id>` | number | Room price override, e.g. `ROOM_PRICE_2S`. |
-| `ROOM_COUNT_<id>` | integer | Number of rooms of that type, e.g. `ROOM_COUNT_2S`. |
+| `ROOM_PRICE_<id>`, `ROOM_COUNT_<id>` | | Legacy keys. Only read once, to seed `room_types` on first start; afterwards room counts and prices live in `room_types`. |
+| `ROOMS_INITIALIZED` | `1` | Marks that `room_types` has been seeded. |
+
+## `room_types`
+
+The room catalog, edited in the admin panel's **Room types** card. Seeded from `src/config.js` on first start.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | text PK | Short code, e.g. `2S` (letters, digits, `-`, max 12). Referenced by `bookings.room_id` |
+| `sort` | integer | Display order |
+| `persons` | integer | Capacity of one room (1-20). Cannot change once bookings exist |
+| `count` | integer | Number of rooms of this type |
+| `price_eur` | numeric(10,2) | Price per room for the whole event |
+| `note_en` | text | English description shown to guests |
+| `note_fi` | text | Optional Finnish description for the report tool |
+
+A room type that has bookings (even cancelled ones) cannot be deleted; set `count` to 0 instead.
 
 ## `event_config`
 

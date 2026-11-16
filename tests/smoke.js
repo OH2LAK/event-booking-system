@@ -79,6 +79,29 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   check('cancelling primary flags roommate', r.success && r.cascadedCount === 1, r);
   r = (await rpc('saveAdminSettings', '', { ANNOUNCEMENT: '', MEETING_FEE_WEEKEND: 10 })).body.result;
 
+  // --- room catalog ---
+  const cat = (await rpc('getRoomCatalog')).body.result;
+  check('room catalog served', cat.success && cat.rooms.length === 7, cat);
+  const base = cat.rooms.map(x => ({ ...x }));
+  r = (await rpc('saveRoomCatalog', [...base, { id: '5S', note_en: 'Five-bed room', persons: 5, count: 2, price_eur: 500 }])).body.result;
+  check('add room type', r.success, r);
+  let a2 = (await rpc('getAvailability')).body.result;
+  check('new room type in availability', a2.rooms['5S'] && a2.rooms['5S'].total === 2, a2.rooms && a2.rooms['5S']);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTR1', type: 'room', roomId: '5S' }))).body.result;
+  check('book a custom room type', r.success && r.price.total > 0, r);
+  r = (await rpc('saveRoomCatalog', base)).body.result;
+  check('cannot delete room type with bookings', !r.success, r);
+  r = (await rpc('saveRoomCatalog', [...base, { id: '5S', note_en: 'Five-bed room', persons: 4, count: 2, price_eur: 500 }])).body.result;
+  check('cannot change capacity with bookings', !r.success, r);
+  r = (await rpc('saveRoomCatalog', [...base, { id: 'bad id!', note_en: 'x', persons: 1, count: 1, price_eur: 1 }])).body.result;
+  check('invalid room id rejected', !r.success, r);
+  r = (await rpc('saveRoomCatalog', [...base, { id: '9S', note_en: 'Temp', persons: 9, count: 1, price_eur: 1 }, { id: '5S', note_en: 'Five-bed room', persons: 5, count: 2, price_eur: 520 }])).body.result;
+  check('edit price and add another', r.success, r);
+  r = (await rpc('saveRoomCatalog', [...base, { id: '5S', note_en: 'Five-bed room', persons: 5, count: 2, price_eur: 520 }])).body.result;
+  check('delete unused room type', r.success, r);
+  const setg = (await rpc('getAdminSettings', '')).body.result;
+  check('room price follows catalog', setg.settings.ROOM_PRICES['5S'] === 520, setg.settings.ROOM_PRICES);
+
 
   // report & check-in tool
   const noAuth = await fetch(BASE + '/report?view=summary');

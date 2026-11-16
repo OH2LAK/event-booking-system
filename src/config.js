@@ -45,18 +45,16 @@ const CONFIG = {
   SHEET_NAME: "Bookings",
 
   // --- Room inventory ---
-  // Room types (ids are used by the admin panel; counts and prices can be changed there)
+  // Default room types. They are copied into the database (room_types) on first start and are then
+  // edited in the admin panel (Room types card).
   ROOMS: [
-    { id: "1S-W",  type: "single",  persons: 1, floor: "upstairs", window: true,  count: 6,  price_eur: 220, note_en: "Single room, window" },
-    { id: "1S-NW", type: "single",  persons: 1, floor: "upstairs", window: false, count: 3,  price_eur: 200, note_en: "Single room, no window" },
-    { id: "2S",    type: "double",  persons: 2, floor: "upstairs", window: true,  count: 20, price_eur: 270, note_en: "Double room" },
-    // Downstairs rooms
-    // Upstairs triple rooms
-    { id: "3S-U",  type: "triple",  persons: 3, floor: "upstairs",   window: true, count: 3, price_eur: 330, note_en: "Triple room, upstairs" },
-    // Downstairs rooms
-    { id: "3S",    type: "triple",  persons: 3, floor: "downstairs", window: true, count: 1, price_eur: 330, note_en: "Triple room, downstairs" },
-    { id: "4S",    type: "quad",    persons: 4, floor: "downstairs", window: true, count: 2, price_eur: 400, note_en: "Quad room, downstairs" },
-    { id: "7S",    type: "seven",   persons: 7, floor: "downstairs", window: true, count: 1, price_eur: 540, note_en: "Seven-person room, downstairs" },
+    { id: "1S-W",  persons: 1, count: 6,  price_eur: 220, note_en: "Single room, window",           note_fi: "1hh huone, ikkuna" },
+    { id: "1S-NW", persons: 1, count: 3,  price_eur: 200, note_en: "Single room, no window",        note_fi: "1hh huone ilman ikkunaa" },
+    { id: "2S",    persons: 2, count: 20, price_eur: 270, note_en: "Double room",                   note_fi: "2hh huone" },
+    { id: "3S-U",  persons: 3, count: 3,  price_eur: 330, note_en: "Triple room, upstairs",         note_fi: "3hh huone, yläkerta" },
+    { id: "3S",    persons: 3, count: 1,  price_eur: 330, note_en: "Triple room, downstairs",       note_fi: "3hh huone, alakerta" },
+    { id: "4S",    persons: 4, count: 2,  price_eur: 400, note_en: "Quad room, downstairs",         note_fi: "4hh huone, alakerta" },
+    { id: "7S",    persons: 7, count: 1,  price_eur: 540, note_en: "Seven-person room, downstairs", note_fi: "7hh huone, alakerta" },
   ],
 
   // Extra bed add-on (per person, whole event 2 nights)

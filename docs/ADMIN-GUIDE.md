@@ -67,6 +67,16 @@ How prices are built: room price divided by the room's persons per guest (the wh
 meeting fee, plus the meal package if chosen. The Thursday extra night is half the room price, divided the same way.
 Individual meals (`meals`) are recorded for catering but are not added to the price.
 
+## 5a. Room types
+
+The **Room types** card (top of the panel, below Event setup) defines the accommodation you offer. Each row has an **Id**
+(short code such as `2S`; fixed after saving), an English description, an optional Finnish description (used in the report
+tool), **Persons** per room, **Count** of rooms and **Price** per room. Use **+ Add room type**, the arrows to reorder and
+the cross to delete, then press **Save room types**; the page reloads.
+
+Rules: a room type that already has bookings cannot be deleted (set its count to 0) and its capacity cannot be changed.
+Single-person types drive the "single bed" rule and two-person types can allow solo use.
+
 ## 5. Room inventory
 
 Set how many rooms of each type exist, plus the number of camper van and tent spots, then press **Save inventory**.

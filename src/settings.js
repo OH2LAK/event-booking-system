@@ -3,6 +3,7 @@
 // (this replaces Apps Script "Script Properties").
 const { CONFIG } = require('./config');
 const db = require('./db');
+const rooms = require('./rooms');
 
 const NUM_KEYS = [
   'SINGLE_BED_PRICE', 'MEETING_FEE_WEEKEND', 'MEETING_FEE_DAY', 'MEAL_FRI_BBQ', 'MEAL_SAT_HAM_DINNER',
@@ -60,8 +61,8 @@ async function getSettings(client) {
     ROOM_COUNTS: {},
   };
   CONFIG.ROOMS.forEach(r => {
-    s.ROOM_PRICES[r.id] = has('ROOM_PRICE_' + r.id) ? parseFloat(p['ROOM_PRICE_' + r.id]) : r.price_eur;
-    s.ROOM_COUNTS[r.id] = has('ROOM_COUNT_' + r.id) ? parseInt(p['ROOM_COUNT_' + r.id], 10) : r.count;
+    s.ROOM_PRICES[r.id] = r.price_eur;
+    s.ROOM_COUNTS[r.id] = r.count;
   });
   return s;
 }
@@ -85,12 +86,7 @@ async function saveSettings(input) {
     if (present(input.THU_EXTRA_NIGHT_PRICE)) await setKey('THU_EXTRA_NIGHT_PRICE', parseFloat(input.THU_EXTRA_NIGHT_PRICE));
     else await deleteKey('THU_EXTRA_NIGHT_PRICE');
   }
-  for (const r of CONFIG.ROOMS) {
-    const c = input.ROOM_COUNTS && input.ROOM_COUNTS[r.id];
-    if (present(c) && !isNaN(parseInt(c, 10))) await setKey('ROOM_COUNT_' + r.id, Math.max(0, parseInt(c, 10)));
-    const pr = input.ROOM_PRICES && input.ROOM_PRICES[r.id];
-    if (present(pr) && !isNaN(parseFloat(pr))) await setKey('ROOM_PRICE_' + r.id, Math.max(0, parseFloat(pr)));
-  }
+  if (input.ROOM_COUNTS || input.ROOM_PRICES) await rooms.updateCountsPrices(input.ROOM_COUNTS, input.ROOM_PRICES);
 }
 
 module.exports = { getSettings, saveSettings };

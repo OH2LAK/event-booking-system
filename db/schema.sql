@@ -61,3 +61,14 @@ CREATE TABLE IF NOT EXISTS event_config (
   config     JSONB NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Room catalog (editable in the admin panel). Seeded from src/config.js defaults on first start.
+CREATE TABLE IF NOT EXISTS room_types (
+  id         TEXT PRIMARY KEY,
+  sort       INTEGER NOT NULL DEFAULT 0,
+  persons    INTEGER NOT NULL CHECK (persons BETWEEN 1 AND 20),
+  count      INTEGER NOT NULL DEFAULT 0 CHECK (count >= 0),
+  price_eur  NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (price_eur >= 0),
+  note_en    TEXT NOT NULL,
+  note_fi    TEXT NOT NULL DEFAULT ''
+);

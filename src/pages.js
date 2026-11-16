@@ -609,14 +609,12 @@ function renderRoomTypes(data) {
   CONFIG_CLIENT.ROOMS.forEach(function(r) {
     const a = data.rooms[r.id];
     const full = a && a.available <= 0;
-    const noWin = !r.window;
-    const isDouble = r.id === '2S';
+    const isDouble = r.persons === 2;
     const livePrice = (data.prices && data.prices.rooms && data.prices.rooms[r.id] !== undefined) ? data.prices.rooms[r.id] : r.price_eur;
     html += '<label class="radio-option" id="rt-' + r.id + '">'
       + '<input type="radio" name="room-type" value="' + r.id + '"' + (full ? ' disabled' : '') + ' onchange="onRoomTypeChange()">'
-      + '<div><div class="opt-label">' + (noWin ? '\u26a0\ufe0f ' : '') + r.note_en + (full ? ' — FULL' : '') + '</div>'
-      + '<div class="opt-sub">\u20AC' + livePrice + ' / room \u00b7 ' + r.persons + ' person' + (r.persons > 1 ? 's' : '') + (r.floor === 'upstairs' ? ' \u00b7 Upstairs (stairs only)' : ' \u00b7 Downstairs') + '</div>'
-      + (noWin ? '<div class="opt-sub" style="color:#92400e;font-weight:600">\u26a0\ufe0f No window</div>' : '')
+      + '<div><div class="opt-label">' + r.note_en + (full ? ' — FULL' : '') + '</div>'
+      + '<div class="opt-sub">\u20AC' + livePrice + ' / room \u00b7 ' + r.persons + ' person' + (r.persons > 1 ? 's' : '') + '</div>'
       + (isDouble && CONFIG_CLIENT.ALLOW_SOLO_DOUBLE ? '<div style="margin-top:0.5rem"><label style="display:flex;align-items:center;gap:0.5rem;font-size:0.88rem;cursor:pointer"><input type="checkbox" id="solo-double" onchange="updatePriceDisplay()"> Book entire room for myself (solo use)</label></div>' : '')
       + '</div></label>';
   });
@@ -1163,7 +1161,7 @@ function getAdminConfigJson_(settings) {
     ROOMS: CONFIG.ROOMS.map(function(r) {
       return {
         id: r.id,
-        note_en: r.note_en || r.type,
+        note_en: r.note_en,
         persons: r.persons,
         count: (settings.ROOM_COUNTS && settings.ROOM_COUNTS[r.id] !== undefined) ? settings.ROOM_COUNTS[r.id] : r.count
       };
@@ -1225,7 +1223,7 @@ function getAdminPanelHtml() {
         </div>
         <div style="font-size:0.8rem;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0.6rem 0.75rem;line-height:1.6;width:100%;box-sizing:border-box">
           ℹ️ The single bed option is <strong>only shown to guests</strong> when all conditions are met:<br>
-          1. All <strong>single rooms</strong> (1S-W and 1S-NW) are <strong>fully booked</strong><br>
+          1. All <strong>single-person rooms</strong> are <strong>fully booked</strong><br>
           2. At least one <strong>multi-person room</strong> has a free bed and is <strong>not marked solo</strong>
         </div>
       </div>
@@ -1542,6 +1540,7 @@ function buildAdminPage(settings) {
 <head>
 <script src="/rpc-shim.js"></script>
 <script src="/admin-event.js"></script>
+<script src="/admin-rooms.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
@@ -1984,6 +1983,7 @@ function doLogin() {
             document.body.innerHTML = html;
             loadAdmin();
             if (window.initEventSetup) window.initEventSetup();
+            if (window.initRoomCatalog) window.initRoomCatalog();
           })
           .withFailureHandler(function(err) {
             document.getElementById('pw-err').textContent = 'Error: ' + err.message;
@@ -2499,7 +2499,7 @@ function renderRoomPricesGrid(prices) {
   var grid = document.getElementById('room-prices-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  ROOM_DEFS.forEach(function(r) {
+  roomDefs().forEach(function(r) {
     var val = prices[r.id] !== undefined ? prices[r.id] : '';
     var item = document.createElement('div');
     item.className = 'setting-item';
@@ -2517,7 +2517,7 @@ function savePricing() {
   msg.textContent = 'Saving...';
   msg.style.color = 'var(--muted)';
   var roomPrices = {};
-  ROOM_DEFS.forEach(function(r) {
+  roomDefs().forEach(function(r) {
     var el = document.getElementById('rp-' + r.id);
     if (el && el.value.trim() !== '') roomPrices[r.id] = el.value.trim();
   });
@@ -2549,20 +2549,16 @@ function savePricing() {
     .saveAdminSettings(adminPw, settings);
 }
 
-var ROOM_DEFS = [
-  { id: '1S-W',  label: 'Single w/ window (1S-W)',        default: 6  },
-  { id: '1S-NW', label: 'Single no window (1S-NW)',       default: 3  },
-  { id: '2S',    label: 'Double (2S)',                     default: 20 },
-  { id: '3S-U',  label: 'Triple upstairs (3S-U)',         default: 3  },
-  { id: '3S',    label: 'Triple downstairs (3S)',          default: 1  },
-  { id: '4S',    label: 'Quad (4S)',                       default: 2  },
-  { id: '7S',    label: 'Seven-person (7S)',               default: 1  },
-];
+function roomDefs() {
+  return (CONFIG_ADMIN.ROOMS || []).map(function(r) {
+    return { id: r.id, label: r.note_en + ' (' + r.id + ')', default: r.count };
+  });
+}
 
 function renderRoomCountsGrid(counts) {
   var grid = document.getElementById('room-counts-grid');
   grid.innerHTML = '';
-  ROOM_DEFS.forEach(function(r) {
+  roomDefs().forEach(function(r) {
     var val = counts[r.id] !== undefined ? counts[r.id] : r.default;
     var item = document.createElement('div');
     item.className = 'setting-item';
@@ -2576,7 +2572,7 @@ function renderRoomCountsGrid(counts) {
 
 function saveRoomCounts() {
   var counts = {};
-  ROOM_DEFS.forEach(function(r) {
+  roomDefs().forEach(function(r) {
     var el = document.getElementById('rc-' + r.id);
     if (el) counts[r.id] = el.value.trim();
   });

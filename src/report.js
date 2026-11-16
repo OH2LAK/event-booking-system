@@ -9,17 +9,12 @@ const token = ''; // legacy: URL tokens were replaced by the session cookie
 let RC = null;
 // Rebuild the view configuration from the current settings (call right before rendering).
 function setRC(settings) {
-  const fi = {
-    '1S-W': '1hh huone, ikkuna, yläkerta', '1S-NW': '1hh huone ilman ikkunaa, yläkerta',
-    '2S': '2hh huone, yläkerta', '3S-U': '3hh huone, yläkerta', '3S': '3hh huone, alakerta',
-    '4S': '4hh huone, alakerta', '7S': '7hh huone, alakerta',
-  };
   RC = {
     EVENT_NAME: CONFIG.EVENT_NAME, ORGANIZER: CONFIG.ORGANIZER, LOCATION: CONFIG.LOCATION,
     DATES_EN: CONFIG.DATES_TEXT, DATES_FI: CONFIG.DATES_TEXT,
     CHECKIN_EN: CONFIG.CHECKIN_TIME, CHECKIN_FI: CONFIG.CHECKIN_TIME,
     CHECKOUT_EN: CONFIG.CHECKOUT_TIME, CHECKOUT_FI: CONFIG.CHECKOUT_TIME,
-    ROOMS: CONFIG.ROOMS.map(r => ({ id: r.id, note_en: r.note_en.replace(/ \(stairs only\)/, ''), note_fi: fi[r.id] || r.note_en, persons: r.persons, price: settings.ROOM_PRICES[r.id] })),
+    ROOMS: CONFIG.ROOMS.map(r => ({ id: r.id, note_en: r.note_en.replace(/ \(stairs only\)/, ''), note_fi: r.note_fi || r.note_en, persons: r.persons, price: settings.ROOM_PRICES[r.id] })),
     FULL_BOARD_PRICE: settings.FULL_BOARD_PRICE,
     MEETING_FEE_WEEKEND: settings.MEETING_FEE_WEEKEND,
     MEETING_FEE_DAY: settings.MEETING_FEE_DAY,
