@@ -46,6 +46,30 @@ docker compose up --build -d
 Open http://localhost:3000 (booking page), `/?public=1` (Who's coming), `/?admin=1` (admin panel) and `/report`
 (report & check-in tool; uses the same admin password). Data lives in the `pgdata` Docker volume.
 
+## Making it reachable from the network
+
+The app listens on port 3000 (change it with `PORT` in `.env`), published by Docker Compose on all host interfaces. So
+`http://<server-ip>:3000` already works from the local network once the host firewall allows the port. How you expose it
+to the internet depends on your platform and is standard Docker/web hosting practice, so it is not covered in detail here.
+The usual setup is:
+
+1. Point a DNS name at your server.
+2. Put a reverse proxy with HTTPS in front of the app (Caddy, nginx or Traefik), forwarding to `localhost:3000`.
+3. Set `PUBLIC_URL` in `.env` to the public address (e.g. `https://booking.example.org`) so join links in emails are correct.
+4. Do not expose PostgreSQL: the `db` service has no published port, keep it that way.
+5. Use HTTPS in production, since the admin login and booking data are sent over the connection.
+
+Useful guides:
+
+- [Docker Compose networking](https://docs.docker.com/compose/how-tos/networking/) and [published ports](https://docs.docker.com/engine/network/port-publishing/)
+- [Docker and firewalls (ufw/iptables)](https://docs.docker.com/engine/network/packet-filtering-firewalls/): published ports can bypass ufw rules
+- [Caddy reverse proxy quick start](https://caddyserver.com/docs/quick-starts/reverse-proxy) (automatic HTTPS)
+- [nginx reverse proxy](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/) with [Let's Encrypt / certbot](https://certbot.eff.org/)
+- [Traefik with Docker](https://doc.traefik.io/traefik/providers/docker/)
+
+To make the app reachable only through the reverse proxy running on the same host, change the port line in
+`docker-compose.yml` to `"127.0.0.1:${PORT:-3000}:3000"`.
+
 ## Change the default passwords
 
 `.env.example` ships with placeholder defaults (`change-me-...`) so the stack starts out of the box. **They are public
