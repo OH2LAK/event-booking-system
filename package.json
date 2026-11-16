@@ -14,7 +14,8 @@
     "seed-demo": "node src/tools/seed-demo.js",
     "check-locales": "node scripts/locales.js check",
     "export-locales": "node scripts/locales.js export",
-    "import-locales": "node scripts/locales.js import"
+    "import-locales": "node scripts/locales.js import",
+    "test:unit": "node tests/currency.test.js"
   },
   "dependencies": {
     "express": "^4.21.0",

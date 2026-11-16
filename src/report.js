@@ -3,6 +3,7 @@
 // Ported from the separate Apps Script project; it now reads the same PostgreSQL database
 // and shares the admin session cookie with the booking admin panel.
 const { CONFIG, VERSION } = require('./config');
+const cur = require('./currency');
 
 const token = ''; // legacy: URL tokens were replaced by the session cookie
 
@@ -180,7 +181,7 @@ function hotelView_(rows, token) {
       if (!group || !group.length) return;
       // Section header for room type
       tRows += '<tr style="background:#e0e7ff"><td colspan="7" style="font-weight:700;font-size:0.8rem;color:#3730a3;padding:0.35rem 0.6rem">'
-        + '🏠 ' + rc.note_fi + ' (€' + rc.price + '/huone · max ' + rc.persons + ' hlö/huone)</td></tr>';
+        + '🏠 ' + rc.note_fi + ' (' + cur.fmt(rc.price) + '/huone · max ' + rc.persons + ' hlö/huone)</td></tr>';
       group.forEach(function(p) {
         var joiners = allRows.filter(function(r) { return r.roomRef===p.bookingRef && !r.isPrimary && r.type==='room'; });
         [p].concat(joiners).forEach(function(r,i) {
@@ -447,11 +448,11 @@ function confirmationSlip_(rows, r, pw) {
     + '<table style="border:1px solid #e5e7eb;max-width:420px;margin-bottom:0.75rem">'
     +   '<thead><tr style="background:#f3f4f6"><th colspan="2" style="font-size:0.82rem">Payment / Maksu</th></tr></thead>'
     +   '<tbody>'
-    + (p.accommodation>0?'<tr><td style="font-size:0.8rem">Accommodation</td><td class="num">€'+p.accommodation.toFixed(0)+'</td></tr>':'')
-    + (p.meals>0?'<tr><td style="font-size:0.8rem">Meal package</td><td class="num">€'+p.meals.toFixed(0)+'</td></tr>':'')
-    + (p.hotelTotal>0?'<tr style="background:#eff6ff"><td style="font-weight:700;font-size:0.8rem">→ Pay to hotel</td><td class="num bold">€'+p.hotelTotal.toFixed(0)+'</td></tr>':'')
-    + '<tr style="background:#f0fdf4"><td style="font-weight:700;font-size:0.8rem">→ Meeting fee (to camp)</td><td class="num bold">€'+p.meetingFee.toFixed(0)+'</td></tr>'
-    + '<tr><td style="font-weight:700;font-size:0.8rem">Total</td><td class="num bold">€'+p.total.toFixed(0)+'</td></tr>'
+    + (p.accommodation>0?'<tr><td style="font-size:0.8rem">Accommodation</td><td class="num">'+cur.fmt(p.accommodation)+'</td></tr>':'')
+    + (p.meals>0?'<tr><td style="font-size:0.8rem">Meal package</td><td class="num">'+cur.fmt(p.meals)+'</td></tr>':'')
+    + (p.hotelTotal>0?'<tr style="background:#eff6ff"><td style="font-weight:700;font-size:0.8rem">→ Pay to hotel</td><td class="num bold">'+cur.fmt(p.hotelTotal)+'</td></tr>':'')
+    + '<tr style="background:#f0fdf4"><td style="font-weight:700;font-size:0.8rem">→ Meeting fee (to camp)</td><td class="num bold">'+cur.fmt(p.meetingFee)+'</td></tr>'
+    + '<tr><td style="font-weight:700;font-size:0.8rem">Total</td><td class="num bold">'+cur.fmt(p.total)+'</td></tr>'
     +   '</tbody>'
     + '</table>'
     + '<div style="font-size:0.7rem;color:#9ca3af">'
@@ -518,7 +519,7 @@ function summaryView_(rows, token) {
     var rooms  = rows.filter(function(r){return r.type==='room'&&r.roomId===rc.id&&r.isPrimary;}).length;
     if (!guests) return;
     roomRows += '<tr><td>'+rc.id+'</td><td>'+rc.note_en+'</td>'
-      +'<td class="num">'+rooms+'</td><td class="num">'+guests+'</td><td class="num">€'+rc.price+'</td></tr>';
+      +'<td class="num">'+rooms+'</td><td class="num">'+guests+'</td><td class="num">'+cur.fmt(rc.price)+'</td></tr>';
   });
 
   var extraCards = RC.EXTRAS.map(function(x){ return '<div class="card"><div class="lbl">Extra night: '+x.label+'</div><div class="val">'+rows.filter(function(r){return r.extraNights.indexOf(x.key)>=0;}).length+'</div></div>'; }).join('');
@@ -532,7 +533,7 @@ function summaryView_(rows, token) {
     + '<div class="card"><div class="lbl">Full board</div><div class="val">'+fb+'</div></div>'
     + extraCards
     + '<div class="card"><div class="lbl">Total guests</div><div class="val">'+rows.length+'</div></div>'
-    + '<div class="card"><div class="lbl">Revenue (est.)</div><div class="val">€'+revenue.toFixed(0)+'</div></div>'
+    + '<div class="card"><div class="lbl">Revenue (est.)</div><div class="val">'+cur.fmt(revenue)+'</div></div>'
     + '</div>'
     + '<h2>Huonejakauma</h2>'
     + '<table style="max-width:600px"><thead><tr><th>ID</th><th>Tyyppi</th><th class="num">Huoneita</th><th class="num">Vieraita</th><th class="num">Hinta/huone</th></tr></thead>'
@@ -549,7 +550,7 @@ function summaryView_(rows, token) {
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
     'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Meals','Dietary','ShirtSize',
-    'Accommodation+Meals_EUR','MeetingFee_EUR','Total_EUR','Status','BookingRef'];
+    'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
@@ -706,11 +707,11 @@ function printView_(rows, token, ref) {
     // Payment table
     + '<table style="max-width:380px">'
     + '<tr><th colspan="2">Payment / Maksu</th></tr>'
-    + (p.accommodation>0?'<tr><td>Accommodation / Majoitus</td><td style="text-align:right;font-family:monospace">€'+p.accommodation.toFixed(0)+'</td></tr>':'')
-    + (p.meals>0?'<tr><td>Meal package / Ruokapaketti</td><td style="text-align:right;font-family:monospace">€'+p.meals.toFixed(0)+'</td></tr>':'')
-    + (p.hotelTotal>0?'<tr class="pay-hotel"><td>→ Pay to hotel / Hotellille</td><td style="text-align:right;font-family:monospace">€'+p.hotelTotal.toFixed(0)+'</td></tr>':'')
-    + '<tr class="pay-camp"><td>→ Meeting fee to camp / Leirimaksu</td><td style="text-align:right;font-family:monospace">€'+p.meetingFee.toFixed(0)+'</td></tr>'
-    + '<tr class="total"><td>Total / Yhteensä</td><td style="text-align:right;font-family:monospace">€'+p.total.toFixed(0)+'</td></tr>'
+    + (p.accommodation>0?'<tr><td>Accommodation / Majoitus</td><td style="text-align:right;font-family:monospace">'+cur.fmt(p.accommodation)+'</td></tr>':'')
+    + (p.meals>0?'<tr><td>Meal package / Ruokapaketti</td><td style="text-align:right;font-family:monospace">'+cur.fmt(p.meals)+'</td></tr>':'')
+    + (p.hotelTotal>0?'<tr class="pay-hotel"><td>→ Pay to hotel / Hotellille</td><td style="text-align:right;font-family:monospace">'+cur.fmt(p.hotelTotal)+'</td></tr>':'')
+    + '<tr class="pay-camp"><td>→ Meeting fee to camp / Leirimaksu</td><td style="text-align:right;font-family:monospace">'+cur.fmt(p.meetingFee)+'</td></tr>'
+    + '<tr class="total"><td>Total / Yhteensä</td><td style="text-align:right;font-family:monospace">'+cur.fmt(p.total)+'</td></tr>'
     + '</table>'
 
     // Footer

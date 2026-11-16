@@ -4,6 +4,7 @@
 const { CONFIG, VERSION } = require('./config');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
+const currency = require('./currency');
 
 const esc = v => String(v === undefined || v === null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -43,6 +44,7 @@ function getClientConfigJson_(joinRef, settings, lang) {
     PRICE_DISCLAIMER: s.PRICE_DISCLAIMER,
     MEETING_FEE_WEEKEND: s.MEETING_FEE_WEEKEND,
     MEETING_FEE_DAY: s.MEETING_FEE_DAY,
+    CURRENCY: currency.publicInfo(),
   };
   return JSON.stringify(cfg);
 }
@@ -502,6 +504,29 @@ const I18N = ${i18n.safeJson(i18n.dict(lang, 'js.'))};
 function T(k, v) { var s = Object.prototype.hasOwnProperty.call(I18N, k) ? I18N[k] : k; if (v) { for (var n in v) { s = s.split('{' + n + '}').join(v[n]); } } return s; }
 const CONFIG_CLIENT = ${getClientConfigJson_(joinRef, settings, lang)};
 CONFIG_CLIENT.BYPASS_TOKEN = '${bypassToken || ''}';
+
+var displayCur = '';
+function M(n) {
+  var C = CONFIG_CLIENT.CURRENCY; n = Number(n) || 0;
+  var s = C.digits === 0 ? String(Math.round(n)) : (Math.round(n * 100) % 100 === 0 ? String(Math.round(n)) : n.toFixed(2));
+  return C.native === 'EUR' ? '\u20AC' + s : s + '\u00a0' + C.native;
+}
+function approxText(total) {
+  var x = displayCur ? CONFIG_CLIENT.CURRENCY.extras.find(function(c){ return c.code === displayCur; }) : null;
+  if (!x || !total) return '';
+  var v = total * x.rate; v = (x.digits === 0 || v >= 100) ? Math.round(v) : Math.round(v * 100) / 100;
+  var r = x.rate; var rs = String(Number(r >= 100 ? r.toFixed(2) : r >= 1 ? r.toFixed(4) : r.toPrecision(4)));
+  return T('js.approx', {amt: v.toLocaleString('en').replace(/,/g, '\u00a0') + '\u00a0' + x.code, native: CONFIG_CLIENT.CURRENCY.native, rate: rs, cur: x.code});
+}
+function curPicker() {
+  var ex = CONFIG_CLIENT.CURRENCY.extras;
+  if (!ex.length) return '';
+  var h = '<div class="price-row" style="border:0"><label for="cur-pick" style="font-size:.85rem">' + T('js.currencyLabel') + '</label><select id="cur-pick" onchange="setDisplayCur(this.value)" style="padding:.25rem">'
+    + '<option value="">' + CONFIG_CLIENT.CURRENCY.native + '</option>';
+  ex.forEach(function(c){ h += '<option value="' + c.code + '"' + (c.code === displayCur ? ' selected' : '') + '>' + c.code + '</option>'; });
+  return h + '</select></div>';
+}
+function setDisplayCur(v) { displayCur = v; updatePriceDisplay(); }
 console.log('%c ${esc(CONFIG.EVENT_SHORT)} Booking System %c v${VERSION} ', 'background:#1d4ed8;color:#fff;font-weight:bold', 'background:#e5e7eb;color:#374151');
 
 let avail = null;
@@ -815,10 +840,10 @@ function updatePriceDisplay() {
     const selCamper = ref && avail && avail.openCampers ? avail.openCampers.find(function(c){ return c.ref === ref; }) : null;
     if (selCamper) {
       rows.push({label:T('js.pCamperShared', {ref: ref}), val:'—'});
-      rows.push({label:T('js.pMeetingFull'), val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pMeetingFull'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:T('js.pMeal'), val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:T('js.pMeal'), val:M(CONFIG_CLIENT.FULL_BOARD_PRICE)});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else if (selRoom) {
@@ -833,10 +858,10 @@ function updatePriceDisplay() {
         rows.push({label:T('js.pExtraDiv', {label: extraLabel(k), room: nightRoom, n: persons}), val:T('js.pEuroPerPerson', {pp: nightPP})});
         total += nightPP;
       });
-      rows.push({label:T('js.pMeetingFull'), val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pMeetingFull'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:T('js.pMeal'), val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:T('js.pMeal'), val:M(CONFIG_CLIENT.FULL_BOARD_PRICE)});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else {
@@ -853,7 +878,7 @@ function updatePriceDisplay() {
         const stayPrice = roomStayPrice(livePrice);
         const pp = isSolo ? stayPrice : Math.round(stayPrice / r.persons);
         const nightsNote = (perNight() && stayPrice !== livePrice) ? ', ' + T('js.pNightsOf', {sel: selectedNights().length, all: CONFIG_CLIENT.STRUCTURE.coreNights}) : '';
-        rows.push({label:T(isSolo ? 'js.pRoomSolo' : 'js.pRoom', {desc: r.note_en + nightsNote}), val: isSolo ? '\u20AC' + pp : T('js.pPersonRoom', {pp: pp, room: stayPrice})});
+        rows.push({label:T(isSolo ? 'js.pRoomSolo' : 'js.pRoom', {desc: r.note_en + nightsNote}), val: isSolo ? M(pp) : T('js.pPersonRoom', {pp: pp, room: stayPrice})});
         total += pp;
       }
     }
@@ -867,34 +892,34 @@ function updatePriceDisplay() {
         const isSolo2 = soloEl2 && soloEl2.checked;
         const nightPP = isSolo2 ? nightRoom : Math.round(nightRoom / r2.persons);
         var label = (!isSolo2 && r2.persons > 1) ? T('js.pExtraDiv', {label: extraLabel(k), room: nightRoom, n: r2.persons}) : T('js.pExtraRoomOnly', {label: extraLabel(k), room: nightRoom});
-        rows.push({label:label, val:(isSolo2||r2.persons===1) ? '\u20AC'+nightPP : T('js.pEuroPerPerson', {pp: nightPP})});
+        rows.push({label:label, val:(isSolo2||r2.persons===1) ? M(nightPP) : T('js.pEuroPerPerson', {pp: nightPP})});
         total += nightPP;
       });
     }
   } else if (currentAccType === 'camper') {
     const t = CONFIG_CLIENT.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG_CLIENT.CAMPING_NIGHTS;
-    rows.push({label:T('js.pCamper', {n: CONFIG_CLIENT.CAMPING_NIGHTS}), val:'\u20AC'+t}); total += t;
+    rows.push({label:T('js.pCamper', {n: CONFIG_CLIENT.CAMPING_NIGHTS}), val:M(t)}); total += t;
   } else if (currentAccType === 'tent') {
-    rows.push({label:T('js.pTent'), val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
+    rows.push({label:T('js.pTent'), val:M(CONFIG_CLIENT.TENT_PRICE_WEEKEND)});
     total += CONFIG_CLIENT.TENT_PRICE_WEEKEND;
   } else if (currentAccType === 'singlebed') {
     const bedStay = roomStayPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
-    rows.push({label:T('js.pSingleBed'), val:'\u20AC'+bedStay});
+    rows.push({label:T('js.pSingleBed'), val:M(bedStay)});
     total += bedStay;
     selectedExtras().forEach(function(k) {
       const nightPrice = extraNightRoomPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
-      rows.push({label:T('js.pExtraPlain', {label: extraLabel(k)}), val:'\u20AC'+nightPrice});
+      rows.push({label:T('js.pExtraPlain', {label: extraLabel(k)}), val:M(nightPrice)});
       total += nightPrice;
     });
   } else if (currentAccType === 'dayvisitor') {
     var dvSel = selectedVisitorDays();
     if (dvSel.length) {
       if (dvSel.length > 1 && dvSel.length === CONFIG_CLIENT.STRUCTURE.days.length) {
-        rows.push({label:T('js.pMeetingAll'), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+        rows.push({label:T('js.pMeetingAll'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
         total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       } else {
         dvSel.forEach(function(k) {
-          rows.push({label:T('js.pMeetingDay', {day: dayShort(k)}), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_DAY});
+          rows.push({label:T('js.pMeetingDay', {day: dayShort(k)}), val:M(CONFIG_CLIENT.MEETING_FEE_DAY)});
           total += CONFIG_CLIENT.MEETING_FEE_DAY;
         });
       }
@@ -903,19 +928,20 @@ function updatePriceDisplay() {
   if (currentMode !== 'join') {
     const boardEl = document.getElementById('full-board');
     if (boardEl && boardEl.checked) {
-      rows.push({label:T('js.pMeal'), val:'\u20AC'+CONFIG_CLIENT.FULL_BOARD_PRICE});
+      rows.push({label:T('js.pMeal'), val:M(CONFIG_CLIENT.FULL_BOARD_PRICE)});
       total += CONFIG_CLIENT.FULL_BOARD_PRICE;
     }
     // Meeting fee for all non-day-visitor types
     if (currentAccType && currentAccType !== 'dayvisitor' && rows.length > 0) {
-      rows.push({label:T('js.pMeetingFull'), val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:T('js.pMeetingFull'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
     }
   }
   if (!rows.length) { box.innerHTML = ''; return; }
   let html = '<div class="price-box">';
   rows.forEach(function(r) { html += '<div class="price-row"><span>' + r.label + '</span><span>' + r.val + '</span></div>'; });
-  html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>\u20AC' + total + (tbd ? ' + TBD' : '') + '</span></div></div>';
+  html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>' + M(total) + (tbd ? ' + TBD' : '') + '</span></div>'
+    + (approxText(total) ? '<div class="price-row" style="font-size:.85rem;color:var(--muted)"><span>' + approxText(total) + '</span></div>' : '') + curPicker() + '</div>';
   box.innerHTML = html;
 }
 
@@ -938,6 +964,7 @@ function submitForm() {
     meals: {},
     privacyAck:     document.getElementById('privacy-ack').checked,
     language:       CONFIG_CLIENT.LANG,
+    displayCurrency: displayCur,
     publishConsent: document.getElementById('publish-consent').checked,
     extraNights:    [],
     bypassToken:    CONFIG_CLIENT.BYPASS_TOKEN || '',
@@ -998,7 +1025,8 @@ function submitForm() {
         if (result.price) {
           let html = '<div class="price-box">';
           result.price.breakdown.split(' | ').forEach(function(line) { html += '<div class="price-row"><span>' + line + '</span></div>'; });
-          html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>\u20AC' + result.price.total + '</span></div></div>';
+          html += '<div class="price-row total"><span>' + T('js.total') + '</span><span>' + M(result.price.total) + '</span></div>'
+            + (approxText(result.price.total) ? '<div class="price-row" style="font-size:.85rem;color:var(--muted)"><span>' + approxText(result.price.total) + '</span></div>' : '') + '</div>';
           document.getElementById('success-details').innerHTML = html;
         }
       } else {
@@ -1361,19 +1389,19 @@ function getAdminPanelHtml() {
     <h3 style="font-size:0.85rem;font-family:var(--mono);color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.9rem">💶 Pricing</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.6rem;margin-bottom:1rem" id="pricing-grid">
       <div class="setting-item">
-        <div class="setting-label">Full board meal package (€/person)</div>
+        <div class="setting-label">Full board meal package (${currency.symbol(currency.native())}/person)</div>
         <input type="number" class="setting-input" id="s-fullboard-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Camper van spot (€/night)</div>
+        <div class="setting-label">Camper van spot (${currency.symbol(currency.native())}/night)</div>
         <input type="number" class="setting-input" id="s-camper-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Tent spot, whole event (€)</div>
+        <div class="setting-label">Tent spot, whole event (${currency.symbol(currency.native())})</div>
         <input type="number" class="setting-input" id="s-tent-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Single bed, organizer-assigned (€)</div>
+        <div class="setting-label">Single bed, organizer-assigned (${currency.symbol(currency.native())})</div>
         <input type="number" class="setting-input" id="s-singlebed-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
@@ -1383,11 +1411,11 @@ function getAdminPanelHtml() {
         <input type="number" class="setting-input" id="s-singlebed-slots" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Meeting fee — full event (€)</div>
+        <div class="setting-label">Meeting fee — full event (${currency.symbol(currency.native())})</div>
         <input type="number" class="setting-input" id="s-meeting-fee-weekend" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Meeting fee — single day (€)</div>
+        <div class="setting-label">Meeting fee — single day (${currency.symbol(currency.native())})</div>
         <input type="number" class="setting-input" id="s-meeting-fee-day" min="0" style="width:90px">
       </div>
     </div>
@@ -1617,7 +1645,9 @@ function buildAdminPage(settings) {
 <html lang="en">
 <head>
 <script src="/rpc-shim.js"></script>
+<script>window.CUR = ${i18n.safeJson(currency.publicInfo())};</script>
 <script src="/admin-event.js"></script>
+<script src="/admin-currency.js"></script>
 <script src="/admin-rooms.js"></script>
 <script src="/admin-structure.js"></script>
 <script src="/admin-privacy.js"></script>
@@ -1736,6 +1766,7 @@ function buildAdminPage(settings) {
 
 
 <script>
+function M(n) { var C = window.CUR || { native: 'EUR', digits: 2 }; n = Number(n) || 0; var s = C.digits === 0 ? String(Math.round(n)) : (Math.round(n * 100) % 100 === 0 ? String(Math.round(n)) : n.toFixed(2)); return C.native === 'EUR' ? '\u20AC' + s : s + '\u00a0' + C.native; }
 let adminPw = '';
 var currentAdminData = null;
 let allRows = [];
@@ -1906,7 +1937,7 @@ function openAccChange(ref) {
                 curType === 'singlebed' ? 'Single bed (organizer-assigned)' :
                 curType === 'dayvisitor' ? 'Day visitor' : curType;
   document.getElementById('acc-current-desc').textContent = curDesc;
-  document.getElementById('acc-current-price').textContent = '€' + (obj['TotalPrice'] || '?');
+  document.getElementById('acc-current-price').textContent = M(obj['TotalPrice'] || 0);
 
   // Set selector to current type
   document.getElementById('acc-new-type').value = curType;
@@ -1939,7 +1970,7 @@ function onAccTypeChange() {
       var free = r.count - booked;
       var livePrice = (CONFIG_CLIENT.ROOM_PRICES && CONFIG_CLIENT.ROOM_PRICES[r.id] !== undefined) ? CONFIG_CLIENT.ROOM_PRICES[r.id] : r.price_eur;
       var pricePerPerson = Math.round(livePrice / r.persons);
-      var label = r.note_en + ' — €' + pricePerPerson + '/p · ' + free + '/' + r.count + ' free';
+      var label = r.note_en + ' — ' + M(pricePerPerson) + '/p · ' + free + '/' + r.count + ' free';
       return '<option value="' + r.id + '"' + (free <= 0 ? ' style="color:var(--muted)"' : '') + '>' + label + '</option>';
     }).join('');
     onAccRoomChange();
@@ -1986,7 +2017,7 @@ function updateAccNewInfo(type, roomCfg) {
     }
     var livePrice = (CONFIG_CLIENT.ROOM_PRICES && CONFIG_CLIENT.ROOM_PRICES[roomCfg.id] !== undefined) ? CONFIG_CLIENT.ROOM_PRICES[roomCfg.id] : roomCfg.price_eur;
     var pp = Math.round(livePrice / roomCfg.persons);
-    priceEl.textContent = '€' + pp + '/person (room total €' + livePrice + ')';
+    priceEl.textContent = M(pp) + '/person (room total ' + M(livePrice) + ')';
   } else {
     capEl.textContent = '';
     priceEl.textContent = '';
@@ -2031,7 +2062,7 @@ function saveAccChange() {
         msgEl.style.display = 'block';
         msgEl.style.background = '#f0fdf4'; msgEl.style.border = '1px solid #86efac'; msgEl.style.color = '#166534';
         var emailNote = sendEmail ? ' · notification sent' : '';
-        msgEl.textContent = '✓ Saved — €' + result.oldPrice + ' → €' + result.newPrice + emailNote;
+        msgEl.textContent = '✓ Saved — ' + M(result.oldPrice) + ' → ' + M(result.newPrice) + emailNote;
         setTimeout(function() { closeAccChange(); loadAdmin(adminPw); }, 1500);
       } else {
         msgEl.style.display = 'block';
@@ -2063,6 +2094,7 @@ function doLogin() {
             document.body.innerHTML = html;
             loadAdmin();
             if (window.initEventSetup) window.initEventSetup();
+            if (window.initCurrencies) window.initCurrencies();
             if (window.initStructure) window.initStructure();
             if (window.initRoomCatalog) window.initRoomCatalog();
             if (window.initPrivacy) window.initPrivacy();
@@ -2194,7 +2226,7 @@ function renderAdmin(data) {
   ].concat((CONFIG_ADMIN.STRUCTURE.extraNights || []).map(function(x){
     return {l:'Extra night: '+x.label, v:rows.filter(function(r){return (r.ExtraNights||'').split(',').indexOf(x.key)>=0 && r.Status!=='CANCELLED';}).length};
   })).concat([
-    {l:'Revenue (est.)',    v:'\u20AC'+total.toFixed(0)},
+    {l:'Revenue (est.)',    v:M(total)},
   ]).map(function(s){
     return '<div class="stat"><div class="label">'+s.l+'</div><div class="value">'+s.v+'</div></div>';
   }).join('');

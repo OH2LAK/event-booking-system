@@ -105,3 +105,16 @@ CREATE TABLE IF NOT EXISTS translations (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (lang, key)
 );
+
+-- Currencies: the event has one native currency (event_config.CURRENCY, default EUR). Extra currencies are for
+-- indicative display only. rate = units of `code` per 1 unit of `base` (the native currency when it was saved).
+CREATE TABLE IF NOT EXISTS currency_rates (
+  code        TEXT PRIMARY KEY,
+  rate        NUMERIC(18,8) NOT NULL CHECK (rate > 0),
+  manual      BOOLEAN NOT NULL DEFAULT true,        -- true = entered by hand, kept when fetching ECB rates
+  base        TEXT NOT NULL DEFAULT 'EUR',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'EUR';          -- native currency when booked
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS display_currency TEXT NOT NULL DEFAULT '';     -- guest's indicative currency
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS display_rate NUMERIC(18,8);                    -- rate used for it (per 1 native)

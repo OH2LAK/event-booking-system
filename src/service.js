@@ -7,6 +7,7 @@ const emails = require('./emails');
 const { getSettings, saveSettings } = require('./settings');
 const { calculatePrice } = require('./pricing');
 const i18n = require('./i18n');
+const currency = require('./currency');
 
 const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor'];
 const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
@@ -175,6 +176,8 @@ async function submitBooking(input) {
     bypassToken: str(input.bypassToken, 100),
     language: lang,
   };
+  const disp = currency.pickDisplay(input.displayCurrency); // indicative display currency only; payment is always in the native currency
+  data.displayCurrency = disp.code; data.displayRate = disp.rate;
 
   const outcome = await db.withBookingLock(async client => {
     const settings = await getSettings(client);
@@ -278,11 +281,11 @@ async function submitBooking(input) {
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
          is_primary, extra_nights, nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
-         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at, language)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now(),$24)`,
+         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at, language, currency, display_currency, display_rate)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now(),$24,$25,$26,$27)`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(','), lang]
+        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(','), lang, currency.native(), data.displayCurrency, data.displayRate]
     );
 
     const existingJoiners = data.joinExisting && primaryRow
@@ -310,7 +313,7 @@ async function submitBooking(input) {
   }
   await safeEmail(callsign, () => emails.sendOrganizerNotification(mailData, bookingRef, price, settings));
 
-  db.logEvent('OK', 'booking_confirmed', callsign, `ref=${bookingRef} type=${data.type} price=€${price.total}`);
+  db.logEvent('OK', 'booking_confirmed', callsign, `ref=${bookingRef} type=${data.type} price=${currency.fmt(price.total)}`);
   return { success: true, bookingRef, price: priceGuest };
 }
 
@@ -457,7 +460,7 @@ async function changeAccommodation(bookingRef, params) {
   if (!result.success) return result;
   const { booking, oldRoomCfg, newRoomCfg, oldPrice, newPrice, newType, settings } = result;
   db.logEvent('OK', 'accommodation_changed', booking.callsign,
-    `ref=${bookingRef} ${booking.type}/${booking.roomId} → ${newType}/${params.newRoomId || ''} price €${oldPrice.total}→€${newPrice.total}`);
+    `ref=${bookingRef} ${booking.type}/${booking.roomId} → ${newType}/${params.newRoomId || ''} price ${currency.fmt(oldPrice.total)}→${currency.fmt(newPrice.total)}`);
   if (params.sendEmail && booking.email) {
     try {
       await emails.sendAccommodationChangeEmail_(booking, booking.type, oldRoomCfg, newType, newRoomCfg, oldPrice, newPrice, settings);

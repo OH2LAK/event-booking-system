@@ -85,6 +85,10 @@ Backups are outside the application's reach. If you keep database backups, make 
 | | dietary, shirt size, free text | catering and planning (optional) |
 | | `publish_consent` | public participant list (opt-in) |
 | | `privacy_ack_at` | proof that the notice was shown and confirmed |
+| | `currency`, `display_currency`, `display_rate` | currency of the price and the guest's chosen indicative currency (no personal data on its own) |
 | | room number, organizer comment, status | organizing and check-in |
 | `event_log` | callsign / booking reference, event type | security and troubleshooting; removed when the person is erased |
-| `settings`, `event_config`, `room_types`, `event_structure` | none about participants (organizer contact details only) | configuration |
+| `settings`, `event_config`, `room_types`, `event_structure`, `currency_rates` | none about participants (organizer contact details only) | configuration |
+
+The only outgoing connection that is not an email is the optional **Fetch ECB rates** button in the admin panel (see
+[CURRENCIES.md](CURRENCIES.md)). It downloads public exchange rates from the European Central Bank and sends no personal data.

@@ -1,7 +1,7 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are seven tables.
+applied automatically when the app starts (and by the `db` container on first start). There are eight tables.
 
 ```
 bookings         one row per registered person (all booking types)
@@ -10,10 +10,11 @@ room_types       room type catalog (names, capacity, prices)
 event_config     event identity, privacy and language settings (single row)
 event_structure  days, nights, extra nights and meal package (single row)
 translations     admin-edited texts per language (see LANGUAGES.md)
+currency_rates   exchange rates for the extra (display-only) currencies (see CURRENCIES.md)
 event_log        audit/diagnostic log written by the app
 ```
 
-Money amounts are euros. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
+Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is still called `price_eur` for historical reasons; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
 
 ## `bookings`
 
@@ -54,6 +55,9 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `meals` | text | `''` | Legacy free-form list of individual meals (informational; not included in `total_price`). The booking form only offers the meal package. |
 | `is_organizer` | boolean | `false` | Staff/organizer; shows a badge on the public list. |
 | `free_text` | text | `''` | "Additional information" written by the booker. |
+| `currency` | text | `'EUR'` | Native currency of the event when the booking was made (ISO 4217). `total_price` and `price_breakdown` are in it. |
+| `display_currency` | text | `''` | Extra currency the guest picked for an indicative conversion, or empty. Never used for payment. |
+| `display_rate` | numeric(18,8) | null | Units of `display_currency` per 1 native unit, fixed when the guest booked. Used for the approximate amount in emails. |
 
 ### Constraints and indexes
 
@@ -175,7 +179,7 @@ Single-row table (`id` is always 1) holding the event identity set in the admin 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | smallint PK | Always 1 (CHECK constraint) |
-| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... and the privacy keys `CONTROLLER_NAME`, `CONTROLLER_ADDRESS`, `PRIVACY_CONTACT_EMAIL`, `PRIVACY_URL`, `EVENT_END_DATE` (`YYYY-MM-DD`), `RETENTION_DAYS` (0-365, default 30) and `RETENTION_HOLD` (reason text, empty = no hold) |
+| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... and the privacy keys `CONTROLLER_NAME`, `CONTROLLER_ADDRESS`, `PRIVACY_CONTACT_EMAIL`, `PRIVACY_URL`, `EVENT_END_DATE` (`YYYY-MM-DD`), `RETENTION_DAYS` (0-365, default 30) and `RETENTION_HOLD` (reason text, empty = no hold), the language keys `LANGUAGES` and `DEFAULT_LANGUAGE`, and the currency keys `CURRENCY` (native currency, default `EUR`) and `CURRENCIES` (comma list of extra display currencies) |
 | `updated_at` | timestamptz | Last save |
 
 No row means the event is not configured yet and the public booking page shows "not open yet".
@@ -192,6 +196,18 @@ Admin-edited texts for multi-language support (see [LANGUAGES.md](LANGUAGES.md))
 | `updated_at` | timestamptz | Last save |
 
 Primary key `(lang, key)`. Delete a row to return to the built-in text. The `event_config` keys `LANGUAGES` (comma list) and `DEFAULT_LANGUAGE` choose what is offered.
+
+## `currency_rates`
+
+Exchange rates for the extra currencies guests may pick for an indicative conversion (see [CURRENCIES.md](CURRENCIES.md)).
+
+| Column | Type | Notes |
+|---|---|---|
+| `code` | text PK | Extra currency, ISO 4217 (e.g. `USD`) |
+| `rate` | numeric(18,8) | Units of `code` per 1 unit of `base` (CHECK > 0) |
+| `manual` | boolean | `true` = entered by hand; kept when ECB rates are fetched |
+| `base` | text | Native currency the rate was saved for. A rate whose `base` differs from the current native currency is ignored. |
+| `updated_at` | timestamptz | Last save or fetch |
 
 ## `event_structure`
 

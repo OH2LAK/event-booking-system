@@ -18,6 +18,8 @@ const FIELDS = [
   { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
   { group: 'Languages', key: 'LANGUAGES', label: 'Enabled languages', type: 'langs', max: 60, help: 'Comma-separated codes: en, fi, sv, no, da, is, et, lv, lt, pl, de. Guests can switch between them on the booking pages.' },
   { group: 'Languages', key: 'DEFAULT_LANGUAGE', label: 'Default language', type: 'text', max: 2, help: 'One of the enabled codes. Event texts you enter in this panel (event name, announcement, ...) are in this language; translate them in "Translations".' },
+  { group: 'Currency', key: 'CURRENCY', label: 'Native currency (ISO code)', type: 'currency', max: 3, help: 'The currency of all prices and of the payment, e.g. EUR, SEK, NOK, DKK, ISK, PLN. Enter the room, meal and fee prices in this currency. Changing it does not convert existing prices.' },
+  { group: 'Currency', key: 'CURRENCIES', label: 'Extra currencies for guests (optional)', type: 'currencies', max: 60, help: 'Comma-separated ISO codes, e.g. USD, GBP, SEK. Guests can pick one to see an approximate conversion; payment is always in the native currency. Set the rates in the "Currencies" card below.' },
   { group: 'Contact and email', key: 'REPLY_TO_EMAIL', label: 'Organizer email', type: 'email', max: 150, help: 'Reply-To address; organizer notifications are sent here.' },
   { group: 'Contact and email', key: 'EMAIL_SENDER_NAME', label: 'Email sender name', type: 'text', max: 80 },
   { group: 'Privacy and data retention', key: 'CONTROLLER_NAME', label: 'Data controller (name)', type: 'text', max: 150, help: 'Who is responsible for the personal data collected here. Empty = organizer name.' },
@@ -85,6 +87,18 @@ function validate(input) {
       v = v.toLowerCase() || 'en';
       const enabled = String(out.LANGUAGES || 'en').split(',');
       if (!enabled.includes(v)) return { error: `${f.label} must be one of the enabled languages (${enabled.join(', ')})` };
+    }
+    if (f.type === 'currency') {
+      v = v.toUpperCase() || 'EUR';
+      if (!/^[A-Z]{3}$/.test(v)) return { error: `${f.label} must be a three-letter code like EUR` };
+    }
+    if (f.type === 'currencies') {
+      const codes = Array.from(new Set(v.toUpperCase().split(/[\s,;]+/).filter(Boolean)));
+      if (codes.some(c => !/^[A-Z]{3}$/.test(c))) return { error: `${f.label}: use three-letter codes separated by commas` };
+      const nat = String(out.CURRENCY || 'EUR');
+      const list = codes.filter(c => c !== nat);
+      if (list.length > 8) return { error: `${f.label}: at most 8 currencies` };
+      v = list.join(',');
     }
     if (f.type === 'date' && v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v + 'T00:00:00Z')))) return { error: `${f.label} must be a date like 2027-05-16` };
     if (f.type === 'number') {

@@ -62,7 +62,7 @@ an existing booking.
 
 Edit and press **Save pricing**: full board per person, camper van per night (2 nights are charged), tent (weekend),
 single bed price and number of single-bed slots (0 = off), meeting fee for the full weekend and for a single day, and the
-price of each room type (whole room, EUR).
+price of each room type (whole room). Amounts are in the event's native currency (see 4b).
 
 **Existing bookings keep their stored price.** After changing prices, press **Recalculate prices** above the bookings
 table to recalculate all active bookings (`CONFIRMED`, `CHECKED_IN`, `NEEDS_ATTENTION`). The guests are not emailed by
@@ -71,6 +71,18 @@ this action. Editing a single booking recalculates only that booking.
 How prices are built: room price divided by the room's persons per guest (the whole price for a solo room), plus the
 meeting fee, plus the meal package if chosen. Each extra night costs the room price divided by the nights included in the room price, divided the same way.
 Individual meals (`meals`) are recorded for catering but are not added to the price.
+
+## 4b. Currencies
+
+The event has one **native currency** (**Event setup -> Currency**, default EUR). Enter all prices in it; it is what guests
+pay and what appears in emails, the report and the CSV export. Existing prices are **not** converted when you change it.
+
+To help guests from other countries, add **extra currencies** (for example `USD, GBP`) in the same group. A guest can then
+pick one on the booking form and sees an approximate total marked with ≈; the booking and the payment stay in the native
+currency, and the guest's confirmation email repeats the approximate amount with the rate used. Set the rates in the
+**Currencies** card (1 native unit = X of the other currency): type them in, or press **Fetch ECB rates** to load the
+European Central Bank's daily reference rates. Rates you typed by hand and marked **Keep (manual)** are not overwritten
+by the fetch. A currency without a rate is not offered to guests. See [CURRENCIES.md](CURRENCIES.md).
 
 ## 5b. Event structure
 

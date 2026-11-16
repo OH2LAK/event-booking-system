@@ -14,6 +14,7 @@ const structure = require('./structure');
 const gdpr = require('./gdpr');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
+const currency = require('./currency');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -76,6 +77,9 @@ const PUBLIC = {
 const ADMIN = {
   getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
   saveEventConfig: values => eventConfig.save(values),
+  getCurrencies: () => currency.adminView(),
+  saveCurrencyRates: list => currency.saveRates(list),
+  fetchCurrencyRates: () => currency.fetchEcb(),
   getRoomCatalog: () => ({ success: true, rooms: CONFIG.ROOMS }),
   saveRoomCatalog: list => rooms.save(list),
   getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
@@ -87,7 +91,7 @@ const ADMIN = {
   getShutdownPreview: () => gdpr.shutdownPreview(),
   shutdownEvent: opts => gdpr.shutdownErase(opts),
   getAdminPanelHtml: () => {
-    let html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getAdminPanelHtml();
+    let html = '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
       const late = rs.state === 'overdue';
@@ -150,6 +154,7 @@ async function main() {
   await initDb();
   await i18n.load();
   await eventConfig.load();
+  await currency.load();
   await rooms.load();
   await structure.load();
   const warn = auth.usingDefaults();

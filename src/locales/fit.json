@@ -121,6 +121,8 @@
   "js.pMeetingAll": "Osallistumismaksu (kaikki päivät)",
   "js.pMeetingDay": "Osallistumismaksu ({day})",
   "js.total": "YHTEENSÄ",
+  "js.currencyLabel": "Näytä likimääräiset hinnat valuutassa",
+  "js.approx": "≈ {amt} (suuntaa-antava: 1 {native} = {rate} {cur}). Maksat valuutassa {native}.",
   "js.errAck": "Vahvista, ette olet lukenut tietosuojaselosteen.",
   "js.errRef": "Kirjota bokausnumero liittyäksesi.",
   "js.errRoomType": "Valitse huoneen laji.",

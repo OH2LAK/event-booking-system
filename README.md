@@ -93,6 +93,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 - [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (admin panel, report and check-in tool)
 - [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
 - [docs/GDPR.md](docs/GDPR.md) - data protection: what the software does, what the organizer must do, handling requests, event shutdown
+- [docs/CURRENCIES.md](docs/CURRENCIES.md) - native currency, extra display currencies and exchange rates (manual or ECB)
 - [docs/LANGUAGES.md](docs/LANGUAGES.md) - offering the booking pages and emails in several languages (English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German), editing translations
 
 ## Configuration

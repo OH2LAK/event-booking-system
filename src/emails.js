@@ -4,6 +4,7 @@
 const nodemailer = require('nodemailer');
 const { CONFIG } = require('./config');
 const i18n = require('./i18n');
+const currency = require('./currency');
 const S = require('./structure');
 const daysText = list => S.pickDays(list).map(k => S.dayByKey(k).short).join(' + ');
 const nightsLine = data => (S.mode() === 'per_night' && (data.type === 'room' || data.type === 'singlebed'))
@@ -84,6 +85,12 @@ function helpers(lang) {
 const signoff = () => `73,\n${CONFIG.EMAIL_SENDER_NAME}`;
 const mailOpts = (lang, extra) => Object.assign({ name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL, lang }, extra || {});
 
+// Indicative total in the guest's chosen display currency (rate fixed when they booked). Empty when none was chosen.
+function approxLine(t, total, cur, rate) {
+  if (!cur || !rate || !total) return '';
+  return '\n' + t('mail.approx', { amt: currency.fmtApproxWith(total, rate, cur), native: currency.native(), rate: currency.fmtRate(Number(rate)), cur });
+}
+
 async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, settings, primaryRow) {
   const lang = langOf(data.language);
   const H = helpers(lang), t = H.t;
@@ -133,7 +140,7 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
   if (data.shirtSize) extraLines.push(t('mail.shirt', { v: data.shirtSize }));
   if (data.freeText) extraLines.push(`${t('mail.freeText')}\n${data.freeText}`);
   parts.push(sec(t('mail.secServices')) + '\n' + String(price.breakdown).split(' | ').join('\n') + '\n\n' + extraLines.join('\n\n'));
-  parts.push(SGL + '\n' + t('mail.total', { n: price.total }) + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''));
+  parts.push(SGL + '\n' + t('mail.total', { n: price.total }) + approxLine(t, price.total, data.displayCurrency, data.displayRate) + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''));
   parts.push(sec(t('mail.secPayment')) + '\n' + t('mail.payBody')
     + (data.isPrimaryBooker && data.type === 'room' && roomCfg ? '\n\n' + t('mail.roomBookerNote', { n: livePrice(settings, roomCfg) }) : ''));
   parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
@@ -153,7 +160,7 @@ async function sendRoomJoinNotification(primary, joiner, joinerRef, settings) {
     + kv([[t('mail.lRef'), primary.bookingRef], [t('mail.lTheirRef'), joinerRef], [t('mail.lRoomType'), roomCfg ? roomNote(lang, roomCfg.id) : '']]));
   if (roomCfg) {
     const total = livePrice(settings, roomCfg);
-    parts.push(sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), '€' + total], [t('mail.perPersonN', { n: roomCfg.persons }), '€' + Math.round(total / roomCfg.persons)]]));
+    parts.push(sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), currency.fmt(total)], [t('mail.perPersonN', { n: roomCfg.persons }), currency.fmt(Math.round(total / roomCfg.persons))]]));
   }
   parts.push(t('mail.settle'));
   parts.push(sec(t('mail.secPayment')) + '\n' + t('mail.payShort'));
@@ -169,7 +176,7 @@ async function sendRoomFullNotification(primary, roomCfg, allOccupants, settings
     return [head([`${i18n.ev(lang, 'EVENT_NAME').toUpperCase()} — ${t('mail.roomNotice')}`]),
       t('mail.roomFull') + '\n\n' + kv([[t('mail.lRef'), primary.bookingRef], [t('mail.lRoomType'), roomNote(lang, roomCfg.id)], [t('mail.lCapacity'), t('mail.capacityVal', { n: roomCfg.persons })]]),
       sec(t('mail.secOccupants')) + '\n' + list,
-      sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), '€' + total], [t('mail.perPersonN', { n: roomCfg.persons }), '€' + Math.round(total / roomCfg.persons)]])].join('\n\n');
+      sec(t('mail.secRoomCosts')) + '\n' + kv([[t('mail.roomTotal'), currency.fmt(total)], [t('mail.perPersonN', { n: roomCfg.persons }), currency.fmt(Math.round(total / roomCfg.persons))]])].join('\n\n');
   };
   const lang = langOf(primary.language), t = (k, v) => i18n.t(lang, k, v);
   await sendMail(primary.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.fullSubject', { ref: primary.bookingRef })}`,
@@ -184,13 +191,13 @@ async function sendAccommodationChangeEmail_(booking, oldType, oldRoomCfg, newTy
   const s = i18n.localizedSettings(lang, settings);
   const ev = k => i18n.ev(lang, k);
   const diff = newPrice.total - oldPrice.total;
-  const diffStr = diff === 0 ? t('mail.noChange') : (diff > 0 ? '+€' + diff : '−€' + Math.abs(diff));
+  const diffStr = diff === 0 ? t('mail.noChange') : currency.fmtSigned(diff);
   const parts = [
     head([ev('EVENT_NAME').toUpperCase(), t('mail.changeTitle'), ev('LOCATION'), ev('DATES_TEXT')]),
     `${t('mail.dear', { name: booking.name })}\n\n${t('mail.changeIntro')}\n\n${t('mail.refLabel', { ref: booking.bookingRef })}`,
     sec(t('mail.secChange')) + '\n' + kv([
       [t('mail.lPrevious'), H.typeLabel(oldType, oldRoomCfg && oldRoomCfg.id)], [t('mail.lNew'), H.typeLabel(newType, newRoomCfg && newRoomCfg.id)]])
-      + '\n\n' + kv([[t('mail.lPrevTotal'), '€' + oldPrice.total], [t('mail.lNewTotal'), '€' + newPrice.total], [t('mail.lDiff'), diffStr]]),
+      + '\n\n' + kv([[t('mail.lPrevTotal'), currency.fmt(oldPrice.total)], [t('mail.lNewTotal'), currency.fmt(newPrice.total)], [t('mail.lDiff'), diffStr]]) + approxLine(t, newPrice.total, booking.displayCurrency, booking.displayRate),
     sec(t('mail.secNewBreakdown')) + '\n' + String(newPrice.breakdown).split(' | ').join('\n') + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''),
     sec(t('mail.secPayment')) + '\n' + t('mail.payChange'),
     `${SGL}\n${t('mail.questions')}\n${CONFIG.REPLY_TO_EMAIL}\n\n${signoff()}\n${DBL}`,
@@ -204,7 +211,7 @@ function bookingUpdatedMail(obj, bookingRef, changed, price) {
   return { lang, subject: `[${CONFIG.EVENT_SHORT}] ${t('mail.updSubject', { ref: bookingRef })}`,
     body: `${t('mail.dear', { name: obj.name + ' (' + obj.callsign + ')' })}\n\n${t('mail.updIntro')}\n\n`
       + kv([[t('mail.lRef'), bookingRef], [t('mail.lUpdated'), changed.join(', ')]])
-      + `\n\n${sec(t('mail.secCurrent'))}\n${String(price.breakdown || '').replace(/ \| /g, '\n')}\n\n${t('mail.total', { n: price.total })}\n\n${SGL}\n${t('mail.questionsInline', { mail: CONFIG.REPLY_TO_EMAIL })}\n\n${i18n.ev(lang, 'ORGANIZER')}` };
+      + `\n\n${sec(t('mail.secCurrent'))}\n${String(price.breakdown || '').replace(/ \| /g, '\n')}\n\n${t('mail.total', { n: price.total })}${approxLine(t, price.total, obj.displayCurrency, obj.displayRate)}\n\n${SGL}\n${t('mail.questionsInline', { mail: CONFIG.REPLY_TO_EMAIL })}\n\n${i18n.ev(lang, 'ORGANIZER')}` };
 }
 function roommateCancelledMail(rm, primaryRef) {
   const lang = langOf(rm.language), t = (k, v) => i18n.t(lang, k, v);
@@ -277,7 +284,7 @@ T-shirt size: ${data.shirtSize || "\u2014"}
 ${data.freeText ? `\nAdditional info from booker:\n${data.freeText}` : ""}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-TOTAL: \u20AC${price.total}
+TOTAL: ${currency.fmt(price.total)}
 ${price.total === 0 ? "(Price pending — check with organizers)" : ""}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 

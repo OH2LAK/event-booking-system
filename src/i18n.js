@@ -66,13 +66,14 @@ function fill(s, vars) {
   if (!vars) return s;
   return s.replace(/\{(\w+)\}/g, (m, n) => (vars[n] === undefined ? m : String(vars[n])));
 }
-const t = (lang, key, vars) => fill(raw(lang, key), vars);
+const currency = require('./currency');
+const t = (lang, key, vars) => fill(currency.localizeText(raw(lang, key)), vars);
 
 // all texts of a language whose key starts with prefix (for the browser)
 function dict(lang, prefix) {
   const keys = new Set(Object.keys(catalogs.en).filter(k => k.startsWith(prefix)));
   const out = {};
-  keys.forEach(k => { out[k] = raw(lang, k); });
+  keys.forEach(k => { out[k] = currency.localizeText(raw(lang, k)); });
   return out;
 }
 const safeJson = o => JSON.stringify(o).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');

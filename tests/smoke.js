@@ -327,6 +327,58 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     await rpc('saveEventConfig', { ...base, LANGUAGES: 'en', DEFAULT_LANGUAGE: 'en' });
   }
 
+  // ---- currencies: native currency, extra display currencies, rates ----
+  {
+    const ec2 = (await rpc('getEventConfig')).body.result;
+    const base = { ...ec2.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+      EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30', RETENTION_HOLD: '', LANGUAGES: 'en', DEFAULT_LANGUAGE: 'en' };
+    const keys = ec2.fields.map(f => f.key);
+    check('Event setup has the currency fields', keys.includes('CURRENCY') && keys.includes('CURRENCIES'), keys);
+    check('default native currency is EUR', ec2.values.CURRENCY === 'EUR', ec2.values.CURRENCY);
+    let r2 = (await rpc('saveEventConfig', { ...base, CURRENCY: 'sek1' })).body.result;
+    check('invalid native currency code is rejected', !r2.success, r2);
+    r2 = (await rpc('saveEventConfig', { ...base, CURRENCY: 'EUR', CURRENCIES: 'usd, eur, SEK, 12' })).body.result;
+    check('invalid extra currency code is rejected', !r2.success, r2);
+    r2 = (await rpc('saveEventConfig', { ...base, CURRENCY: 'sek', CURRENCIES: 'usd, SEK, gbp, usd' })).body.result;
+    check('native currency saved (lower case accepted)', r2.success, r2);
+    check('extras are normalised and exclude the native currency', (await rpc('getEventConfig')).body.result.values.CURRENCIES === 'USD,GBP', null);
+    let cv = (await rpc('getCurrencies')).body.result;
+    check('currency admin view lists the extras without rates', cv.success && cv.native === 'SEK' && cv.rates.length === 2 && cv.rates.every(x => x.rate === null), cv);
+
+    let home = await (await fetch(BASE + '/')).text();
+    check('booking page uses the native currency instead of the euro sign', /Includes electricity · \d+ SEK/.test(home) && !/Includes electricity · €/.test(home), (home.match(/Includes electricity[^<]*/) || [])[0]);
+    check('no extra currencies offered while there are no rates', home.includes('"extras":[]'), null);
+    r2 = (await rpc('submitBooking', booking({ callsign: 'CUR0', type: 'tent', displayCurrency: 'USD' }))).body.result;
+    check('display currency without a rate is ignored', r2.success && /SEK/.test(r2.price.breakdown) && !/€/.test(r2.price.breakdown), r2);
+
+    r2 = (await rpc('saveCurrencyRates', [{ code: 'USD', rate: '0,0935', manual: true }])).body.result;
+    check('rate saved', r2.success && r2.rates.find(x => x.code === 'USD').rate === 0.0935, r2);
+    r2 = (await rpc('saveCurrencyRates', [{ code: 'JPY', rate: '14' }])).body.result;
+    check('rate for a currency that is not enabled is rejected', !r2.success, r2);
+    r2 = (await rpc('saveCurrencyRates', [{ code: 'USD', rate: '0' }])).body.result;
+    check('zero rate is rejected', !r2.success, r2);
+    const fr = (await rpc('fetchCurrencyRates')).body.result;
+    check('ECB fetch answers cleanly (success or a clear error)', fr && (fr.success || /ECB|fetch/i.test(fr.error)), fr);
+    check('a manual rate survives the ECB fetch', (await rpc('getCurrencies')).body.result.rates.find(x => x.code === 'USD').rate === 0.0935, null);
+    check('admin-only: currency rates need login', (await fetch(`${BASE}/api/rpc/saveCurrencyRates`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ args: [[]] }) })).status === 401, null);
+
+    home = await (await fetch(BASE + '/')).text();
+    check('booking page offers the currency that has a rate', home.includes('"code":"USD"') && !home.includes('"code":"GBP"'), null);
+    r2 = (await rpc('submitBooking', booking({ callsign: 'CUR1', type: 'tent', displayCurrency: 'usd' }))).body.result;
+    const tentPrice = r2.price && r2.price.total;
+    check('booking with a display currency: price stays in the native currency', r2.success && tentPrice > 0 && /SEK/.test(r2.price.breakdown), r2);
+    const exp = (await rpc('exportBooking', r2.bookingRef)).body.result;
+    const b = exp.data.booking;
+    check('booking stores the native currency, the display currency and its rate', (b.Currency || b.currency) === 'SEK' && (b.DisplayCurrency || b.display_currency) === 'USD' && Number(b.DisplayRate || b.display_rate) === 0.0935, b);
+    r2 = (await rpc('submitBooking', booking({ callsign: 'CUR2', type: 'tent', displayCurrency: 'GBP' }))).body.result;
+    const b2 = (await rpc('exportBooking', r2.bookingRef)).body.result.data.booking;
+    check('display currency without a rate is not stored', r2.success && !(b2.DisplayCurrency || b2.display_currency), b2);
+    check('admin page shows the native currency', (await (await fetch(BASE + '/?admin=1')).text()).length > 0, null);
+    await rpc('saveEventConfig', { ...base, CURRENCY: 'EUR', CURRENCIES: '' });
+    home = await (await fetch(BASE + '/')).text();
+    check('back to EUR: euro signs again', /Includes electricity · €\d+/.test(home), (home.match(/Includes electricity[^<]*/) || [])[0]);
+  }
+
   // shutdown (destructive): only against a throwaway database
   if (process.env.SMOKE_ALLOW_SHUTDOWN === '1') {
     let pvw = (await rpc('getShutdownPreview')).body.result;

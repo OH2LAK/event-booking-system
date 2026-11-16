@@ -20,7 +20,7 @@
       + '<strong>Persons</strong> is the capacity of one room. Room types that already have bookings cannot be deleted (set the count to 0) and their capacity cannot be changed. '
       + 'Single-person types are used for the "single bed" rule; two-person types can allow solo use.</p>'
       + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="text-align:left">'
-      + '<th>Id</th><th>Description (English)</th><th>Description (Finnish, optional)</th><th>Persons</th><th>Count</th><th>Price € / room</th><th></th></tr></thead><tbody>';
+      + '<th>Id</th><th>Description (English)</th><th>Description (Finnish, optional)</th><th>Persons</th><th>Count</th><th>Price (' + esc((window.CUR && CUR.native) || 'EUR') + ') / room</th><th></th></tr></thead><tbody>';
     rows.forEach(function (r, i) {
       html += '<tr data-row="' + i + '">'
         + '<td style="width:7rem"><input name="id" value="' + esc(r.id) + '" maxlength="12" style="' + cell + '"' + (r._existing ? ' readonly' : '') + '></td>'
