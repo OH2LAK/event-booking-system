@@ -1,5 +1,5 @@
 {
-  "name": "nordic-vushf2026-booking-system",
+  "name": "event-booking-system",
   "version": "1.0.0",
   "description": "Event booking system (Node.js + PostgreSQL), ported from the original Google Apps Script version",
   "main": "src/server.js",
