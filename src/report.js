@@ -20,9 +20,12 @@ function setRC(settings) {
     MEETING_FEE_DAY: settings.MEETING_FEE_DAY,
     CAMPER_PRICE: settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS,
     TENT_PRICE: settings.TENT_PRICE_WEEKEND,
-    THU_EXTRA_PRICE: settings.THU_EXTRA_NIGHT_PRICE,
-    MEALS_EN: ['Friday: dinner', 'Saturday: lunch', 'Saturday: dinner'],
-    MEALS_FI: ['Perjantai: illallinen', 'Lauantai: lounas', 'Lauantai: illallinen'],
+    CORE_NIGHTS: CONFIG.STRUCTURE.coreNights,
+    DAYS: CONFIG.STRUCTURE.days,
+    EXTRAS: CONFIG.STRUCTURE.extraNights,
+    PACKAGE: CONFIG.STRUCTURE.package.enabled,
+    MEALS_EN: CONFIG.STRUCTURE.package.includes,
+    MEALS_FI: CONFIG.STRUCTURE.package.includes,
   };
 }
 
@@ -82,7 +85,7 @@ function calcPrices_(r) {
   var rc = RC.ROOMS.find(function(x) { return x.id === r.roomId; });
   if (r.type === 'room' || r.type === 'singlebed') {
     if (r.isPrimary && rc) acc = rc.price / rc.persons;
-    if (r.thuExtra && RC.THU_EXTRA_PRICE) acc += RC.THU_EXTRA_PRICE;
+    if (r.isPrimary && rc && r.extraNights.length) acc += r.extraNights.length * (rc.price / RC.CORE_NIGHTS / rc.persons);
     fee = RC.MEETING_FEE_WEEKEND;
   } else if (r.type === 'camper') {
     if (r.isPrimary) acc = RC.CAMPER_PRICE;
@@ -90,7 +93,7 @@ function calcPrices_(r) {
   } else if (r.type === 'tent') {
     acc = RC.TENT_PRICE; fee = RC.MEETING_FEE_WEEKEND;
   } else if (r.type === 'dayvisitor') {
-    fee = r.dayVisitorDays === 'both' ? RC.MEETING_FEE_WEEKEND : RC.MEETING_FEE_DAY;
+    fee = (r.visitorDays.length > 1 && r.visitorDays.length === RC.DAYS.length) ? RC.MEETING_FEE_WEEKEND : RC.MEETING_FEE_DAY * r.visitorDays.length;
   }
   if (r.fullBoard) meals = RC.FULL_BOARD_PRICE;
   return { accommodation: acc, meals: meals, hotelTotal: acc + meals, meetingFee: fee, total: acc + meals + fee };
@@ -130,15 +133,16 @@ function wrap_(title, body, token, active) {
     + '</body></html>';
 }
 
+function dayLabels_(keys, field) {
+  return RC.DAYS.filter(function(d){return keys.indexOf(d.key)>=0;}).map(function(d){return d[field||'short'];});
+}
+function extraLabels_(keys) {
+  return RC.EXTRAS.filter(function(x){return keys.indexOf(x.key)>=0;}).map(function(x){return x.label;});
+}
+
 function mealLabel_(r) {
-  if (r.fullBoard) return '✓ Pe illallinen<br>✓ La lounas<br>✓ La illallinen';
-  if (!r.meals) return '—';
-  var m = r.meals.toLowerCase();
-  var parts = [];
-  if (m.includes('fri') || m.includes('bbq'))           parts.push('Pe illallinen');
-  if (m.includes('lunch'))                               parts.push('La lounas');
-  if (m.includes('dinner') || m.includes('ham dinner')) parts.push('La illallinen');
-  return parts.length ? parts.join('<br>') : r.meals;
+  if (r.fullBoard) return RC.MEALS_FI.map(function(l){return '✓ '+l;}).join('<br>') || '✓';
+  return r.meals ? r.meals : '—';
 }
 
 function hotelView_(rows, token) {
@@ -194,19 +198,22 @@ function hotelView_(rows, token) {
       + '</tr></thead><tbody>' + tRows + '</tbody></table>';
   }
 
-  // Split room primaries into Thu starters and Fri starters
+  // Group room primaries by their extra nights (guests with the same extra nights are listed together)
   var roomPrimaries = rows.filter(function(r) { return r.type==='room' && r.isPrimary; });
-  var thuPrimaries = roomPrimaries.filter(function(r) { return r.thuExtra; });
-  var friPrimaries = roomPrimaries.filter(function(r) { return !r.thuExtra; });
-
-  if (thuPrimaries.length) {
-    body += '<h2>🌙 To–Su majoittujat (' + thuPrimaries.length + ' huonetta)</h2>';
-    body += roomTable(thuPrimaries, rows);
-  }
-  if (friPrimaries.length) {
-    body += '<h2>🏨 Pe–Su majoittujat (' + friPrimaries.length + ' huonetta)</h2>';
-    body += roomTable(friPrimaries, rows);
-  }
+  var groups = {}; var order = [];
+  roomPrimaries.forEach(function(r) {
+    var sig = r.extraNights.join('+');
+    if (!groups[sig]) { groups[sig] = []; order.push(sig); }
+    groups[sig].push(r);
+  });
+  order.sort(function(a, b) { return (a === '' ? 1 : 0) - (b === '' ? 1 : 0); });
+  order.forEach(function(sig) {
+    var list = groups[sig];
+    var title = sig ? '🌙 Lisäyö: ' + extraLabels_(sig.split('+')).join(' + ') : '🏨 Majoittujat';
+    if (!sig && order.length > 1) title = '🏨 Majoittujat ilman lisäöitä';
+    body += '<h2>' + title + ' (' + list.length + ' huonetta)</h2>';
+    body += roomTable(list, rows);
+  });
 
   // Campers
   var camperPrimaries = rows.filter(function(r) { return r.type==='camper' && r.isPrimary; });
@@ -247,7 +254,7 @@ function hotelView_(rows, token) {
     body += '<h2>🎫 Päivävieraat (' + dvs.length + ')</h2>'
       + '<table><thead><tr><th>Kutsu</th><th>Nimi</th><th>Maa</th><th>Päivät</th><th>Ruokailu</th><th>Erityisruokavalio</th></tr></thead><tbody>';
     dvs.forEach(function(r) {
-      var days = r.dayVisitorDays==='both'?'Pe+La':r.dayVisitorDays==='fri'?'Pe':'La';
+      var days = dayLabels_(r.visitorDays).join(' + ');
       body += '<tr><td><strong style="font-family:monospace">' + r.callsign + '</strong></td>'
         + '<td>' + r.name + '</td><td>' + r.country + '</td><td>' + days + '</td>'
         + '<td>' + mealLabel_(r) + '</td>'
@@ -258,18 +265,12 @@ function hotelView_(rows, token) {
 
   // Meal counts
   var fb       = rows.filter(function(r){return r.fullBoard;}).length;
-  var fri      = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('fri'));}).length;
-  var satLunch = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('lunch'));}).length;
-  var satDin   = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('dinner'));}).length;
-  var thu      = rows.filter(function(r){return r.thuExtra;}).length;
+  var extraRows = RC.EXTRAS.map(function(x){ return '<tr><td>Lisäyö: '+x.label+'</td><td class="num">'+rows.filter(function(r){return r.extraNights.indexOf(x.key)>=0;}).length+'</td></tr>'; }).join('');
 
   body += '<h2>🍽 Ateriamäärät ravintolalle</h2>'
     + '<table style="max-width:380px"><thead><tr><th>Ateria</th><th class="num">kpl</th></tr></thead><tbody>'
     + '<tr><td>Täyshoitopaketit</td><td class="num bold">' + fb + '</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Pe illallinen</td><td class="num">' + fri + '</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">La lounas</td><td class="num">' + satLunch + '</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">La illallinen</td><td class="num">' + satDin + '</td></tr>'
-    + '<tr><td>To-lisäyö (aamiaiset)</td><td class="num">' + thu + '</td></tr>'
+    + extraRows
     + '</tbody></table>';
 
   // Dietary
@@ -321,7 +322,7 @@ function checkinView_(rows, token, preRef) {
     // Printable full list (only visible when printing, no slip selected)
     + '<div class="print-only" style="display:none">'
     + '<h2>Ilmoittautumislista — ' + RC.EVENT_NAME + '</h2>'
-    + '<table><thead><tr><th>#</th><th>Kutsu</th><th>Nimi</th><th>Maa</th><th>Huone</th><th>To</th><th>Ruokailu</th><th>✓</th></tr></thead>'
+    + '<table><thead><tr><th>#</th><th>Kutsu</th><th>Nimi</th><th>Maa</th><th>Huone</th><th>Lisäyö</th><th>Ruokailu</th><th>✓</th></tr></thead>'
     + '<tbody>' + sorted.map(function(r, i) {
         var room = (r.type==='room'||r.type==='singlebed') ? r.roomId+(r.roomNumber?' / '+r.roomNumber:'') : r.type;
         return '<tr>'
@@ -330,7 +331,7 @@ function checkinView_(rows, token, preRef) {
           + '<td>'+r.name+'</td>'
           + '<td>'+r.country+'</td>'
           + '<td>'+room+'</td>'
-          + '<td>'+(r.thuExtra?'✓':'')+'</td>'
+          + '<td>'+extraLabels_(r.extraNights).join(', ')+'</td>'
           + '<td>'+(r.fullBoard?'TB':r.meals?'yks.':'—')+'</td>'
           + '<td style="width:2rem;border:1px solid #d1d5db">&nbsp;</td>'
           + '</tr>';
@@ -370,17 +371,16 @@ function confirmationSlip_(rows, r, pw) {
     acc = rc.note_en||r.roomId;
     if (r.roomNumber) acc+=' — Room '+r.roomNumber;
     else acc+=' — Room number TBD';
-    if (r.thuExtra) acc+=' + Thu extra night';
+    if (r.extraNights.length) acc+=' + extra night: '+extraLabels_(r.extraNights).join(', ');
   } else if (r.type==='camper') {
-    acc='Camper van spot (2 nights, incl. electricity)';
+    acc='Camper van spot ('+RC.CORE_NIGHTS+' nights, incl. electricity)';
     if (!r.isPrimary) acc+=' — joining '+r.roomRef;
   } else if (r.type==='tent') {
-    acc='Tent pitch (2 nights)';
+    acc='Tent pitch ('+RC.CORE_NIGHTS+' nights)';
   } else if (r.type==='singlebed') {
     acc='Single bed — Room '+(r.roomNumber||'TBD');
   } else if (r.type==='dayvisitor') {
-    var days=r.dayVisitorDays==='both'?'Friday+Saturday':r.dayVisitorDays==='fri'?'Friday only':'Saturday only';
-    acc='Day visitor ('+days+')';
+    acc='Day visitor ('+dayLabels_(r.visitorDays).join(' + ')+')';
   }
 
   // Meals text EN + FI
@@ -500,7 +500,6 @@ function summaryView_(rows, token) {
   var tentGuests   = rows.filter(function(r){return r.type==='tent';}).length;
   var dayvis       = rows.filter(function(r){return r.type==='dayvisitor';}).length;
   var fb           = rows.filter(function(r){return r.fullBoard;}).length;
-  var thu          = rows.filter(function(r){return r.thuExtra;}).length;
   var revenue      = rows.reduce(function(s,r){return s+r.totalPrice;},0);
 
   var roomRows='';
@@ -512,9 +511,7 @@ function summaryView_(rows, token) {
       +'<td class="num">'+rooms+'</td><td class="num">'+guests+'</td><td class="num">€'+rc.price+'</td></tr>';
   });
 
-  var fri    = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('fri'));}).length;
-  var lunch  = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('lunch'));}).length;
-  var dinner = rows.filter(function(r){return r.fullBoard||(r.meals&&r.meals.toLowerCase().includes('dinner'));}).length;
+  var extraCards = RC.EXTRAS.map(function(x){ return '<div class="card"><div class="lbl">Extra night: '+x.label+'</div><div class="val">'+rows.filter(function(r){return r.extraNights.indexOf(x.key)>=0;}).length+'</div></div>'; }).join('');
 
   var body = '<h2>📊 Yhteenveto</h2>'
     + '<div class="cards">'
@@ -523,7 +520,7 @@ function summaryView_(rows, token) {
     + '<div class="card"><div class="lbl">Tent spots</div><div class="val">'+tentSpots+'</div><div class="sub">'+tentGuests+' guests</div></div>'
     + '<div class="card"><div class="lbl">Day visitors</div><div class="val">'+dayvis+'</div></div>'
     + '<div class="card"><div class="lbl">Full board</div><div class="val">'+fb+'</div></div>'
-    + '<div class="card"><div class="lbl">Thu extra night</div><div class="val">'+thu+'</div></div>'
+    + extraCards
     + '<div class="card"><div class="lbl">Total guests</div><div class="val">'+rows.length+'</div></div>'
     + '<div class="card"><div class="lbl">Revenue (est.)</div><div class="val">€'+revenue.toFixed(0)+'</div></div>'
     + '</div>'
@@ -533,10 +530,7 @@ function summaryView_(rows, token) {
     + '<h2>Ateriamäärät</h2>'
     + '<table style="max-width:350px"><thead><tr><th>Ateria</th><th class="num">kpl</th></tr></thead><tbody>'
     + '<tr><td>Täyshoitopaketit</td><td class="num bold">'+fb+'</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Fri dinner</td><td class="num">'+fri+'</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Sat lunch</td><td class="num">'+lunch+'</td></tr>'
-    + '<tr><td style="padding-left:1.5rem;color:#6b7280">Sat dinner</td><td class="num">'+dinner+'</td></tr>'
-    + '<tr><td>To-lisäyö (aamiaiset)</td><td class="num">'+thu+'</td></tr>'
+    + RC.MEALS_EN.map(function(l){return '<tr><td style="padding-left:1.5rem;color:#6b7280">'+l+'</td><td class="num">'+fb+'</td></tr>';}).join('')
     + '</tbody></table>';
 
   return wrap_('Yhteenveto', body, token, 'summary');
@@ -544,13 +538,13 @@ function summaryView_(rows, token) {
 
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
-    'IsPrimary','ThuExtra','FullBoard','Meals','Dietary','ShirtSize',
+    'IsPrimary','ExtraNights','VisitorDays','FullBoard','Meals','Dietary','ShirtSize',
     'Accommodation+Meals_EUR','MeetingFee_EUR','Total_EUR','Status','BookingRef'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
     lines.push([r.callsign,r.name,r.email,r.country,r.type,r.roomId,r.roomNumber,r.roomRef,
-      r.isPrimary?'YES':'NO', r.thuExtra?'YES':'NO', r.fullBoard?'YES':'NO',
+      r.isPrimary?'YES':'NO', r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
       r.meals,r.dietary,r.shirtSize,
       p.hotelTotal.toFixed(0), p.meetingFee.toFixed(0), p.total.toFixed(0),
       r.status, r.bookingRef,
@@ -589,15 +583,15 @@ function printView_(rows, token, ref) {
     accEN = rc.note_en||r.roomId; accFI = rc.note_fi||r.roomId;
     if (r.roomNumber){accEN+=' — Room '+r.roomNumber; accFI+=' — Huone '+r.roomNumber;}
     else {accEN+=' — Room number TBD'; accFI+=' — Huonenumero ilmoitetaan';}
-    if (r.thuExtra){accEN+=' + Thursday extra night'; accFI+=' + Torstai lisäyö';}
+    if (r.extraNights.length){var xl=extraLabels_(r.extraNights).join(', '); accEN+=' + extra night: '+xl; accFI+=' + lisäyö: '+xl;}
   } else if (r.type==='camper') {
-    accEN='Camper van spot (2 nights, incl. electricity)'; accFI='Matkailuautopaikka (2 yötä, sähkö mukana)';
+    accEN='Camper van spot ('+RC.CORE_NIGHTS+' nights, incl. electricity)'; accFI='Matkailuautopaikka ('+RC.CORE_NIGHTS+' yötä, sähkö mukana)';
     if (!r.isPrimary){accEN+=' — joining '+r.roomRef; accFI+=' — liittyy varaukseen '+r.roomRef;}
   } else if (r.type==='tent') {
-    accEN='Tent pitch (2 nights)'; accFI='Telttapaikka (2 yötä)';
+    accEN='Tent pitch ('+RC.CORE_NIGHTS+' nights)'; accFI='Telttapaikka ('+RC.CORE_NIGHTS+' yötä)';
   } else if (r.type==='dayvisitor') {
-    var dEN=r.dayVisitorDays==='both'?'Friday + Saturday':r.dayVisitorDays==='fri'?'Friday only':'Saturday only';
-    var dFI=r.dayVisitorDays==='both'?'Perjantai + lauantai':r.dayVisitorDays==='fri'?'Vain perjantai':'Vain lauantai';
+    var dEN=dayLabels_(r.visitorDays).join(' + ');
+    var dFI=dEN;
     accEN='Day visitor ('+dEN+')'; accFI='Päivävieras ('+dFI+')';
   }
 

@@ -13,6 +13,7 @@ const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
 // Angle brackets are stripped from all guest-supplied text: several pages render these values via innerHTML.
 const str = (v, max) => String(v === undefined || v === null ? '' : v).replace(/[<>]/g, '').trim().slice(0, max);
 const roomCfgOf = id => CONFIG.ROOMS.find(r => r.id === id);
+const S = require('./structure');
 
 // Price inputs derived from a sheet-style booking object.
 // FIX: camper joiners are no longer charged the camper spot again when prices are recalculated.
@@ -21,10 +22,10 @@ function priceInput(o) {
     type: o.type,
     roomId: o.roomId,
     isPrimaryBooker: o.isPrimaryBooker === 'YES',
-    thuExtraNight: o.thuExtraNight === 'YES',
+    extraNights: o.extraNights || '',
     fullBoard: o.fullBoard === 'YES',
     soloRoom: o.soloRoom === 'YES',
-    dayVisitorDays: o.dayVisitorDays || '',
+    visitorDays: o.visitorDays || '',
     joinExisting: o.type === 'camper' && o.isPrimaryBooker !== 'YES',
   };
 }
@@ -85,7 +86,7 @@ async function getAvailability() {
         ref: b.bookingRef, callsign: b.callsign, roomType: roomCfg.note_en, roomId: roomCfg.id,
         roomPersons: roomCfg.persons, spotsLeft: roomCfg.persons - occupants,
         pricePerPerson: Math.round(livePrice / roomCfg.persons), roomPrice: livePrice,
-        thuExtraNight: b.thuExtraNight === 'YES',
+        extraNights: S.pickExtras(b.extraNights),
       };
     }).filter(Boolean);
 
@@ -111,8 +112,7 @@ async function getAvailability() {
       fullBoard: settings.FULL_BOARD_PRICE, camperPerNight: settings.CAMPER_VAN_PRICE_PER_NIGHT,
       tentWeekend: settings.TENT_PRICE_WEEKEND, singleBed: settings.SINGLE_BED_PRICE,
       meetingFeeWeekend: settings.MEETING_FEE_WEEKEND, meetingFeeDay: settings.MEETING_FEE_DAY,
-      mealFriBbq: settings.MEAL_FRI_BBQ, mealSatHamDinner: settings.MEAL_SAT_HAM_DINNER,
-      mealLunch: settings.MEAL_LUNCH, rooms: settings.ROOM_PRICES,
+      rooms: settings.ROOM_PRICES,
     },
   };
 }
@@ -152,10 +152,11 @@ async function submitBooking(input) {
     type: input.type,
     roomId: str(input.roomId, 20), roomRef: str(input.roomRef, 60),
     joinExisting: !!input.joinExisting,
-    thuExtraNight: !!input.thuExtraNight, fullBoard: !!input.fullBoard,
+    extraNights: S.pickExtras(Array.isArray(input.extraNights) ? input.extraNights : S.keys(input.extraNights)),
+    fullBoard: !!input.fullBoard && CONFIG.STRUCTURE.package.enabled,
     dietary: str(input.dietary, 300), shirtSize: str(input.shirtSize, 10),
     gdprNoPublish: !!input.gdprNoPublish, soloDouble: !!input.soloDouble,
-    dayVisitorDays: str(input.dayVisitorDays, 10), freeText: str(input.freeText, 1000),
+    visitorDays: S.pickDays(Array.isArray(input.visitorDays) ? input.visitorDays : S.keys(input.visitorDays)), freeText: str(input.freeText, 1000),
     meals: input.meals && typeof input.meals === 'object' ? input.meals : null,
     bypassToken: str(input.bypassToken, 100),
   };
@@ -233,27 +234,28 @@ async function submitBooking(input) {
       isPrimary = true; roomId = 'singlebed';
     }
 
-    if (data.thuExtraNight && data.type !== 'room' && data.type !== 'singlebed')
-      return reject('Thursday extra night is only available with room or single-bed bookings.', callsign);
-    // Joiners inherit the Thursday night of the room (as in the original UI); never charge it if the room lacks it
-    if (data.type === 'dayvisitor' && !['fri', 'sat', 'both'].includes(data.dayVisitorDays))
+    if (data.extraNights.length && data.type !== 'room' && data.type !== 'singlebed')
+      return reject('Extra nights are only available with room or single-bed bookings.', callsign);
+    // Joiners always get exactly the extra nights of the room they join (never trust the client for this)
+    if (data.type === 'room' && primaryRow) data.extraNights = S.pickExtras(primaryRow.extraNights);
+    if (data.type === 'dayvisitor' && !data.visitorDays.length)
       return reject('Please select which day(s) you will attend.', callsign);
 
     const price = calculatePrice({
-      type: data.type, roomId, isPrimaryBooker: isPrimary, thuExtraNight: data.thuExtraNight,
-      fullBoard: data.fullBoard, soloRoom, dayVisitorDays: data.dayVisitorDays,
+      type: data.type, roomId, isPrimaryBooker: isPrimary, extraNights: data.extraNights,
+      fullBoard: data.fullBoard, soloRoom, visitorDays: data.visitorDays,
       joinExisting: data.type === 'camper' && !isPrimary,
     }, settings);
 
     const meals = data.meals ? Object.entries(data.meals).filter(([, v]) => v).map(([k]) => k).join(',') : '';
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
-         is_primary, thu_extra_night, full_board, dietary, shirt_size, total_price, price_breakdown, status,
-         publish_consent, solo_room, day_visitor_days, meals, free_text)
+         is_primary, extra_nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
+         publish_consent, solo_room, visitor_days, meals, free_text)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22)`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
-        isPrimary, data.thuExtraNight, data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        !data.gdprNoPublish, soloRoom, data.dayVisitorDays, meals, data.freeText]
+        isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
+        !data.gdprNoPublish, soloRoom, data.visitorDays.join(','), meals, data.freeText]
     );
 
     const existingJoiners = data.joinExisting && primaryRow
@@ -330,6 +332,8 @@ async function updateBooking(bookingRef, fields, sendEmail) {
 
     const clean = {};
     repo.EDITABLE.forEach(f => { if (Object.prototype.hasOwnProperty.call(fields, f)) clean[f] = fields[f]; });
+    if (clean.ExtraNights !== undefined) clean.ExtraNights = S.pickExtras(S.keys(clean.ExtraNights)).join(',');
+    if (clean.VisitorDays !== undefined) clean.VisitorDays = S.pickDays(S.keys(clean.VisitorDays)).join(',');
     if (clean.Status !== undefined && !STATUSES.includes(clean.Status)) return { success: false, error: 'Invalid status' };
     if (clean.Type !== undefined && !TYPES.includes(clean.Type)) return { success: false, error: 'Invalid type' };
     if (clean.Callsign !== undefined) clean.Callsign = String(clean.Callsign).trim().toUpperCase();
@@ -348,7 +352,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
 
     const fresh = (await repo.all(client)).find(r => r.booking_ref === bookingRef);
     const obj = repo.toObj(fresh);
-    const priceFields = ['FullBoard', 'ThuExtraNight', 'Type', 'RoomId', 'IsPrimaryBooker', 'SoloRoom'];
+    const priceFields = ['FullBoard', 'ExtraNights', 'VisitorDays', 'Type', 'RoomId', 'IsPrimaryBooker', 'SoloRoom'];
     const needsRecalc = priceFields.some(f => Object.prototype.hasOwnProperty.call(clean, f));
     let price = { total: obj.totalPrice, breakdown: obj.priceBreakdown };
     if (needsRecalc) {
@@ -462,7 +466,7 @@ async function changeRole(bookingRef, params) {
       const limit = settings.ROOM_COUNTS[targetRoomId];
       if (booked >= limit) return { success: false, error: `No ${roomCfg.note_en} rooms available (${booked}/${limit} booked).` };
       await repo.updateFields(client, bookingRef, { IsPrimaryBooker: 'YES', RoomRef: bookingRef, RoomId: targetRoomId, Type: 'room' });
-      const p = calculatePrice({ type: 'room', roomId: targetRoomId, fullBoard: row.full_board, thuExtraNight: row.thu_extra_night }, settings);
+      const p = calculatePrice({ type: 'room', roomId: targetRoomId, fullBoard: row.full_board, extraNights: row.extra_nights }, settings);
       await client.query('UPDATE bookings SET total_price=$1, price_breakdown=$2 WHERE booking_ref=$3', [p.total, p.breakdown, bookingRef]);
       db.logEvent('OK', 'role_changed', callsign, `ref=${bookingRef} joiner→primary roomId=${targetRoomId}`);
       return { success: true, message: `${callsign} promoted to primary booker in a ${roomCfg.note_en} room.` };
@@ -486,7 +490,7 @@ async function changeRole(bookingRef, params) {
         await client.query(`UPDATE bookings SET status='NEEDS_ATTENTION', org_comment=$1 WHERE id=$2`, [comment, j.id]);
       }
       await repo.updateFields(client, bookingRef, { IsPrimaryBooker: 'NO', RoomRef: targetRoomRef, RoomId: target.room_id });
-      const p = calculatePrice({ type: 'room', roomId: target.room_id, fullBoard: row.full_board, thuExtraNight: row.thu_extra_night }, settings);
+      const p = calculatePrice({ type: 'room', roomId: target.room_id, fullBoard: row.full_board, extraNights: row.extra_nights }, settings);
       await client.query('UPDATE bookings SET total_price=$1, price_breakdown=$2 WHERE booking_ref=$3', [p.total, p.breakdown, bookingRef]);
       db.logEvent('OK', 'role_changed', callsign, `ref=${bookingRef} primary→joiner targetRoom=${targetRoomRef} oldJoinersFlagged=${oldJoiners.length}`);
       const extra = oldJoiners.length > 0 ? ` ${oldJoiners.length} previous joiner(s) flagged as NEEDS_ATTENTION.` : '';

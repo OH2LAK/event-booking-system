@@ -19,22 +19,17 @@ const CONFIG = {
   LOCATION:       "Example Venue, Example City",
   LOCATION_SHORT: "Example City",
   DATES_TEXT:     "13-16 May 2027",
-  DATE_THU:       "Thursday 13 May 2027",  // optional extra night
-  DATE_FRI:       "Friday 14 May 2027",
-  DATE_SAT:       "Saturday 15 May 2027",
-  DATE_SUN:       "Sunday 16 May 2027",
-  DAY_FRI_SHORT:  "Friday 14.5",
-  DAY_SAT_SHORT:  "Saturday 15.5",
-  THU_NIGHT_LABEL:"13.5 \u2192 14.5",
-  CHECKIN_TIME:   "From 15:00 on Thursday/Friday",
-  CHECKOUT_TIME:  "Sunday by 12:00",
+  CHECKIN_TIME:   "Check-in from 15:00",
+  CHECKOUT_TIME:  "Check-out by 12:00",
   HOME_URL:       "",
   HOME_LABEL:     "Back to the event page",
   LOGO1_URL:      "",
   LOGO2_URL:      "",
   ACCENT_COLOR:   "#b45309",
   SLUG:           "example-event",
-  MEAL_PACKAGE_SUB: "Fri dinner \u00b7 Sat lunch + dinner",
+  // Event structure (days, extra nights, meal package): defaults here, stored in event_structure (see structure.js)
+  STRUCTURE: { days: [{ key: "d1", label: "Day 1", short: "Day 1" }, { key: "d2", label: "Day 2", short: "Day 2" }], coreNights: 2, extraNights: [], package: { enabled: true, sub: "", includes: [] } },
+  MEAL_PACKAGE_SUB: "",
 
   // --- Email ---
   EMAIL_SENDER_NAME: process.env.EMAIL_SENDER_NAME || "Example Event",
@@ -60,22 +55,9 @@ const CONFIG = {
   // Extra bed add-on (per person, whole event 2 nights)
   EXTRA_BED_PRICE: 74,
 
-  // Thursday extra night add-on (per person — PRICE TBD, set when known)
-  THU_EXTRA_NIGHT_PRICE: null,  // ← SET THIS when price is decided (e.g. 37)
-  THU_EXTRA_INCLUDES: "Includes Friday breakfast",
-
   // --- Meal package ---
   FULL_BOARD_PRICE: 75,
-  FULL_BOARD_INCLUDES_EN: [
-    "Friday: dinner",
-    "Saturday: lunch + dinner",
-    "Note: breakfast is included in all room prices"
-  ],
-
-  // Individual meal prices (à la carte — available to all, especially day visitors)
-  MEAL_FRI_BBQ: 20,
-  MEAL_SAT_HAM_DINNER: 42,
-  MEAL_LUNCH: 18,  // per lunch, applies to both Fri lunch and Sat lunch
+  FULL_BOARD_INCLUDES_EN: [],
 
   // --- Camping / camper van ---
   CAMPER_VAN_SPOTS: 10,
@@ -84,8 +66,8 @@ const CONFIG = {
   TENT_PRICE_WEEKEND: 10,
   TENT_PRICE_DAY: 5,  // day visitor camping (not handled in booking — on-site only)
 
-  // Camping nights (Fri + Sat = 2)
-  CAMPING_NIGHTS: 2,
+  // Camping nights (nights included in the room price)
+  CAMPING_NIGHTS: 2,   // overwritten by the event structure (nights included in the room price)
 
   // Additional info shown to camper van and tent bookers
   CAMPER_INFO: "This is additional information for camper van guests. Electricity hookup (230V) is available at each spot. Please bring your own extension cable. The camper area is located adjacent to the hotel parking area. More details will be provided closer to the event.",

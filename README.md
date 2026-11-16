@@ -23,7 +23,7 @@ event-neutral. The original scripts (with secrets redacted) are kept in `legacy-
 3. Until this is saved, visitors only see a "booking is not open yet" page.
 4. Then set registration dates, prices and room inventory further down the admin panel.
 
-Room types (id, description, persons per room, count, price) are defined in the **Room types** card of the admin panel. On first start they are seeded from the defaults in `src/config.js`. Days, meals and booking types are still fixed (Thu-Sun weekend structure).
+Room types (id, description, persons per room, count, price) are defined in the **Room types** card of the admin panel. On first start they are seeded from the defaults in `src/config.js`. The days of the event, optional extra nights and the meal package are defined in the **Event structure** card (installs that already hold bookings keep the original Fri/Sat + Thursday shape automatically). The booking types (room, camper, tent, single bed, day visitor) are fixed.
 
 ## Demo data and screenshots
 

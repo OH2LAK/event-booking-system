@@ -26,7 +26,7 @@ function getClientConfigJson_(joinRef, settings) {
     TENT_PRICE_WEEKEND: s.TENT_PRICE_WEEKEND,
     TENT_ENABLED: s.TENT_ENABLED,
     FULL_BOARD_PRICE: s.FULL_BOARD_PRICE,
-    THU_EXTRA_INCLUDES: CONFIG.THU_EXTRA_INCLUDES,
+    STRUCTURE: CONFIG.STRUCTURE,
     ALLOW_SOLO_DOUBLE: s.ALLOW_SOLO_DOUBLE,
     ALLOW_SINGLE_BED_BOOKING: s.ALLOW_SINGLE_BED_BOOKING,
     SINGLE_BED_PRICE: s.SINGLE_BED_PRICE,
@@ -39,9 +39,6 @@ function getClientConfigJson_(joinRef, settings) {
     PRICE_DISCLAIMER: s.PRICE_DISCLAIMER,
     MEETING_FEE_WEEKEND: s.MEETING_FEE_WEEKEND,
     MEETING_FEE_DAY: s.MEETING_FEE_DAY,
-    MEAL_FRI_BBQ: s.MEAL_FRI_BBQ,
-    MEAL_SAT_HAM_DINNER: s.MEAL_SAT_HAM_DINNER,
-    MEAL_LUNCH: s.MEAL_LUNCH,
   };
   return JSON.stringify(cfg);
 }
@@ -268,7 +265,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
       <div class="choice-card" id="card-dayvisitor" onclick="selectMode('dayvisitor')">
         <div class="choice-icon">🎫</div>
         <div class="choice-title">Day visitor</div>
-        <div class="choice-desc">Attending Fri and/or Sat without overnight stay</div>
+        <div class="choice-desc">Attending one or more event days without overnight stay</div>
       </div>
       <div class="choice-card" id="card-who" onclick="openPublicPage()">
         <div class="choice-icon">📋</div>
@@ -287,12 +284,12 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
         <label class="radio-option">
           <input type="radio" name="acc-type" value="room" onchange="onTypeChange()">
           <div><div class="opt-label">🏨 Hotel room</div>
-          <div class="opt-sub">Fri–Sun (2 nights) · Single, double, triple, quad or seven-person room · Breakfast included</div></div>
+          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · Choose a room type below</div></div>
         </label>
         <label class="radio-option">
           <input type="radio" name="acc-type" value="camper" onchange="onTypeChange()">
           <div><div class="opt-label">🚐 Camper van spot</div>
-          <div class="opt-sub">Fri–Sun (2 nights) · Includes electricity · €${settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS}</div></div>
+          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · Includes electricity · €${settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS}</div></div>
         </label>
         <label class="radio-option" id="tent-option" ${!settings.TENT_ENABLED ? 'style="display:none"' : ''}>
           <input type="radio" name="acc-type" value="tent" onchange="onTypeChange()">
@@ -302,7 +299,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
         <label class="radio-option" id="singlebed-option" style="display:none">
           <input type="radio" name="acc-type" value="singlebed" onchange="onTypeChange()">
           <div><div class="opt-label">🛏️ Single bed (organizer-assigned room)</div>
-          <div class="opt-sub">Fri–Sun (2 nights) · All single rooms are full — organizers will assign your room · €${settings.SINGLE_BED_PRICE}</div></div>
+          <div class="opt-sub">${CONFIG.STRUCTURE.coreNights} nights · All single rooms are full — organizers will assign your room · €${settings.SINGLE_BED_PRICE}</div></div>
         </label>
       </div>
       <div id="camper-info-box" class="info-box" style="display:none;margin-top:1rem">${settings.CAMPER_INFO}</div>
@@ -315,20 +312,20 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
     </div>
 
     <div id="thu-section" class="card section" style="display:none">
-      <h2>Extra night</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">All room bookings run from ${esc(CONFIG.DATE_FRI)} to ${esc(CONFIG.DATE_SUN)} by default. Add Thursday night to arrive a day early. If you wish to book additional nights beyond Thursday, please let us know in the free text field below.</p>
-      <label class="check-option">
-        <input type="checkbox" id="thu-extra" onchange="onThuExtraChange()">
+      <h2>Extra nights</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">Room bookings cover ${esc(CONFIG.DATES_TEXT)} by default. You can add extra nights below. If you need further nights, please say so in the free text field.</p>
+      ${CONFIG.STRUCTURE.extraNights.map(x => `<label class="check-option">
+        <input type="checkbox" name="xn" value="${esc(x.key)}" onchange="onThuExtraChange()">
         <div>
-          <div class="opt-label">🌙 Add Thursday night (${esc(CONFIG.THU_NIGHT_LABEL)})</div>
-          <div class="opt-sub" id="thu-sub">Price based on selected room · ${CONFIG.THU_EXTRA_INCLUDES}</div>
+          <div class="opt-label">🌙 Add extra night: ${esc(x.label)}</div>
+          <div class="opt-sub" data-xsub="${esc(x.key)}">Price based on selected room${x.includes ? ' · ' + esc(x.includes) : ''}</div>
         </div>
-      </label>
+      </label>`).join('\n')}
     </div>
 
     <div id="thu-info-join" class="card section" style="display:none">
       <h2>Extra night</h2>
-      <div class="info-box" id="thu-info-join-text">The primary booker has included Thursday night.</div>
+      <div class="info-box" id="thu-info-join-text">The primary booker has included extra night(s).</div>
     </div>
 
     <div id="join-section" class="card section">
@@ -376,36 +373,27 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
 
     <div id="dayvisitor-section" class="card section" style="display:none">
       <h2>Attendance days</h2>
-      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">Which day(s) will you be attending?</p>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">Which day(s) will you be attending? You can select several.</p>
       <div style="display:flex;flex-direction:column;gap:0.5rem">
-        <label class="radio-option">
-          <input type="radio" name="dv-days" value="fri" onchange="updatePriceDisplay()">
-          <div><div class="opt-label">${esc(CONFIG.DAY_FRI_SHORT)} only</div>
-          <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}</div></div>
-        </label>
-        <label class="radio-option">
-          <input type="radio" name="dv-days" value="sat" onchange="updatePriceDisplay()">
-          <div><div class="opt-label">${esc(CONFIG.DAY_SAT_SHORT)} only</div>
-          <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}</div></div>
-        </label>
-        <label class="radio-option">
-          <input type="radio" name="dv-days" value="both" onchange="updatePriceDisplay()">
-          <div><div class="opt-label">Both days (Fri + Sat)</div>
-          <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_WEEKEND}</div></div>
-        </label>
+        ${CONFIG.STRUCTURE.days.map(d => `<label class="check-option">
+          <input type="checkbox" name="dv-day" value="${esc(d.key)}" onchange="updatePriceDisplay()">
+          <div><div class="opt-label">${esc(d.label)}</div>
+          <div class="opt-sub">Meeting fee: €${settings.MEETING_FEE_DAY}${CONFIG.STRUCTURE.days.length > 1 ? ' per day (€' + settings.MEETING_FEE_WEEKEND + ' for all days)' : ''}</div></div>
+        </label>`).join('\n')}
       </div>
     </div>
 
     <div id="addons-section" class="card section">
       <h2>Add-ons</h2>
 
-      <div id="individual-meals-section" style="display:none;margin-bottom:1rem">
+      <style>.pkg-off{display:none !important}</style>
+      <div id="individual-meals-section" class="${CONFIG.STRUCTURE.package.enabled ? '' : 'pkg-off'}" style="display:none;margin-bottom:1rem">
         <div style="font-size:0.88rem;font-weight:600;color:var(--text);margin-bottom:0.5rem">🍽️ Meals</div>
         <div id="full-board-row">
           <label class="check-option">
             <input type="checkbox" id="full-board" onchange="onFullBoardChange()">
             <div>
-              <div class="opt-label">Full board meal package — €${settings.FULL_BOARD_PRICE}/person</div>
+              <div class="opt-label">Meal package — €${settings.FULL_BOARD_PRICE}/person</div>
               <div class="opt-sub" id="full-board-sub">${esc(CONFIG.MEAL_PACKAGE_SUB)}</div>
             </div>
           </label>
@@ -498,8 +486,7 @@ function selectMode(mode) {
     document.getElementById('thu-info-join').style.display = 'none';
     document.getElementById('addons-section').classList.remove('visible');
     document.getElementById('individual-meals-section').style.display = 'none';
-    var thuEl = document.getElementById('thu-extra');
-    if (thuEl) { thuEl.checked = false; thuEl.disabled = false; }
+    resetExtras();
     updatePriceDisplay();
   } else if (mode === 'dayvisitor') {
     currentAccType = 'dayvisitor';
@@ -549,7 +536,8 @@ function onTypeChange() {
   const isSingleBed = currentAccType === 'singlebed';
   const hasRoom     = isRoom || isSingleBed;
   document.getElementById('room-type-section').classList.toggle('visible', isRoom);
-  document.getElementById('thu-section').style.display = hasRoom ? 'block' : 'none';
+  document.getElementById('thu-section').style.display = (hasRoom && CONFIG_CLIENT.STRUCTURE.extraNights.length) ? 'block' : 'none';
+  if (!hasRoom) resetExtras();
   document.getElementById('camper-info-box').style.display = currentAccType === 'camper' ? 'block' : 'none';
   document.getElementById('tent-info-box').style.display   = currentAccType === 'tent'   ? 'block' : 'none';
   document.getElementById('dayvisitor-section').style.display = 'none';
@@ -563,16 +551,19 @@ function onTypeChange() {
 function updateFullBoardSub() {
   var el = document.getElementById('full-board-sub');
   if (!el) return;
-  var base = ${JSON.stringify(CONFIG.MEAL_PACKAGE_SUB)};
-  if (currentAccType === 'room' || currentAccType === 'singlebed') {
-    base += ' \u00b7 Note: breakfast is included in your room price';
-  }
-  el.textContent = base;
+  el.textContent = ${JSON.stringify(CONFIG.MEAL_PACKAGE_SUB)};
 }
 
 function onFullBoardChange() {
   updatePriceDisplay();
 }
+
+function selectedExtras() { return Array.prototype.map.call(document.querySelectorAll('input[name="xn"]:checked'), function(e){ return e.value; }); }
+function resetExtras() { document.querySelectorAll('input[name="xn"]').forEach(function(e){ e.checked = false; e.disabled = false; }); }
+function extraLabel(k) { var x = (CONFIG_CLIENT.STRUCTURE.extraNights || []).find(function(y){ return y.key === k; }); return x ? x.label : k; }
+function extraNightRoomPrice(roomPrice) { return Math.round(roomPrice / Math.max(1, CONFIG_CLIENT.STRUCTURE.coreNights)); }
+function selectedVisitorDays() { return Array.prototype.map.call(document.querySelectorAll('input[name="dv-day"]:checked'), function(e){ return e.value; }); }
+function dayShort(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.short : k; }
 
 function onThuExtraChange() {
   updatePriceDisplay();
@@ -625,17 +616,19 @@ function onRoomTypeChange() {
   document.querySelectorAll('#room-type-options .radio-option').forEach(function(el) { el.classList.remove('selected'); });
   const checked = document.querySelector('input[name="room-type"]:checked');
   if (checked) checked.closest('.radio-option').classList.add('selected');
-  // Update thu extra night sub-label with room-based price
+  // Update extra night sub-labels with room-based prices
   const r = checked ? CONFIG_CLIENT.ROOMS.find(function(x){return x.id===checked.value;}) : null;
-  const thuSub = document.getElementById('thu-sub');
-  if (thuSub && r) {
+  if (r) {
     const livePrice = (CONFIG_CLIENT.ROOM_PRICES && CONFIG_CLIENT.ROOM_PRICES[r.id] !== undefined) ? CONFIG_CLIENT.ROOM_PRICES[r.id] : r.price_eur;
-    const thuRoom = Math.round(livePrice / 2);
-    const thuPP = r.persons > 1 ? Math.round(thuRoom / r.persons) : thuRoom;
-    var txt = '\u20AC' + thuRoom + ' room night';
-    if (r.persons > 1) txt += ' (\u20AC' + thuPP + '/person)';
-    txt += ' \u00b7 ' + CONFIG_CLIENT.THU_EXTRA_INCLUDES;
-    thuSub.textContent = txt;
+    const nightRoom = extraNightRoomPrice(livePrice);
+    const nightPP = r.persons > 1 ? Math.round(nightRoom / r.persons) : nightRoom;
+    document.querySelectorAll('[data-xsub]').forEach(function(el) {
+      var x = (CONFIG_CLIENT.STRUCTURE.extraNights || []).find(function(y){ return y.key === el.getAttribute('data-xsub'); });
+      var txt = '\u20AC' + nightRoom + ' room night';
+      if (r.persons > 1) txt += ' (\u20AC' + nightPP + '/person)';
+      if (x && x.includes) txt += ' \u00b7 ' + x.includes;
+      el.textContent = txt;
+    });
   }
   updatePriceDisplay();
 }
@@ -666,7 +659,6 @@ function initJoinFromRef(ref) {
   var camper = avail && avail.openCampers ? avail.openCampers.find(function(c){ return c.ref === ref; }) : null;
   var infoEl  = document.getElementById('join-room-info');
   var fullEl  = document.getElementById('join-room-full');
-  var thuEl   = document.getElementById('thu-extra');
 
   // Keep a synthetic "selected" value so the rest of the flow can read it
   if (!document.getElementById('room-ref-select')) {
@@ -688,7 +680,7 @@ function initJoinFromRef(ref) {
     if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — 🚐 Camper van spot · booked by <strong>' + camper.callsign + '</strong> · ' + camper.occupants + ' registered so far'; }
     document.getElementById('thu-section').style.display = 'none';
     document.getElementById('thu-info-join').style.display = 'none';
-    if (thuEl) { thuEl.checked = false; thuEl.disabled = false; }
+    resetExtras();
     document.getElementById('addons-section').classList.add('visible');
     document.getElementById('individual-meals-section').style.display = 'block';
     document.getElementById('full-board-row').style.display = '';
@@ -708,23 +700,24 @@ function initJoinFromRef(ref) {
 
   // Room has space — show info and form
   var spotsText = room.spotsLeft + ' spot' + (room.spotsLeft > 1 ? 's' : '') + ' remaining';
-  var thuNote = room.thuExtraNight ? ' · 🌙 Thu night included' : '';
+  var joinExtras = room.extraNights || [];
+  var thuNote = joinExtras.length ? ' · 🌙 Extra night included: ' + joinExtras.map(extraLabel).join(', ') : '';
   if (infoEl) { infoEl.style.display = 'block'; infoEl.style.background = ''; infoEl.style.borderColor = ''; infoEl.style.color = ''; infoEl.innerHTML = '<strong>' + ref + '</strong> — ' + room.roomType + ' · <strong>' + spotsText + '</strong>' + thuNote; }
 
-  // Thu handling
+  // Extra nights are inherited from the room
   document.getElementById('thu-section').style.display = 'none';
-  if (room.thuExtraNight) {
-    var thuRoom = Math.round(room.roomPrice / 2);
-    var thuPP = Math.round(thuRoom / (room.roomPersons || 1));
+  resetExtras();
+  if (joinExtras.length) {
+    var nightRoom = extraNightRoomPrice(room.roomPrice);
+    var nightPP = Math.round(nightRoom / (room.roomPersons || 1));
     var joinInfoEl = document.getElementById('thu-info-join');
     var joinTextEl = document.getElementById('thu-info-join-text');
-    var priceNote = ' · \u20AC' + thuRoom + ' room night (\u20AC' + thuPP + '/person)';
-    if (joinTextEl) joinTextEl.textContent = '\uD83C\uDF19 The primary booker has included Thursday night (' + ${JSON.stringify(CONFIG.THU_NIGHT_LABEL)} + '). Your share is included in the total price.' + priceNote;
+    var priceNote = ' · \u20AC' + nightRoom + ' room night (\u20AC' + nightPP + '/person) each';
+    if (joinTextEl) joinTextEl.textContent = '\uD83C\uDF19 The primary booker has included: ' + joinExtras.map(extraLabel).join(', ') + '. Your share is included in the total price.' + priceNote;
     if (joinInfoEl) joinInfoEl.style.display = 'block';
-    if (thuEl) { thuEl.checked = true; thuEl.disabled = true; }
+    joinExtras.forEach(function(k) { var cb = document.querySelector('input[name="xn"][value="' + k + '"]'); if (cb) { cb.checked = true; cb.disabled = true; } });
   } else {
     document.getElementById('thu-info-join').style.display = 'none';
-    if (thuEl) { thuEl.checked = false; thuEl.disabled = false; }
   }
 
   document.getElementById('addons-section').classList.add('visible');
@@ -749,26 +742,26 @@ function updatePriceDisplay() {
     const selCamper = ref && avail && avail.openCampers ? avail.openCampers.find(function(c){ return c.ref === ref; }) : null;
     if (selCamper) {
       rows.push({label:'Camper van spot: shared with ' + ref + ' (costs split separately)', val:'—'});
-      rows.push({label:'Meeting fee (full weekend)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:'Meeting fee (full event)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:'Full board meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:'Meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else if (selRoom) {
       rows.push({label:'Room share (' + selRoom.roomType + ')', val:'\u20AC' + selRoom.pricePerPerson + '/person (room \u20AC' + selRoom.roomPrice + ')'});
       total += selRoom.pricePerPerson;
-      if (selRoom.thuExtraNight) {
-        const thuRoom = Math.round(selRoom.roomPrice / 2);
+      (selRoom.extraNights || []).forEach(function(k) {
+        const nightRoom = extraNightRoomPrice(selRoom.roomPrice);
         const persons = selRoom.roomPersons || 1;
-        const thuPP = Math.round(thuRoom / persons);
-        rows.push({label:'\uD83C\uDF19 Extra night (\u20AC'+thuRoom+' room night \u00f7 '+persons+' persons)', val:'\u20AC'+thuPP+'/person'});
-        total += thuPP;
-      }
-      rows.push({label:'Meeting fee (full weekend)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+        const nightPP = Math.round(nightRoom / persons);
+        rows.push({label:'\uD83C\uDF19 Extra night: ' + extraLabel(k) + ' (\u20AC'+nightRoom+' room night \u00f7 '+persons+' persons)', val:'\u20AC'+nightPP+'/person'});
+        total += nightPP;
+      });
+      rows.push({label:'Meeting fee (full event)', val:'\u20AC' + CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       if (document.getElementById('full-board') && document.getElementById('full-board').checked) {
-        rows.push({label:'Full board meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
+        rows.push({label:'Meal package', val:'\u20AC' + CONFIG_CLIENT.FULL_BOARD_PRICE});
         total += CONFIG_CLIENT.FULL_BOARD_PRICE;
       }
     } else {
@@ -787,60 +780,59 @@ function updatePriceDisplay() {
         total += pp;
       }
     }
-    const thuEl = document.getElementById('thu-extra');
-    if (thuEl && thuEl.checked) {
-      const rt2 = document.querySelector('input[name="room-type"]:checked');
-      const r2 = rt2 ? CONFIG_CLIENT.ROOMS.find(function(x){return x.id===rt2.value;}) : null;
-      if (r2) {
+    const rt2 = document.querySelector('input[name="room-type"]:checked');
+    const r2 = rt2 ? CONFIG_CLIENT.ROOMS.find(function(x){return x.id===rt2.value;}) : null;
+    if (r2) {
+      selectedExtras().forEach(function(k) {
         const livePrice2 = (CONFIG_CLIENT.ROOM_PRICES && CONFIG_CLIENT.ROOM_PRICES[r2.id] !== undefined) ? CONFIG_CLIENT.ROOM_PRICES[r2.id] : r2.price_eur;
-        const thuRoom = Math.round(livePrice2 / 2);
+        const nightRoom = extraNightRoomPrice(livePrice2);
         const soloEl2 = document.getElementById('solo-double');
         const isSolo2 = soloEl2 && soloEl2.checked;
-        const thuPP = isSolo2 ? thuRoom : Math.round(thuRoom / r2.persons);
-        var label = '\uD83C\uDF19 Extra night (\u20AC'+thuRoom+' room night';
+        const nightPP = isSolo2 ? nightRoom : Math.round(nightRoom / r2.persons);
+        var label = '\uD83C\uDF19 Extra night: ' + extraLabel(k) + ' (\u20AC'+nightRoom+' room night';
         if (!isSolo2 && r2.persons > 1) label += ' \u00f7 '+r2.persons+' persons';
         label += ')';
-        rows.push({label:label, val:'\u20AC'+thuPP+(isSolo2||r2.persons===1?'':'/person')});
-        total += thuPP;
-      }
+        rows.push({label:label, val:'\u20AC'+nightPP+(isSolo2||r2.persons===1?'':'/person')});
+        total += nightPP;
+      });
     }
   } else if (currentAccType === 'camper') {
     const t = CONFIG_CLIENT.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG_CLIENT.CAMPING_NIGHTS;
-    rows.push({label:'Camper van (2 nights)', val:'\u20AC'+t}); total += t;
+    rows.push({label:'Camper van (' + CONFIG_CLIENT.CAMPING_NIGHTS + ' nights)', val:'\u20AC'+t}); total += t;
   } else if (currentAccType === 'tent') {
-    rows.push({label:'Tent spot (weekend)', val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
+    rows.push({label:'Tent spot (whole event)', val:'\u20AC'+CONFIG_CLIENT.TENT_PRICE_WEEKEND});
     total += CONFIG_CLIENT.TENT_PRICE_WEEKEND;
   } else if (currentAccType === 'singlebed') {
     rows.push({label:'Single bed (organizer-assigned room)', val:'\u20AC'+CONFIG_CLIENT.SINGLE_BED_PRICE});
     total += CONFIG_CLIENT.SINGLE_BED_PRICE;
-    const thuEl2 = document.getElementById('thu-extra');
-    if (thuEl2 && thuEl2.checked) {
-      const thuPrice = Math.round(CONFIG_CLIENT.SINGLE_BED_PRICE / 2);
-      rows.push({label:'\uD83C\uDF19 Extra night', val:'\u20AC'+thuPrice});
-      total += thuPrice;
-    }
+    selectedExtras().forEach(function(k) {
+      const nightPrice = extraNightRoomPrice(CONFIG_CLIENT.SINGLE_BED_PRICE);
+      rows.push({label:'\uD83C\uDF19 Extra night: ' + extraLabel(k), val:'\u20AC'+nightPrice});
+      total += nightPrice;
+    });
   } else if (currentAccType === 'dayvisitor') {
-    var dvDays = document.querySelector('input[name="dv-days"]:checked');
-    if (dvDays) {
-      if (dvDays.value === 'both') {
-        rows.push({label:'Meeting fee (Fri + Sat)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+    var dvSel = selectedVisitorDays();
+    if (dvSel.length) {
+      if (dvSel.length > 1 && dvSel.length === CONFIG_CLIENT.STRUCTURE.days.length) {
+        rows.push({label:'Meeting fee (all days)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
         total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       } else {
-        var dayLabel = dvDays.value === 'fri' ? 'Friday' : 'Saturday';
-        rows.push({label:'Meeting fee (' + dayLabel + ')', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_DAY});
-        total += CONFIG_CLIENT.MEETING_FEE_DAY;
+        dvSel.forEach(function(k) {
+          rows.push({label:'Meeting fee (' + dayShort(k) + ')', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_DAY});
+          total += CONFIG_CLIENT.MEETING_FEE_DAY;
+        });
       }
     }
   }
   if (currentMode !== 'join') {
     const boardEl = document.getElementById('full-board');
     if (boardEl && boardEl.checked) {
-      rows.push({label:'Full board meal package', val:'\u20AC'+CONFIG_CLIENT.FULL_BOARD_PRICE});
+      rows.push({label:'Meal package', val:'\u20AC'+CONFIG_CLIENT.FULL_BOARD_PRICE});
       total += CONFIG_CLIENT.FULL_BOARD_PRICE;
     }
     // Meeting fee for all non-day-visitor types
     if (currentAccType && currentAccType !== 'dayvisitor' && rows.length > 0) {
-      rows.push({label:'Meeting fee (full weekend)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
+      rows.push({label:'Meeting fee (full event)', val:'\u20AC'+CONFIG_CLIENT.MEETING_FEE_WEEKEND});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
     }
   }
@@ -866,7 +858,7 @@ function submitForm() {
     fullBoard:   document.getElementById('full-board').checked,
     meals: {},
     gdprNoPublish:  document.getElementById('gdpr-no-publish').checked,
-    thuExtraNight:  false,
+    extraNights:    [],
     bypassToken:    CONFIG_CLIENT.BYPASS_TOKEN || '',
   };
   if (currentMode === 'join') {
@@ -877,8 +869,7 @@ function submitForm() {
     // Detect if joining a camper spot or a room
     const isCamperJoin = avail && avail.openCampers && avail.openCampers.find(function(c){ return c.ref === ref; });
     data.type = isCamperJoin ? 'camper' : 'room';
-    const thuEl = document.getElementById('thu-extra');
-    data.thuExtraNight = thuEl ? thuEl.checked : false;
+    data.extraNights = selectedExtras();
   } else {
     data.type = currentAccType; data.joinExisting = false;
     if (currentAccType === 'room') {
@@ -887,15 +878,12 @@ function submitForm() {
       data.roomId = rt.value;
       const soloEl = document.getElementById('solo-double');
       data.soloDouble = soloEl ? soloEl.checked : false;
-      const thuEl = document.getElementById('thu-extra');
-      data.thuExtraNight = thuEl ? thuEl.checked : false;
+      data.extraNights = selectedExtras();
     } else if (currentAccType === 'singlebed') {
-      const thuEl = document.getElementById('thu-extra');
-      data.thuExtraNight = thuEl ? thuEl.checked : false;
+      data.extraNights = selectedExtras();
     } else if (currentAccType === 'dayvisitor') {
-      const dvEl = document.querySelector('input[name="dv-days"]:checked');
-      if (!dvEl) { showError('Please select which day(s) you will attend.'); return; }
-      data.dayVisitorDays = dvEl.value;
+      data.visitorDays = selectedVisitorDays();
+      if (!data.visitorDays.length) { showError('Please select which day(s) you will attend.'); return; }
     }
   }
   if (!data.callsign || data.callsign.length < 3) { showError('Please enter a valid callsign.'); return; }
@@ -982,9 +970,6 @@ window.onload = function() {
         CONFIG_CLIENT.ROOM_PRICES             = data.prices.rooms;
         CONFIG_CLIENT.MEETING_FEE_WEEKEND     = data.prices.meetingFeeWeekend;
         CONFIG_CLIENT.MEETING_FEE_DAY         = data.prices.meetingFeeDay;
-        CONFIG_CLIENT.MEAL_FRI_BBQ            = data.prices.mealFriBbq;
-        CONFIG_CLIENT.MEAL_SAT_HAM_DINNER     = data.prices.mealSatHamDinner;
-        CONFIG_CLIENT.MEAL_LUNCH              = data.prices.mealLunch;
       }
       var disclaimerEl = document.getElementById('price-disclaimer');
       if (disclaimerEl && CONFIG_CLIENT.PRICE_DISCLAIMER) {
@@ -1156,6 +1141,7 @@ window.onload = loadGuests;
 
 function getAdminConfigJson_(settings) {
   return {
+    STRUCTURE: CONFIG.STRUCTURE,
     CAMPER_VAN_SPOTS: settings.CAMPER_VAN_SPOTS,
     TENT_SPOTS: settings.TENT_SPOTS,
     ROOMS: CONFIG.ROOMS.map(function(r) {
@@ -1293,7 +1279,7 @@ function getAdminPanelHtml() {
         <input type="number" class="setting-input" id="s-camper-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Tent spot, weekend (€)</div>
+        <div class="setting-label">Tent spot, whole event (€)</div>
         <input type="number" class="setting-input" id="s-tent-price" min="0" style="width:90px">
       </div>
       <div class="setting-item">
@@ -1307,7 +1293,7 @@ function getAdminPanelHtml() {
         <input type="number" class="setting-input" id="s-singlebed-slots" min="0" style="width:90px">
       </div>
       <div class="setting-item">
-        <div class="setting-label">Meeting fee — full weekend (€)</div>
+        <div class="setting-label">Meeting fee — full event (€)</div>
         <input type="number" class="setting-input" id="s-meeting-fee-weekend" min="0" style="width:90px">
       </div>
       <div class="setting-item">
@@ -1395,11 +1381,7 @@ function getAdminPanelHtml() {
     </div>
     <div class="modal-field" id="edit-dayvisitor-days-row" style="display:none">
       <label>Day visitor days</label>
-      <select id="edit-dayvisitor-days">
-        <option value="fri">${esc(CONFIG.DAY_FRI_SHORT)} only</option>
-        <option value="sat">${esc(CONFIG.DAY_SAT_SHORT)} only</option>
-        <option value="both">Friday + Saturday (both days)</option>
-      </select>
+      <div id="edit-vd-list" style="display:flex;flex-wrap:wrap;gap:0.75rem">${CONFIG.STRUCTURE.days.map(d => `<label style="display:flex;align-items:center;gap:0.35rem"><input type="checkbox" name="edit-vd" value="${esc(d.key)}" style="width:auto;margin:0"> ${esc(d.short)}</label>`).join('')}</div>
     </div>
     <div class="modal-field">
       <label>Dietary requirements</label>
@@ -1408,12 +1390,9 @@ function getAdminPanelHtml() {
     <div class="modal-row2" style="margin-top:0.75rem">
       <div class="modal-field" style="flex-direction:row;align-items:center;gap:0.5rem">
         <input type="checkbox" id="edit-fullboard" style="width:auto;margin:0">
-        <label style="margin:0">Full board meal package</label>
+        <label style="margin:0">Meal package</label>
       </div>
-      <div class="modal-field" style="flex-direction:row;align-items:center;gap:0.5rem">
-        <input type="checkbox" id="edit-thuextra" style="width:auto;margin:0">
-        <label style="margin:0">Thursday extra night</label>
-      </div>
+      <div class="modal-field" id="edit-xn-list" style="flex-direction:column;align-items:flex-start;gap:0.25rem">${CONFIG.STRUCTURE.extraNights.map(x => `<label style="display:flex;align-items:center;gap:0.35rem;margin:0"><input type="checkbox" name="edit-xn" value="${esc(x.key)}" style="width:auto;margin:0"> Extra night: ${esc(x.label)}</label>`).join('')}</div>
     </div>
     <div class="modal-field" style="flex-direction:row;align-items:center;gap:0.5rem;margin-top:0.5rem">
       <input type="checkbox" id="edit-soloroom" style="width:auto;margin:0">
@@ -1541,6 +1520,7 @@ function buildAdminPage(settings) {
 <script src="/rpc-shim.js"></script>
 <script src="/admin-event.js"></script>
 <script src="/admin-rooms.js"></script>
+<script src="/admin-structure.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
@@ -1983,6 +1963,7 @@ function doLogin() {
             document.body.innerHTML = html;
             loadAdmin();
             if (window.initEventSetup) window.initEventSetup();
+            if (window.initStructure) window.initStructure();
             if (window.initRoomCatalog) window.initRoomCatalog();
           })
           .withFailureHandler(function(err) {
@@ -2057,7 +2038,6 @@ function renderAdmin(data) {
   const singlebeds = rows.filter(function(r){return r.Type==='singlebed'}).length;
   const dayvisitors= rows.filter(function(r){return r.Type==='dayvisitor'}).length;
   const meals      = rows.filter(function(r){return r.FullBoard==='YES'}).length;
-  const thu        = rows.filter(function(r){return r.ThuExtraNight==='YES'}).length;
   const total      = rows.reduce(function(s,r){return s+(parseFloat(r.TotalPrice)||0)},0);
 
   // Per room-type stats
@@ -2108,16 +2088,18 @@ function renderAdmin(data) {
     {l:'Camper van',        v:campers+' / '+CONFIG_ADMIN.CAMPER_VAN_SPOTS},
     {l:'Tent spots',        v:tents+' / '+CONFIG_ADMIN.TENT_SPOTS},
     {l:'Day visitors',      v:dayvisitors},
-    {l:'Full board meals',  v:meals},
-    {l:'Thu extra night',   v:thu},
+    {l:'Meal packages',     v:meals},
+  ].concat((CONFIG_ADMIN.STRUCTURE.extraNights || []).map(function(x){
+    return {l:'Extra night: '+x.label, v:rows.filter(function(r){return (r.ExtraNights||'').split(',').indexOf(x.key)>=0 && r.Status!=='CANCELLED';}).length};
+  })).concat([
     {l:'Revenue (est.)',    v:'\u20AC'+total.toFixed(0)},
-  ].map(function(s){
+  ]).map(function(s){
     return '<div class="stat"><div class="label">'+s.l+'</div><div class="value">'+s.v+'</div></div>';
   }).join('');
 
   document.getElementById('stats').innerHTML = statsHtml;
 
-  const showCols = ['_guest','Email','Country','_room','ThuExtraNight','FullBoard','DayVisitorDays','Meals','Dietary','FreeText','TotalPrice','_status','OrgComment'];
+  const showCols = ['_guest','Email','Country','_room','ExtraNights','FullBoard','VisitorDays','Meals','Dietary','FreeText','TotalPrice','_status','OrgComment'];
 
   // Sort state
   if (!window._adminSort) window._adminSort = { col: null, dir: 1 };
@@ -2132,9 +2114,9 @@ function renderAdmin(data) {
         var label = h === '_guest'       ? 'Callsign / Name / Ref'
                   : h === '_room'        ? 'Room / №'
                   : h === '_status'      ? 'Status'
-                  : h === 'ThuExtraNight'? 'Thu'
+                  : h === 'ExtraNights'  ? 'Extra nights'
                   : h === 'FullBoard'    ? 'FB'
-                  : h === 'DayVisitorDays' ? 'Days'
+                  : h === 'VisitorDays'  ? 'Days'
                   : h;
         var sortable = h[0] !== '_';
         if (!sortable) return '<th style="white-space:nowrap">' + label + '</th>';
@@ -2223,7 +2205,9 @@ function renderAdmin(data) {
         return '<td><span class="tag status-'+st+'" style="display:block;margin-bottom:2px">'+st+'</span>' + pc + '</td>';
       }
       let v = r[h] !== undefined ? r[h] : '';
-      if (h==='FullBoard'||h==='ThuExtraNight') v = v==='YES' ? '✓' : '';
+      if (h==='FullBoard') v = v==='YES' ? '✓' : '';
+      if (h==='ExtraNights') v = (v||'').split(',').filter(Boolean).map(function(k){ var x=(CONFIG_ADMIN.STRUCTURE.extraNights||[]).find(function(y){return y.key===k;}); return x ? x.label : k; }).join(', ');
+      if (h==='VisitorDays') v = (v||'').split(',').filter(Boolean).map(function(k){ var d=(CONFIG_ADMIN.STRUCTURE.days||[]).find(function(y){return y.key===k;}); return d ? d.short : k; }).join(' + ');
       if (h==='OrgComment') v = '<span class="org-field org-comment" data-ref="'+ref+'">' + (v || '<em style="opacity:0.4">&mdash;</em>') + '</span>';
       return '<td>'+v+'</td>';
     }).join('') + '</tr>';
@@ -2329,10 +2313,10 @@ function openEdit(ref) {
   document.getElementById('edit-dietary').value      = row.Dietary    || '';
   document.getElementById('edit-status').value       = row.Status     || 'CONFIRMED';
   document.getElementById('edit-fullboard').checked  = row.FullBoard  === 'YES';
-  document.getElementById('edit-thuextra').checked   = row.ThuExtraNight === 'YES';
+  document.querySelectorAll('input[name="edit-xn"]').forEach(function(cb){ cb.checked = (row.ExtraNights||'').split(',').indexOf(cb.value) >= 0; });
   document.getElementById('edit-soloroom').checked   = row.SoloRoom   === 'YES';
   document.getElementById('edit-publish').checked    = row.PublishConsent === 'YES';
-  document.getElementById('edit-dayvisitor-days').value = row.DayVisitorDays || 'both';
+  document.querySelectorAll('input[name="edit-vd"]').forEach(function(cb){ cb.checked = (row.VisitorDays||'').split(',').indexOf(cb.value) >= 0; });
   document.getElementById('edit-dayvisitor-days-row').style.display = row.Type === 'dayvisitor' ? '' : 'none';
   document.getElementById('edit-isorganizer').checked = row.IsOrganizer === 'YES';
   document.getElementById('edit-roomnum').value      = row.RoomNumber || '';
@@ -2423,10 +2407,10 @@ function saveEdit() {
     Dietary:       document.getElementById('edit-dietary').value.trim(),
     Status:        document.getElementById('edit-status').value,
     FullBoard:     document.getElementById('edit-fullboard').checked ? 'YES' : 'NO',
-    ThuExtraNight: document.getElementById('edit-thuextra').checked  ? 'YES' : 'NO',
+    ExtraNights:   Array.prototype.map.call(document.querySelectorAll('input[name="edit-xn"]:checked'), function(c){return c.value;}).join(','),
     SoloRoom:      document.getElementById('edit-soloroom').checked  ? 'YES' : 'NO',
     PublishConsent: document.getElementById('edit-publish').checked   ? 'YES' : 'NO',
-    DayVisitorDays: document.getElementById('edit-dayvisitor-days').value,
+    VisitorDays:   Array.prototype.map.call(document.querySelectorAll('input[name="edit-vd"]:checked'), function(c){return c.value;}).join(','),
     IsOrganizer:   document.getElementById('edit-isorganizer').checked ? 'YES' : 'NO',
     RoomNumber:    document.getElementById('edit-roomnum').value.trim(),
     FreeText:      document.getElementById('edit-freetext').value.trim(),

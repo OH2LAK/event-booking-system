@@ -11,7 +11,7 @@
 | Availability / price summary | `/` | Choose a room, tick full board |
 | Public guest list | `/?public=1` | Only guests who allow publishing appear |
 | Admin login | `/?admin=1` | Before logging in |
-| Event setup card | `/?admin=1` | Expanded, after login |
+| Event setup, Event structure and Room types cards | `/?admin=1` | Expand each card, after login |
 | Dashboard, settings, pricing, room inventory | `/?admin=1` | Scroll through the panel |
 | Bookings table | `/?admin=1` | Includes a cancelled and a checked-in row |
 | Report: hotel list, check-in desk, summary | `/report` | Log in via the admin session |

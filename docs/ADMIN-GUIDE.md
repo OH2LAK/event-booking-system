@@ -17,7 +17,7 @@ The panel does not refresh itself. Use **Refresh** to see bookings made by other
 ## 1b. Event setup (first thing to do)
 
 The **Event setup** card at the top of the admin panel holds everything that identifies your event: name, short name,
-organizer, location, dates and day labels, check-in/out times, meal package description, contact email and sender name,
+organizer, location, dates text, check-in/out texts, contact email and sender name,
 logo URLs, accent color and home link. The values are stored in the database (`event_config` table) and used on the booking
 page, emails, report tool and CSV file names.
 
@@ -28,8 +28,8 @@ Changes apply immediately (reload the booking page).
 ## 2. Dashboard (top of the page)
 
 Cards computed from the bookings table: total bookings, booked / total rooms per room type (with how many rooms are full
-and which are still open, e.g. `OH2ABC-7 (2/3)`), single beds, camper vans, tent spots, day visitors, full-board meals,
-Thursday extra nights and estimated revenue (sum of stored prices).
+and which are still open, e.g. `OH2ABC-7 (2/3)`), single beds, camper vans, tent spots, day visitors, meal packages,
+extra nights (one counter each) and estimated revenue (sum of stored prices).
 
 Note: the cards count every row in the table, including `CANCELLED` bookings.
 
@@ -64,8 +64,20 @@ table to recalculate all active bookings (`CONFIRMED`, `CHECKED_IN`, `NEEDS_ATTE
 this action. Editing a single booking recalculates only that booking.
 
 How prices are built: room price divided by the room's persons per guest (the whole price for a solo room), plus the
-meeting fee, plus the meal package if chosen. The Thursday extra night is half the room price, divided the same way.
+meeting fee, plus the meal package if chosen. Each extra night costs the room price divided by the nights included in the room price, divided the same way.
 Individual meals (`meals`) are recorded for catering but are not added to the price.
+
+## 5b. Event structure
+
+The **Event structure** card defines the shape of your event:
+
+- **Event days**: the core period from the first to the last day (1-7 days), each with a long and a short label. Day visitors choose among these days.
+- **Nights included in the room price**: normally the number of days. Room, camper and single-bed prices cover this many nights.
+- **Extra nights** (optional): nights before or after the core period, e.g. "Thursday night". Room and single-bed guests can add them; each costs the room price divided by the nights included. Joiners always get the extra nights of the room they join.
+- **Meal package**: switch it on or off, set the one-line summary and the contents (one item per line). The price is set under Pricing.
+
+Days and extra nights that already have bookings cannot be removed. Press **Save event structure**; the page reloads.
+Not yet supported: per-night room booking inside the core period, and individually priced meals.
 
 ## 5a. Room types
 
@@ -97,11 +109,11 @@ Each row has two buttons: one for **Edit booking** and one for **Change accommod
 ### 6.1 Edit booking
 
 Opens a form for one booking. Editable: callsign, name, email, phone, country, status (`CONFIRMED`, `CANCELLED`,
-`NEEDS_ATTENTION`), day-visitor days, dietary requirements, full board, Thursday extra night, solo room, publish consent,
+`NEEDS_ATTENTION`), day-visitor days, dietary requirements, meal package, extra nights, solo room, publish consent,
 staff flag, room number, additional information, organizer comment.
 
 - **Send change notification email to guest** (ticked by default): emails the guest the updated services and total.
-- Changing full board, Thursday night, solo room (or the booking type/room) **recalculates that booking's price**.
+- Changing the meal package, extra nights, day-visitor days, solo room (or the booking type/room) **recalculates that booking's price**.
 - **Room number** is copied to everyone in the same room. It is for organizers only and is not shown to guests.
 - **Organizer comment** is internal only.
 - **Staff** shows an organizer badge on the public "Who's coming?" page; **Publish consent** controls whether the guest

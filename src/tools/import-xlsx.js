@@ -25,6 +25,13 @@ function cellText(v) {
   ws.getRow(1).eachCell((c, i) => { headers[i] = String(cellText(c.value)).trim(); });
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // The old sheet used fixed Thursday/Friday/Saturday keys: make sure the event structure matches them.
+  const structure = require('../structure');
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../../db/schema.sql'), 'utf8'));
+  if (!(await pool.query('SELECT 1 FROM event_structure WHERE id = 1')).rows.length) {
+    await pool.query('INSERT INTO event_structure (id, structure) VALUES (1, $1)', [JSON.stringify(structure.legacyStructure(null))]);
+    console.log('Created the legacy event structure (days fri/sat, extra night thu). Adjust the labels in the admin panel.');
+  }
   let imported = 0; let skipped = 0;
   for (let rn = 2; rn <= ws.rowCount; rn++) {
     const row = ws.getRow(rn);
@@ -33,8 +40,14 @@ function cellText(v) {
     if (!ref) continue;
     const seq = parseInt(ref.split('-').pop(), 10);
     const cols = ['seq']; const vals = [seq];
+    // Old sheet columns -> structure keys (legacy structure keys: thu / fri / sat)
+    const legacyDays = String(get('DayVisitorDays') || '').toLowerCase();
+    const legacy = {
+      ExtraNights: get('ExtraNights') || (String(get('ThuExtraNight')).toUpperCase() === 'YES' ? 'thu' : ''),
+      VisitorDays: get('VisitorDays') || (legacyDays === 'both' ? 'fri,sat' : legacyDays),
+    };
     repo.COLS.forEach(([h, col, kind]) => {
-      let v = get(h);
+      let v = legacy[h] !== undefined ? legacy[h] : get(h);
       if (kind === 'ts') v = v instanceof Date ? v : new Date();
       else if (kind === 'b') v = String(v).toUpperCase() === 'YES';
       else if (kind === 'n') v = Number(v) || 0;

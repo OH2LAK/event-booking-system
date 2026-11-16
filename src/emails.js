@@ -3,6 +3,9 @@
 // If SMTP_HOST is empty, emails are logged to the console instead of being sent.
 const nodemailer = require('nodemailer');
 const { CONFIG } = require('./config');
+const S = require('./structure');
+const daysText = list => S.pickDays(list).map(k => S.dayByKey(k).short).join(' + ');
+const extrasText = list => S.pickExtras(list).map(k => { const x = S.extraByKey(k); return x.label + (x.includes ? ' (' + x.includes + ')' : ''); }).join(', ');
 
 let transporter = null;
 function getTransporter() {
@@ -55,7 +58,7 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
   ${CONFIG.EVENT_NAME.toUpperCase()}
   BOOKING CONFIRMATION
   ${CONFIG.LOCATION}
-  ${CONFIG.DATE_FRI} \u2013 ${CONFIG.DATE_SUN}
+  ${CONFIG.DATES_TEXT}
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 Dear ${data.name},
@@ -77,7 +80,7 @@ ${data.country ? `Country  : ${data.country}` : ""}
 ${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
-Days     : ${data.dayVisitorDays === "both" ? CONFIG.DAY_FRI_SHORT + " + " + CONFIG.DAY_SAT_SHORT : data.dayVisitorDays === "fri" ? CONFIG.DAY_FRI_SHORT + " only" : CONFIG.DAY_SAT_SHORT + " only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van spot" : data.type === "tent" ? "Tent" : data.type}
+Days     : ${daysText(data.visitorDays)}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van spot" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "camper" ? `\n${emailSettings.CAMPER_INFO}` : ""}${data.type === "tent" ? `\n${emailSettings.TENT_INFO}` : ""}
 ${data.isPrimaryBooker && data.type === "room" ? `Room ref : ${bookingRef}
 
@@ -106,7 +109,7 @@ Anyone travelling in the same vehicle MUST use one of these options:
 Co-travellers who do NOT use the join option will be registered
 as separate camper spots.` : ""}
 ${!data.isPrimaryBooker ? `Joining ${data.type === 'camper' ? 'camper spot' : 'room'}: ${data.roomRef}${primaryBooker_ ? " — booked by " + primaryBooker_.callsign.toUpperCase() + " " + primaryBooker_.name : ""}` : ""}
-${data.thuExtraNight ? `Thu extra night: YES (${CONFIG.THU_EXTRA_INCLUDES})` : ""}`}
+${data.extraNights && data.extraNights.length ? `Extra nights: ${extrasText(data.extraNights)}` : ""}`}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ORDERED SERVICES
@@ -114,12 +117,6 @@ ORDERED SERVICES
 ${price.breakdown.split(" | ").join("\n")}
 
 ${data.fullBoard ? `Meal package includes:\n${mealLines}` : "Meal package: No"}
-${!data.fullBoard && data.meals && Object.values(data.meals).some(Boolean) ? `Individual meals:\n${[
-  data.meals.friBbq   ? '  • Friday dinner' : '',
-  data.meals.friLunch ? '  • Friday lunch' : '',
-  data.meals.satLunch ? '  • Saturday lunch' : '',
-  data.meals.satHam   ? '  • Saturday dinner' : '',
-].filter(Boolean).join('\n')}` : ""}
 
 ${data.dietary ? `Dietary requirements: ${data.dietary}` : ""}
 ${data.shirtSize ? `T-shirt size: ${data.shirtSize}` : ""}
@@ -127,7 +124,6 @@ ${data.freeText ? `\nAdditional information sent:\n${data.freeText}` : ""}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 TOTAL: \u20AC${price.total}
-${emailSettings.THU_EXTRA_NIGHT_PRICE === null && data.thuExtraNight ? "(+ Thu extra night TBD — to be confirmed separately)" : ""}
 ${emailSettings.PRICE_DISCLAIMER ? `\n* ${emailSettings.PRICE_DISCLAIMER}` : ""}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -308,10 +304,10 @@ Country  : ${data.country || "\u2014"}
 ${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
-Days     : ${data.dayVisitorDays === "both" ? CONFIG.DAY_FRI_SHORT + " + " + CONFIG.DAY_SAT_SHORT : data.dayVisitorDays === "fri" ? CONFIG.DAY_FRI_SHORT + " only" : CONFIG.DAY_SAT_SHORT + " only"}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
+Days     : ${daysText(data.visitorDays)}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "room" && data.isPrimaryBooker ? `Role     : Primary booker (room holder)` : ""}
 ${data.type === "room" && !data.isPrimaryBooker ? `Role     : Joining existing room: ${data.roomRef}` : ""}
-Thu extra night: ${data.thuExtraNight ? "YES" : "No"}`}
+Extra nights: ${data.extraNights && data.extraNights.length ? extrasText(data.extraNights) : "No"}`}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ORDERED SERVICES
@@ -320,12 +316,6 @@ ${price.breakdown.split(" | ").join("\n")}
 
 Meal package: ${data.fullBoard ? "YES" : "No"}
 ${data.fullBoard ? `${mealLines}` : ""}
-${!data.fullBoard && data.meals && Object.values(data.meals).some(Boolean) ? `Individual meals: ${[
-  data.meals.friBbq   ? 'Fri dinner' : '',
-  data.meals.friLunch ? 'Fri lunch' : '',
-  data.meals.satLunch ? 'Sat lunch' : '',
-  data.meals.satHam   ? 'Sat dinner' : '',
-].filter(Boolean).join(', ')}` : ""}
 Dietary: ${data.dietary || "\u2014"}
 T-shirt size: ${data.shirtSize || "\u2014"}
 ${data.freeText ? `\nAdditional info from booker:\n${data.freeText}` : ""}
@@ -364,7 +354,7 @@ ${dsep}
   ${CONFIG.EVENT_NAME.toUpperCase()}
   ACCOMMODATION CHANGE NOTICE
   ${CONFIG.LOCATION}
-  ${CONFIG.DATE_FRI} \u2013 ${CONFIG.DATE_SUN}
+  ${CONFIG.DATES_TEXT}
 ${dsep}
 
 Dear ${booking.name},

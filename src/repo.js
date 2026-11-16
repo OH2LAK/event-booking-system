@@ -16,7 +16,7 @@ const COLS = [
   ['RoomId', 'room_id', 't'],
   ['RoomRef', 'room_ref', 't'],
   ['IsPrimaryBooker', 'is_primary', 'b'],
-  ['ThuExtraNight', 'thu_extra_night', 'b'],
+  ['ExtraNights', 'extra_nights', 't'],
   ['FullBoard', 'full_board', 'b'],
   ['Dietary', 'dietary', 't'],
   ['ShirtSize', 'shirt_size', 't'],
@@ -27,7 +27,7 @@ const COLS = [
   ['OrgComment', 'org_comment', 't'],
   ['PublishConsent', 'publish_consent', 'b'],
   ['SoloRoom', 'solo_room', 'b'],
-  ['DayVisitorDays', 'day_visitor_days', 't'],
+  ['VisitorDays', 'visitor_days', 't'],
   ['IsOrganizer', 'is_organizer', 'b'],
   ['FreeText', 'free_text', 't'],
   ['Meals', 'meals', 't'],
@@ -38,8 +38,8 @@ const BY_HEADER = Object.fromEntries(COLS.map(c => [c[0], c]));
 // Fields the admin may edit (same list as the Apps Script updateBooking)
 const EDITABLE = [
   'Callsign', 'Name', 'Email', 'Phone', 'Country', 'Type', 'RoomId', 'RoomRef',
-  'IsPrimaryBooker', 'ThuExtraNight', 'FullBoard', 'Dietary', 'Status',
-  'RoomNumber', 'OrgComment', 'PublishConsent', 'SoloRoom', 'FreeText', 'IsOrganizer', 'DayVisitorDays',
+  'IsPrimaryBooker', 'ExtraNights', 'FullBoard', 'Dietary', 'Status',
+  'RoomNumber', 'OrgComment', 'PublishConsent', 'SoloRoom', 'FreeText', 'IsOrganizer', 'VisitorDays',
 ];
 
 const ACTIVE = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION'];

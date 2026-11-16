@@ -1,12 +1,32 @@
 'use strict';
 const { CONFIG } = require('./config');
+const S = require('./structure');
 
-// Pure function: pass in the current settings. Ported from calculatePrice().
-// Fix vs. the Apps Script version: a solo-occupied room (soloRoom) is charged the whole
-// room price, matching what the booking page shows the guest.
+// Pure function: pass in the current settings. Ported from calculatePrice(), generalized to the event structure.
+// - A solo-occupied room (soloRoom) is charged the whole room price.
+// - Each selected extra night costs (room price / nights included in the room price), shared by the room's persons.
+// - Day visitors pay the day fee per selected day, or the full-period fee when they select every day.
 function calculatePrice(data, s) {
   let total = 0;
   const lines = [];
+  const st = CONFIG.STRUCTURE;
+  const extras = S.pickExtras(data.extraNights);
+  const nights = Math.max(1, st.coreNights);
+  const meetingFee = () => {
+    total += s.MEETING_FEE_WEEKEND;
+    lines.push(`Meeting fee (full event): €${s.MEETING_FEE_WEEKEND}`);
+  };
+  const packageLine = () => {
+    if (data.fullBoard && st.package.enabled) { total += s.FULL_BOARD_PRICE; lines.push(`Meal package: €${s.FULL_BOARD_PRICE}`); }
+  };
+  const extraLines = (nightPrice, persons, solo) => {
+    extras.forEach(k => {
+      const x = S.extraByKey(k);
+      const pp = solo || persons <= 1 ? nightPrice : Math.round(nightPrice / persons);
+      total += pp;
+      lines.push(`Extra night: ${x.label}${x.includes ? ' (' + x.includes + ')' : ''}: €${pp}${solo || persons <= 1 ? '' : '/person'} (room night €${nightPrice})`);
+    });
+  };
 
   if (data.type === 'room') {
     const roomCfg = CONFIG.ROOMS.find(r => r.id === data.roomId);
@@ -18,54 +38,39 @@ function calculatePrice(data, s) {
       lines.push(solo
         ? `Room (${roomCfg.note_en}, solo): €${pricePerPerson}`
         : `Room (${roomCfg.note_en}): €${pricePerPerson}/person (room total €${roomPrice})`);
-      if (data.thuExtraNight) {
-        const thuRoomPrice = Math.round(roomPrice / 2);
-        const thuPP = solo ? thuRoomPrice : Math.round(thuRoomPrice / roomCfg.persons);
-        total += thuPP;
-        lines.push(`Thu extra night (incl. Fri breakfast): €${thuPP}${solo ? '' : '/person'} (room night €${thuRoomPrice})`);
-      }
+      extraLines(Math.round(roomPrice / nights), roomCfg.persons, solo);
     }
   } else if (data.type === 'camper') {
     if (!data.joinExisting) {
-      const camperTotal = s.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS;
+      const camperTotal = s.CAMPER_VAN_PRICE_PER_NIGHT * nights;
       total += camperTotal;
-      lines.push(`Camper van spot (${CONFIG.CAMPING_NIGHTS} nights, incl. electricity): €${camperTotal}`);
+      lines.push(`Camper van spot (${nights} nights, incl. electricity): €${camperTotal}`);
     } else {
       lines.push('Camper van spot: shared with primary booker (costs split separately)');
     }
-    total += s.MEETING_FEE_WEEKEND;
-    lines.push(`Meeting fee (full weekend): €${s.MEETING_FEE_WEEKEND}`);
-    if (data.fullBoard) { total += s.FULL_BOARD_PRICE; lines.push(`Full board meal package: €${s.FULL_BOARD_PRICE}`); }
+    meetingFee(); packageLine();
   } else if (data.type === 'tent') {
     total += s.TENT_PRICE_WEEKEND;
-    lines.push(`Tent spot (weekend): €${s.TENT_PRICE_WEEKEND}`);
-    total += s.MEETING_FEE_WEEKEND;
-    lines.push(`Meeting fee (full weekend): €${s.MEETING_FEE_WEEKEND}`);
-    if (data.fullBoard) { total += s.FULL_BOARD_PRICE; lines.push(`Full board meal package: €${s.FULL_BOARD_PRICE}`); }
+    lines.push(`Tent spot (whole event): €${s.TENT_PRICE_WEEKEND}`);
+    meetingFee(); packageLine();
   } else if (data.type === 'singlebed') {
     total += s.SINGLE_BED_PRICE;
     lines.push(`Single bed (organizer-assigned room): €${s.SINGLE_BED_PRICE}`);
-    if (data.thuExtraNight) {
-      const thuPrice = Math.round(s.SINGLE_BED_PRICE / 2);
-      total += thuPrice;
-      lines.push(`Thu extra night (incl. Fri breakfast): €${thuPrice}`);
-    }
+    extraLines(Math.round(s.SINGLE_BED_PRICE / nights), 1, false);
   } else if (data.type === 'dayvisitor') {
-    if (data.dayVisitorDays === 'both') {
+    const days = S.pickDays(data.visitorDays);
+    if (days.length && days.length === st.days.length && days.length > 1) {
       total += s.MEETING_FEE_WEEKEND;
-      lines.push(`Meeting fee (Fri + Sat): €${s.MEETING_FEE_WEEKEND}`);
+      lines.push(`Meeting fee (all days): €${s.MEETING_FEE_WEEKEND}`);
     } else {
-      const dayLabel = data.dayVisitorDays === 'fri' ? 'Friday' : 'Saturday';
-      total += s.MEETING_FEE_DAY;
-      lines.push(`Meeting fee (${dayLabel}): €${s.MEETING_FEE_DAY}`);
+      days.forEach(k => { total += s.MEETING_FEE_DAY; lines.push(`Meeting fee (${S.dayByKey(k).short}): €${s.MEETING_FEE_DAY}`); });
     }
-    if (data.fullBoard) { total += s.FULL_BOARD_PRICE; lines.push(`Full board meal package: €${s.FULL_BOARD_PRICE}`); }
+    packageLine();
   }
 
   if (data.type === 'room' || data.type === 'singlebed') {
-    if (data.fullBoard) { total += s.FULL_BOARD_PRICE; lines.push(`Full board meal package: €${s.FULL_BOARD_PRICE}`); }
-    total += s.MEETING_FEE_WEEKEND;
-    lines.push(`Meeting fee (full weekend): €${s.MEETING_FEE_WEEKEND}`);
+    packageLine();
+    meetingFee();
   }
 
   return { total, breakdown: lines.join(' | ') };

@@ -12,19 +12,9 @@ const FIELDS = [
   { group: 'Event', key: 'ORGANIZER_SHORT', label: 'Organizer (short)', type: 'text', max: 40 },
   { group: 'Event', key: 'LOCATION', label: 'Venue (full)', type: 'text', max: 150, help: 'e.g. venue, city, country.' },
   { group: 'Event', key: 'LOCATION_SHORT', label: 'Venue (short)', type: 'text', max: 60, help: 'Usually the city.' },
-  { group: 'Dates and days', key: 'DATES_TEXT', label: 'Event dates (short text)', type: 'text', max: 60, help: 'e.g. 13-16 May 2027' },
-  { group: 'Dates and days', key: 'DATE_THU', label: 'Extra night day (Thursday)', type: 'text', max: 60 },
-  { group: 'Dates and days', key: 'DATE_FRI', label: 'Day 1 (Friday)', type: 'text', max: 60 },
-  { group: 'Dates and days', key: 'DATE_SAT', label: 'Day 2 (Saturday)', type: 'text', max: 60 },
-  { group: 'Dates and days', key: 'DATE_SUN', label: 'Day 3 (Sunday)', type: 'text', max: 60 },
-  { group: 'Dates and days', key: 'DAY_FRI_SHORT', label: 'Day 1 label for day visitors', type: 'text', max: 40, help: 'e.g. "Friday 14.5"' },
-  { group: 'Dates and days', key: 'DAY_SAT_SHORT', label: 'Day 2 label for day visitors', type: 'text', max: 40, help: 'e.g. "Saturday 15.5"' },
-  { group: 'Dates and days', key: 'THU_NIGHT_LABEL', label: 'Extra night label', type: 'text', max: 30, help: 'e.g. "13.5 -> 14.5"' },
-  { group: 'Dates and days', key: 'THU_EXTRA_INCLUDES', label: 'Extra night includes', type: 'text', max: 100, help: 'e.g. "Includes Friday breakfast"' },
-  { group: 'Dates and days', key: 'CHECKIN_TIME', label: 'Check-in text', type: 'text', max: 100 },
-  { group: 'Dates and days', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
-  { group: 'Meals', key: 'MEAL_PACKAGE_SUB', label: 'Meal package summary (booking form)', type: 'text', max: 120, help: 'One line under the meal package option.' },
-  { group: 'Meals', key: 'MEAL_INCLUDES', label: 'Meal package contents (emails)', type: 'textarea', max: 600, help: 'One item per line.' },
+  { group: 'Dates and times', key: 'DATES_TEXT', label: 'Event dates (short text)', type: 'text', max: 60, help: 'e.g. 13-16 May 2027' },
+  { group: 'Dates and times', key: 'CHECKIN_TIME', label: 'Check-in text', type: 'text', max: 100 },
+  { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
   { group: 'Contact and email', key: 'REPLY_TO_EMAIL', label: 'Organizer email', type: 'email', max: 150, help: 'Reply-To address; organizer notifications are sent here.' },
   { group: 'Contact and email', key: 'EMAIL_SENDER_NAME', label: 'Email sender name', type: 'text', max: 80 },
   { group: 'Branding', key: 'LOGO1_URL', label: 'Logo 1 (image URL, https)', type: 'url', max: 300, help: 'Optional.' },
@@ -34,12 +24,9 @@ const FIELDS = [
   { group: 'Branding', key: 'HOME_LABEL', label: 'Home page link text', type: 'text', max: 60 },
 ];
 
-const DEFAULT_INCLUDES = 'Friday: dinner\nSaturday: lunch + dinner\nNote: breakfast is included in all room prices';
-
 function defaults() {
   const d = {};
   FIELDS.forEach(f => { d[f.key] = CONFIG[f.key] === undefined ? '' : CONFIG[f.key]; });
-  d.MEAL_INCLUDES = (CONFIG.FULL_BOARD_INCLUDES_EN || []).join('\n') || DEFAULT_INCLUDES;
   return d;
 }
 const BASE = defaults(); // placeholder defaults from config.js, captured once
@@ -51,8 +38,7 @@ function slugify(s) {
 }
 
 function apply(values) {
-  FIELDS.forEach(f => { if (f.key !== 'MEAL_INCLUDES') CONFIG[f.key] = values[f.key]; });
-  CONFIG.FULL_BOARD_INCLUDES_EN = String(values.MEAL_INCLUDES || '').split('\n').map(x => x.trim()).filter(Boolean);
+  FIELDS.forEach(f => { CONFIG[f.key] = values[f.key]; });
   CONFIG.SLUG = slugify(values.EVENT_SHORT);
   if (!CONFIG.REPLY_TO_EMAIL && process.env.REPLY_TO_EMAIL) CONFIG.REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL;
 }
@@ -66,7 +52,7 @@ async function load() {
 
 function current() {
   const v = {};
-  FIELDS.forEach(f => { v[f.key] = f.key === 'MEAL_INCLUDES' ? CONFIG.FULL_BOARD_INCLUDES_EN.join('\n') : CONFIG[f.key]; });
+  FIELDS.forEach(f => { v[f.key] = CONFIG[f.key]; });
   return v;
 }
 

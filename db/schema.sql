@@ -72,3 +72,19 @@ CREATE TABLE IF NOT EXISTS room_types (
   note_en    TEXT NOT NULL,
   note_fi    TEXT NOT NULL DEFAULT ''
 );
+
+-- Event structure (days, extra nights, meal package), edited in the admin panel.
+CREATE TABLE IF NOT EXISTS event_structure (
+  id SMALLINT PRIMARY KEY CHECK (id = 1),
+  structure JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Generic replacements for thu_extra_night and day_visitor_days (comma-separated structure keys).
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS extra_nights TEXT NOT NULL DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS visitor_days TEXT NOT NULL DEFAULT '';
+-- One-time, idempotent data migration (legacy keys: thu, fri, sat).
+UPDATE bookings SET extra_nights = 'thu' WHERE thu_extra_night AND extra_nights = '';
+UPDATE bookings SET visitor_days = CASE day_visitor_days WHEN 'both' THEN 'fri,sat' ELSE day_visitor_days END
+  WHERE day_visitor_days <> '' AND visitor_days = '';
+-- The legacy columns are no longer written; the old CHECK would block new keys only on them.

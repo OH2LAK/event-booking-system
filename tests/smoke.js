@@ -30,28 +30,63 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   check('event config requires a name', !sv.success, sv);
   sv = (await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456' })).body.result;
   check('event config saved', sv.success, sv);
+  // --- event structure: 2 days, 1 extra night ---
+  let stv = (await rpc('saveStructure', { days: [], coreNights: 2, extraNights: [], package: {} })).body.result;
+  check('structure needs at least one day', !stv.success, stv);
+  stv = (await rpc('saveStructure', {
+    days: [{ label: 'Friday', short: 'Fri' }, { label: 'Saturday', short: 'Sat' }], coreNights: 2,
+    extraNights: [{ label: 'Thursday night', includes: 'Includes Friday breakfast' }],
+    package: { enabled: true, sub: 'Meals', includes: 'Friday: dinner\nSaturday: lunch + dinner' },
+  })).body.result;
+  check('structure saved', stv.success, stv);
+  const gs = (await rpc('getStructure')).body.result.structure;
+  check('structure keys generated', gs.days.map(d => d.key).join() === 'd1,d2' && gs.extraNights[0].key === 'x1', gs);
   for (const [p, needle] of [['/', 'Smoke Test Event 2027'], ['/?public=1', 'Who'], ['/?admin=1', 'admin']]) {
     const r = await fetch(BASE + p); const t = await r.text();
     check(`GET ${p}`, r.status === 200 && t.toLowerCase().includes(needle.toLowerCase()), r.status);
   }
+  // every inline <script> of the served pages must be valid JavaScript
+  const vm = require('vm');
+  const scriptsOk = (html) => {
+    const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi; let m; let n = 0;
+    while ((m = re.exec(html))) { new vm.Script(m[1]); n++; }
+    return n;
+  };
+  for (const p of ['/', '/?admin=1', '/?public=1']) {
+    let ok = true; let n = 0;
+    try { n = scriptsOk(await (await fetch(BASE + p)).text()); } catch (e) { ok = false; console.log(e.message); }
+    check(`inline scripts of ${p} parse`, ok && n > 0, n);
+  }
+  {
+    const panel = (await rpc('getAdminPanelHtml', '')).body.result;
+    check('admin panel has the setup containers', ['event-setup', 'event-structure', 'room-catalog'].every(id => panel.includes('id="' + id + '"')), panel.slice(0, 200));
+  }
   const av = (await rpc('getAvailability')).body.result;
   check('availability has no admin password', !JSON.stringify(av).toLowerCase().includes('password'), null);
 
-  let r = (await rpc('submitBooking', booking({ callsign: 'TEST1', type: 'room', roomId: '2S', fullBoard: true, thuExtraNight: true }))).body.result;
-  check('room booking succeeds', r.success && r.price.total > 0, r);
+  let r = (await rpc('submitBooking', booking({ callsign: 'TEST1', type: 'room', roomId: '2S', fullBoard: true, extraNights: ['x1'] }))).body.result;
+  check('room booking succeeds', r.success && r.price.total === 135 + 68 + 75 + 10, r);
+  check('extra night in breakdown', r.price.breakdown.includes('Extra night: Thursday night'), r.price);
   const ref = r.bookingRef;
   r = (await rpc('submitBooking', booking({ callsign: 'TEST1', type: 'tent' }))).body.result;
   check('duplicate callsign rejected', !r.success, r);
   r = (await rpc('submitBooking', booking({ callsign: 'TEST2', type: 'room', joinExisting: true, roomRef: ref }))).body.result;
   check('joiner can join room', r.success, r);
+  check('joiner inherits the extra night', r.price.breakdown.includes('Extra night'), r.price);
   r = (await rpc('submitBooking', booking({ callsign: 'TEST3', type: 'room', joinExisting: true, roomRef: ref }))).body.result;
   check('third person rejected from a double room', !r.success, r);
   r = (await rpc('submitBooking', booking({ callsign: '', type: 'room' }))).body.result;
   check('empty callsign gives a proper validation error', !r.success && r.error === 'Invalid callsign', r);
   r = (await rpc('submitBooking', booking({ callsign: '<svg onload=1>', type: 'room', roomId: '2S' }))).body.result;
   check('markup in callsign rejected', !r.success, r);
-  r = (await rpc('submitBooking', booking({ callsign: 'TEST4', type: 'dayvisitor', dayVisitorDays: 'both', fullBoard: true }))).body.result;
+  r = (await rpc('submitBooking', booking({ callsign: 'TEST4', type: 'dayvisitor', visitorDays: ['d1', 'd2'], fullBoard: true }))).body.result;
   check('day visitor price = 85', r.success && r.price.total === 85, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTV2', type: 'dayvisitor', visitorDays: ['d2'] }))).body.result;
+  check('single day visitor pays the day fee', r.success && r.price.total === 5, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTV3', type: 'dayvisitor', visitorDays: ['nope'] }))).body.result;
+  check('day visitor with unknown day rejected', !r.success, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTX1', type: 'tent', extraNights: ['x1'] }))).body.result;
+  check('extra night rejected for tents', !r.success, r);
 
   // concurrency: the single seven-person room must only be bookable once
   const burst = await Promise.all(Array.from({ length: 8 }, (_, i) =>
@@ -81,6 +116,8 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
 
   // --- room catalog ---
   const cat = (await rpc('getRoomCatalog')).body.result;
+  r = (await rpc('saveStructure', { days: [{ label: 'Only day' }], coreNights: 1, extraNights: [], package: { enabled: false } })).body.result;
+  check('cannot remove day/extra night in use', !r.success, r);
   check('room catalog served', cat.success && cat.rooms.length === 7, cat);
   const base = cat.rooms.map(x => ({ ...x }));
   r = (await rpc('saveRoomCatalog', [...base, { id: '5S', note_en: 'Five-bed room', persons: 5, count: 2, price_eur: 500 }])).body.result;

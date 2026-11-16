@@ -6,8 +6,7 @@ const db = require('./db');
 const rooms = require('./rooms');
 
 const NUM_KEYS = [
-  'SINGLE_BED_PRICE', 'MEETING_FEE_WEEKEND', 'MEETING_FEE_DAY', 'MEAL_FRI_BBQ', 'MEAL_SAT_HAM_DINNER',
-  'MEAL_LUNCH', 'FULL_BOARD_PRICE', 'CAMPER_VAN_PRICE_PER_NIGHT', 'TENT_PRICE_WEEKEND',
+  'SINGLE_BED_PRICE', 'MEETING_FEE_WEEKEND', 'MEETING_FEE_DAY', 'FULL_BOARD_PRICE', 'CAMPER_VAN_PRICE_PER_NIGHT', 'TENT_PRICE_WEEKEND',
 ];
 const INT_KEYS = ['SINGLE_BED_SLOTS', 'CAMPER_VAN_SPOTS', 'TENT_SPOTS'];
 const TEXT_KEYS = ['ANNOUNCEMENT', 'CLOSED_MESSAGE', 'BYPASS_TOKEN', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER', 'REGISTRATION_CLOSES'];
@@ -47,11 +46,6 @@ async function getSettings(client) {
     SINGLE_BED_SLOTS: int('SINGLE_BED_SLOTS', CONFIG.SINGLE_BED_SLOTS),
     MEETING_FEE_WEEKEND: num('MEETING_FEE_WEEKEND', CONFIG.MEETING_FEE_WEEKEND),
     MEETING_FEE_DAY: num('MEETING_FEE_DAY', CONFIG.MEETING_FEE_DAY),
-    MEAL_FRI_BBQ: num('MEAL_FRI_BBQ', CONFIG.MEAL_FRI_BBQ),
-    MEAL_SAT_HAM_DINNER: num('MEAL_SAT_HAM_DINNER', CONFIG.MEAL_SAT_HAM_DINNER),
-    MEAL_LUNCH: num('MEAL_LUNCH', CONFIG.MEAL_LUNCH),
-    THU_EXTRA_NIGHT_PRICE: has('THU_EXTRA_NIGHT_PRICE') && p.THU_EXTRA_NIGHT_PRICE !== ''
-      ? parseFloat(p.THU_EXTRA_NIGHT_PRICE) : CONFIG.THU_EXTRA_NIGHT_PRICE,
     FULL_BOARD_PRICE: num('FULL_BOARD_PRICE', CONFIG.FULL_BOARD_PRICE),
     CAMPER_VAN_PRICE_PER_NIGHT: num('CAMPER_VAN_PRICE_PER_NIGHT', CONFIG.CAMPER_VAN_PRICE_PER_NIGHT),
     TENT_PRICE_WEEKEND: num('TENT_PRICE_WEEKEND', CONFIG.TENT_PRICE_WEEKEND),
@@ -82,10 +76,6 @@ async function saveSettings(input) {
   for (const k of TEXT_KEYS) if (input[k] !== undefined) await setKey(k, input[k] === null ? '' : input[k]);
   for (const k of NUM_KEYS) if (present(input[k]) && !isNaN(parseFloat(input[k]))) await setKey(k, parseFloat(input[k]));
   for (const k of INT_KEYS) if (present(input[k]) && !isNaN(parseInt(input[k], 10))) await setKey(k, Math.max(0, parseInt(input[k], 10)));
-  if (input.THU_EXTRA_NIGHT_PRICE !== undefined) {
-    if (present(input.THU_EXTRA_NIGHT_PRICE)) await setKey('THU_EXTRA_NIGHT_PRICE', parseFloat(input.THU_EXTRA_NIGHT_PRICE));
-    else await deleteKey('THU_EXTRA_NIGHT_PRICE');
-  }
   if (input.ROOM_COUNTS || input.ROOM_PRICES) await rooms.updateCountsPrices(input.ROOM_COUNTS, input.ROOM_PRICES);
 }
 

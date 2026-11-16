@@ -30,8 +30,9 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `room_id` | text | `''` | Room type id for `room` bookings (see below), `singlebed` for single-bed bookings, otherwise empty. |
 | `room_ref` | text | - | `booking_ref` of the **primary booker** of the room / camper spot. A primary booker (and every tent, single-bed and day-visitor booking) points to its own `booking_ref`. |
 | `is_primary` | boolean | `false` | `true` for the person who holds the room / camper spot, and for tent, single-bed and day-visitor bookings. `false` for joiners. |
-| `thu_extra_night` | boolean | `false` | Extra night Thursday 14 May (room and single-bed bookings only). Joiners inherit it from the room. |
-| `full_board` | boolean | `false` | Meal package (Fri BBQ, Sat lunch, Sat Ham Dinner). |
+| `extra_nights` | text | `''` | Comma-separated extra-night keys from the event structure, e.g. `x1,x2` (room and single-bed bookings only). Joiners inherit them from the room. |
+| `thu_extra_night` | boolean | `false` | **Deprecated**: legacy column, no longer written. Migrated into `extra_nights` (`thu`) on first start. |
+| `full_board` | boolean | `false` | Meal package (contents defined in the event structure). |
 | `dietary` | text | `''` | Free text. |
 | `shirt_size` | text | `''` | Free text / size code. |
 | `total_price` | numeric(8,2) | `0` | Price for this person, calculated by the app (see "Prices" below). |
@@ -41,8 +42,9 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `org_comment` | text | `''` | Internal organizer note. The app writes a note here when it flags a booking `NEEDS_ATTENTION`. |
 | `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). |
 | `solo_room` | boolean | `false` | One person occupies a multi-person room alone and pays the whole room price; the room cannot be joined. |
-| `day_visitor_days` | text | `''` | `fri`, `sat` or `both` for day visitors, otherwise empty (CHECK constraint). |
-| `meals` | text | `''` | Comma-separated individual meals the guest ticked: `friBbq`, `friLunch`, `satLunch`, `satHam`. Informational: these are **not** included in `total_price`. |
+| `visitor_days` | text | `''` | Comma-separated day keys from the event structure that a day visitor attends, e.g. `d1,d2`; otherwise empty. |
+| `day_visitor_days` | text | `''` | **Deprecated**: legacy column (`fri`/`sat`/`both`), no longer written. Migrated into `visitor_days` on first start. |
+| `meals` | text | `''` | Legacy free-form list of individual meals (informational; not included in `total_price`). The booking form only offers the meal package. |
 | `is_organizer` | boolean | `false` | Staff/organizer; shows a badge on the public list. |
 | `free_text` | text | `''` | "Additional information" written by the booker. |
 
@@ -104,8 +106,9 @@ Defined in [`src/config.js`](../src/config.js). Default counts and prices can be
 `total_price` and `price_breakdown` are calculated by [`src/pricing.js`](../src/pricing.js) when a booking is made and are
 **stored**. Changing a price in the admin panel does not change existing bookings until the booking is edited or an
 organizer runs **Recalculate prices** (which updates every active booking). Room bookings pay `room price / persons`
-(rounded) per person, or the whole price when `solo_room` is set; the Thursday extra night is half the room price divided
-the same way. Meeting fee and meal package are added per person.
+(rounded) per person, or the whole price when `solo_room` is set; each extra night costs the room price divided by the nights included
+in the room price (`coreNights` in the event structure), shared the same way. Day visitors pay the day fee per selected day, or
+the full-event fee when they select every day. Meeting fee and meal package are added per person.
 
 ## `settings`
 
@@ -136,9 +139,7 @@ Keys written by the admin panel:
 | `TENT_PRICE_WEEKEND` | number | Tent spot, EUR. |
 | `SINGLE_BED_PRICE` | number | Single bed, EUR. |
 | `SINGLE_BED_SLOTS` | integer | How many single-bed bookings may be offered (0 = none). |
-| `MEETING_FEE_WEEKEND`, `MEETING_FEE_DAY` | number | Meeting fee, full weekend / single day. |
-| `MEAL_FRI_BBQ`, `MEAL_SAT_HAM_DINNER`, `MEAL_LUNCH` | number | Individual meal prices (stored; not currently added to `total_price`). |
-| `THU_EXTRA_NIGHT_PRICE` | number | Fixed Thursday-night price; absent = derived from the room price. |
+| `MEETING_FEE_WEEKEND`, `MEETING_FEE_DAY` | number | Meeting fee for the full event / for a single day (day visitors). |
 | `CAMPER_VAN_SPOTS`, `TENT_SPOTS` | integer | Camper / tent capacity. |
 | `ROOM_PRICE_<id>`, `ROOM_COUNT_<id>` | | Legacy keys. Only read once, to seed `room_types` on first start; afterwards room counts and prices live in `room_types`. |
 | `ROOMS_INITIALIZED` | `1` | Marks that `room_types` has been seeded. |
@@ -166,10 +167,24 @@ Single-row table (`id` is always 1) holding the event identity set in the admin 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | smallint PK | Always 1 (CHECK constraint) |
-| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `DATE_THU..SUN`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... |
+| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... |
 | `updated_at` | timestamptz | Last save |
 
 No row means the event is not configured yet and the public booking page shows "not open yet".
+
+## `event_structure`
+
+Single-row table (`id` is always 1) describing the shape of the event, edited in the admin panel's **Event structure** card.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | smallint PK | Always 1 |
+| `structure` | jsonb | `days` (core event days: `key`, `label`, `short`), `coreNights` (nights included in the room price), `extraNights` (optional nights: `key`, `label`, `includes`) and `package` (`enabled`, `sub`, `includes[]`) |
+| `updated_at` | timestamptz | Last save |
+
+Keys are stored on bookings (`bookings.extra_nights`, `bookings.visitor_days`), so a day or extra night that is in use
+cannot be removed. On first start the row is created automatically: installs that already have bookings get the original
+shape (days `fri`, `sat`; extra night `thu`) so old data stays valid, fresh installs get "Day 1" and "Day 2".
 
 ## `event_log`
 
@@ -196,11 +211,11 @@ The admin table and the importer still use the old sheet header names.
 | Name | `name` | OrgComment | `org_comment` |
 | Email | `email` | PublishConsent | `publish_consent` |
 | Phone | `phone` | SoloRoom | `solo_room` |
-| Country | `country` | DayVisitorDays | `day_visitor_days` |
+| Country | `country` | DayVisitorDays | `visitor_days` (now generic day keys) |
 | Type | `type` | IsOrganizer | `is_organizer` |
 | RoomId | `room_id` | FreeText | `free_text` |
 | RoomRef | `room_ref` | Meals | `meals` |
-| IsPrimaryBooker | `is_primary` | ThuExtraNight | `thu_extra_night` |
+| IsPrimaryBooker | `is_primary` | ThuExtraNight | `extra_nights` (now generic extra-night keys) |
 | FullBoard | `full_board` | Dietary / ShirtSize / TotalPrice | `dietary` / `shirt_size` / `total_price` |
 
 In the sheet, booleans were `YES`/`NO` text; in the database they are real booleans.

@@ -10,6 +10,7 @@ const reportRoutes = require('./reportRoutes');
 const { getSettings } = require('./settings');
 const eventConfig = require('./eventConfig');
 const rooms = require('./rooms');
+const structure = require('./structure');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -63,8 +64,10 @@ const ADMIN = {
   saveEventConfig: values => eventConfig.save(values),
   getRoomCatalog: () => ({ success: true, rooms: CONFIG.ROOMS }),
   saveRoomCatalog: list => rooms.save(list),
+  getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
+  saveStructure: input => structure.save(input),
   getAdminPanelHtml: () => {
-    const html = '<div id="event-setup"></div><div id="room-catalog"></div>' + pages.getAdminPanelHtml();
+    const html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div>' + pages.getAdminPanelHtml();
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
     const banner = '<div style="background:#b91c1c;color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
@@ -120,6 +123,7 @@ async function main() {
   await initDb();
   await eventConfig.load();
   await rooms.load();
+  await structure.load();
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')
