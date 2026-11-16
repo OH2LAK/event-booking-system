@@ -23,6 +23,9 @@ const CONFIG = {
   CHECKOUT_TIME:  "Check-out by 12:00",
   HOME_URL:       "",
   HOME_LABEL:     "Back to the event page",
+  // Privacy and data retention (edited in the admin panel: Event setup)
+  CONTROLLER_NAME: "", CONTROLLER_ADDRESS: "", PRIVACY_CONTACT_EMAIL: "", PRIVACY_URL: "",
+  EVENT_END_DATE: "", RETENTION_DAYS: "30", RETENTION_HOLD: "",
   LOGO1_URL:      "",
   LOGO2_URL:      "",
   ACCENT_COLOR:   "#b45309",

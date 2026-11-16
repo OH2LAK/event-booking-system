@@ -41,7 +41,8 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `status` | text | `CONFIRMED` | `CONFIRMED`, `CHECKED_IN`, `NEEDS_ATTENTION` or `CANCELLED` (CHECK constraint). |
 | `room_number` | text | `''` | Hotel room number, set by organizers. Shared by everyone in the same room. |
 | `org_comment` | text | `''` | Internal organizer note. The app writes a note here when it flags a booking `NEEDS_ATTENTION`. |
-| `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). |
+| `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). The booking form sends it explicitly and it is **opt-in** (unticked box = `false`); the column default only affects rows inserted outside the app. |
+| `privacy_ack_at` | timestamptz | `NULL` | When the participant confirmed the privacy notice on the booking form. `NULL` for imported or older rows. |
 | `solo_room` | boolean | `false` | One person occupies a multi-person room alone and pays the whole room price; the room cannot be joined. |
 | `visitor_days` | text | `''` | Comma-separated day keys from the event structure that a day visitor attends, e.g. `d1,d2`; otherwise empty. |
 | `day_visitor_days` | text | `''` | **Deprecated**: legacy column (`fri`/`sat`/`both`), no longer written. Migrated into `visitor_days` on first start. |
@@ -144,6 +145,7 @@ Keys written by the admin panel:
 | `CAMPER_VAN_SPOTS`, `TENT_SPOTS` | integer | Camper / tent capacity. |
 | `ROOM_PRICE_<id>`, `ROOM_COUNT_<id>` | | Legacy keys. Only read once, to seed `room_types` on first start; afterwards room counts and prices live in `room_types`. |
 | `ROOMS_INITIALIZED` | `1` | Marks that `room_types` has been seeded. |
+| `LAST_SHUTDOWN` | JSON | Written by Event shutdown: `{at, bookingsErased, noticesSent, noticesFailed, verified}`. Contains no personal data. |
 
 ## `room_types`
 
@@ -168,7 +170,7 @@ Single-row table (`id` is always 1) holding the event identity set in the admin 
 | Column | Type | Notes |
 |---|---|---|
 | `id` | smallint PK | Always 1 (CHECK constraint) |
-| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... |
+| `config` | jsonb | Keys such as `EVENT_NAME`, `EVENT_SHORT`, `ORGANIZER`, `LOCATION`, `DATES_TEXT`, `CHECKIN_TIME`, `CHECKOUT_TIME`, `REPLY_TO_EMAIL`, `LOGO1_URL`, `LOGO2_URL`, `ACCENT_COLOR`, ... and the privacy keys `CONTROLLER_NAME`, `CONTROLLER_ADDRESS`, `PRIVACY_CONTACT_EMAIL`, `PRIVACY_URL`, `EVENT_END_DATE` (`YYYY-MM-DD`), `RETENTION_DAYS` (0-365, default 30) and `RETENTION_HOLD` (reason text, empty = no hold) |
 | `updated_at` | timestamptz | Last save |
 
 No row means the event is not configured yet and the public booking page shows "not open yet".
@@ -199,6 +201,8 @@ Append-only diagnostic log (replaces the "Log" sheet).
 | `event` | text | `booking_confirmed`, `booking_rejected`, `email_failed`, `accommodation_changed`, `role_changed`, `checked_in`. |
 | `callsign` | text | Callsign (or booking reference for `checked_in`). |
 | `detail` | text | Free text, e.g. `ref=OH2ABC-7 type=room price=EUR135`, or the rejection reason. |
+
+Entries are removed when the person they mention is erased (callsign, booking reference or email match). Event shutdown deletes the whole table and then writes one `event_shutdown` line; per-person erasure writes a `data_erased` line with only the numeric `seq`. No names or email addresses are logged on purpose.
 
 ## Mapping to the old Google Sheet
 

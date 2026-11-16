@@ -2,6 +2,7 @@
 // HTML pages, copied from the Apps Script version. The pages still call
 // google.script.run.<method>(...); /rpc-shim.js maps those calls to POST /api/rpc/<method>.
 const { CONFIG, VERSION } = require('./config');
+const privacy = require('./privacy');
 
 const esc = v => String(v === undefined || v === null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -410,8 +411,9 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
         <hr style="margin:0.9rem 0;border:none;border-top:1px solid var(--border)">
       </div>
       <div class="field" style="margin-top:1rem">
-        <label>Dietary requirements</label>
+        <label>Dietary requirements <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
         <input type="text" id="dietary" placeholder="e.g. vegetarian, gluten-free">
+        <div class="hint">Dietary needs can reveal health or religious information. By filling this in you give your explicit consent to us using it for catering only.</div>
       </div>
       <div class="field">
         <label>T-shirt size <span style="font-weight:400;color:var(--muted)">(optional — for planning only, not a purchase)</span></label>
@@ -430,16 +432,27 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken) {
       <div class="field">
         <label>Additional information <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
         <textarea id="free-text" rows="3" placeholder="Any additional requests or information for the organizers..." style="width:100%;font-family:var(--sans);font-size:0.95rem;padding:0.5rem 0.75rem;border:1.5px solid #d1d5db;border-radius:4px;resize:vertical;box-sizing:border-box"></textarea>
+        <div class="hint">Please do not enter sensitive personal details (for example health information) unless they are needed for your stay.</div>
       </div>
     </div>
 
     <div class="section" id="gdpr-section">
       <div class="section-title">Privacy</div>
+      <div style="background:#f6f8fa;border:1px solid var(--border);border-radius:6px;padding:0.75rem 0.9rem;font-size:0.85rem;color:var(--text);margin-bottom:0.75rem">
+        ${esc(privacy.shortText())}
+        <div style="margin-top:0.4rem">Data controller: <strong>${esc(privacy.controllerName())}</strong>${privacy.contactEmail() ? ' · <a href="mailto:' + esc(privacy.contactEmail()) + '">' + esc(privacy.contactEmail()) + '</a>' : ''}</div>
+      </div>
       <label class="check-option">
-        <input type="checkbox" id="gdpr-no-publish">
+        <input type="checkbox" id="privacy-ack">
         <div>
-          <div class="opt-label">🔒 I do NOT consent to publishing my participation on the public participant page</div>
-          <div class="opt-sub" style="color:var(--muted);margin-top:0.25rem">If left unticked, your callsign and first name will be visible on the "Who's coming?" page. No other personal data is published.</div>
+          <div class="opt-label">I have read the <a href="${esc(privacy.noticeUrl())}" target="_blank" rel="noopener">privacy notice</a> and understand how my data is used *</div>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" id="publish-consent">
+        <div>
+          <div class="opt-label">Show my callsign and first name on the public "Who's coming?" page <span style="font-weight:400;color:var(--muted)">(optional)</span></div>
+          <div class="opt-sub" style="color:var(--muted);margin-top:0.25rem">Not ticked = you are not shown. No other personal data is ever published. You can withdraw this at any time by contacting the organizers.</div>
         </div>
       </label>
     </div>
@@ -893,6 +906,9 @@ function updatePriceDisplay() {
 function submitForm() {
   const msg = document.getElementById('form-msg');
   msg.className = 'msg'; msg.textContent = '';
+  if (!document.getElementById('privacy-ack').checked) {
+    msg.className = 'msg error visible'; msg.textContent = 'Please confirm that you have read the privacy notice.'; return;
+  }
   const data = {
     callsign:    document.getElementById('callsign').value.trim().toUpperCase(),
     name:        document.getElementById('name').value.trim(),
@@ -904,7 +920,8 @@ function submitForm() {
     freeText:    document.getElementById('free-text') ? document.getElementById('free-text').value.trim() : '',
     fullBoard:   document.getElementById('full-board').checked,
     meals: {},
-    gdprNoPublish:  document.getElementById('gdpr-no-publish').checked,
+    privacyAck:     document.getElementById('privacy-ack').checked,
+    publishConsent: document.getElementById('publish-consent').checked,
     extraNights:    [],
     bypassToken:    CONFIG_CLIENT.BYPASS_TOKEN || '',
   };
@@ -1498,6 +1515,11 @@ function getAdminPanelHtml() {
       <div id="role-change-result" style="display:none;margin-top:0.75rem;padding:0.6rem 0.8rem;border-radius:4px;font-size:0.88rem"></div>
     </div>
 
+    <div class="modal-field" style="flex-direction:row;align-items:center;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap">
+      <span style="font-size:0.8rem;color:var(--muted)">Data protection:</span>
+      <button type="button" class="btn-cancel" style="flex:none;padding:0.3rem 0.7rem;font-size:0.8rem" onclick="gdprExport(document.getElementById('edit-modal')._ref)">Export data (JSON)</button>
+      <button type="button" class="btn-cancel" style="flex:none;padding:0.3rem 0.7rem;font-size:0.8rem;color:#b91c1c;border-color:#b91c1c" onclick="gdprErase(document.getElementById('edit-modal')._ref)">Erase data…</button>
+    </div>
     <div class="modal-actions">
       <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
         <input type="checkbox" id="edit-send-email" style="width:auto;margin:0" checked>
@@ -1574,6 +1596,7 @@ function buildAdminPage(settings) {
 <script src="/admin-event.js"></script>
 <script src="/admin-rooms.js"></script>
 <script src="/admin-structure.js"></script>
+<script src="/admin-privacy.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
@@ -2018,6 +2041,7 @@ function doLogin() {
             if (window.initEventSetup) window.initEventSetup();
             if (window.initStructure) window.initStructure();
             if (window.initRoomCatalog) window.initRoomCatalog();
+            if (window.initPrivacy) window.initPrivacy();
           })
           .withFailureHandler(function(err) {
             document.getElementById('pw-err').textContent = 'Error: ' + err.message;

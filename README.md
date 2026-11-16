@@ -92,6 +92,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 
 - [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (admin panel, report and check-in tool)
 - [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
+- [docs/GDPR.md](docs/GDPR.md) - data protection: what the software does, what the organizer must do, handling requests, event shutdown
 
 ## Configuration
 
@@ -148,7 +149,12 @@ Structure: `src/service.js` (booking logic), `src/pricing.js`, `src/settings.js`
 pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc-shim.js` (maps the old
 `google.script.run` calls used by the pages to `/api/rpc/<method>`), `db/schema.sql`.
 
-## Privacy
+## Privacy and GDPR
 
-The database contains personal data (names, emails, phone numbers, dietary requirements). Do not commit exports or
-database dumps; `.gitignore` excludes `.xlsx`, `.csv` and `.env`.
+The database contains personal data (names, emails, phone numbers, dietary requirements). The booking form shows a
+privacy notice and requires confirmation; the full notice is generated from Event setup and served at `/privacy`.
+The public participant list is opt-in. The admin panel can export or erase one person's data, warns when the retention
+deadline (by default 30 days after the event) approaches, and has an Event shutdown tool that erases everything and
+verifies it. See [docs/GDPR.md](docs/GDPR.md) for what the software covers and what you must still do as data controller.
+
+Do not commit exports or database dumps; `.gitignore` excludes `.xlsx`, `.csv` and `.env`.

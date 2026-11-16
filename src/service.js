@@ -152,6 +152,7 @@ async function submitBooking(input) {
   const email = str(input.email, 200);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reject('Valid email required', callsign);
   if (!TYPES.includes(input.type)) return reject('Invalid booking type', callsign);
+  if (input.privacyAck !== true) return reject('Please confirm that you have read the privacy notice.', callsign);
 
   const data = {
     callsign, name, email,
@@ -163,7 +164,7 @@ async function submitBooking(input) {
     nights: S.pickNights(Array.isArray(input.nights) ? input.nights : S.keys(input.nights)),
     fullBoard: !!input.fullBoard && CONFIG.STRUCTURE.package.enabled,
     dietary: str(input.dietary, 300), shirtSize: str(input.shirtSize, 10),
-    gdprNoPublish: !!input.gdprNoPublish, soloDouble: !!input.soloDouble,
+    publishConsent: input.publishConsent === true, soloDouble: !!input.soloDouble,
     visitorDays: S.pickDays(Array.isArray(input.visitorDays) ? input.visitorDays : S.keys(input.visitorDays)), freeText: str(input.freeText, 1000),
     meals: input.meals && typeof input.meals === 'object' ? input.meals : null,
     bypassToken: str(input.bypassToken, 100),
@@ -269,11 +270,11 @@ async function submitBooking(input) {
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
          is_primary, extra_nights, nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
-         publish_consent, solo_room, visitor_days, meals, free_text)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22)`,
+         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now())`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        !data.gdprNoPublish, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(',')]
+        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(',')]
     );
 
     const existingJoiners = data.joinExisting && primaryRow

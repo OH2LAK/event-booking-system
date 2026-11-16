@@ -4,7 +4,7 @@
 const { CONFIG } = require('./config');
 const db = require('./db');
 
-// type: text | textarea | url | email | color
+// type: text | textarea | url | email | color | date | number
 const FIELDS = [
   { group: 'Event', key: 'EVENT_NAME', label: 'Event name (full)', type: 'text', max: 120, help: 'Shown in page titles, headings and emails.' },
   { group: 'Event', key: 'EVENT_SHORT', label: 'Event name (short)', type: 'text', max: 60, help: 'Used in email subjects, e.g. "[Short name] Booking confirmation".' },
@@ -17,6 +17,13 @@ const FIELDS = [
   { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
   { group: 'Contact and email', key: 'REPLY_TO_EMAIL', label: 'Organizer email', type: 'email', max: 150, help: 'Reply-To address; organizer notifications are sent here.' },
   { group: 'Contact and email', key: 'EMAIL_SENDER_NAME', label: 'Email sender name', type: 'text', max: 80 },
+  { group: 'Privacy and data retention', key: 'CONTROLLER_NAME', label: 'Data controller (name)', type: 'text', max: 150, help: 'Who is responsible for the personal data collected here. Empty = organizer name.' },
+  { group: 'Privacy and data retention', key: 'CONTROLLER_ADDRESS', label: 'Data controller (postal address)', type: 'text', max: 200, help: 'Optional, shown in the privacy notice.' },
+  { group: 'Privacy and data retention', key: 'PRIVACY_CONTACT_EMAIL', label: 'Privacy contact email', type: 'email', max: 150, help: 'Where people send access, correction and erasure requests. Empty = organizer email.' },
+  { group: 'Privacy and data retention', key: 'PRIVACY_URL', label: 'Own privacy notice URL (optional)', type: 'url', max: 300, help: 'If set, the booking form links to this page instead of the built-in notice. The built-in notice stays available at /privacy.' },
+  { group: 'Privacy and data retention', key: 'EVENT_END_DATE', label: 'Last day of the event', type: 'date', max: 10, help: 'Starts the retention clock. Personal data must be erased no later than the retention period after this date.' },
+  { group: 'Privacy and data retention', key: 'RETENTION_DAYS', label: 'Retention after the event (days)', type: 'number', max: 3, help: 'Default 30, maximum 365.' },
+  { group: 'Privacy and data retention', key: 'RETENTION_HOLD', label: 'Retention hold (open matter)', type: 'text', max: 200, help: 'Normally empty. If a dispute or similar matter is open, enter a short reason; retention reminders pause until you clear this. Do not enter personal data here.' },
   { group: 'Branding', key: 'LOGO1_URL', label: 'Logo 1 (image URL, https)', type: 'url', max: 300, help: 'Optional.' },
   { group: 'Branding', key: 'LOGO2_URL', label: 'Logo 2 (image URL, https)', type: 'url', max: 300, help: 'Optional.' },
   { group: 'Branding', key: 'ACCENT_COLOR', label: 'Accent color', type: 'color', max: 7, help: 'Hex color, e.g. #b45309' },
@@ -65,6 +72,12 @@ function validate(input) {
     if (v.length > f.max) return { error: `${f.label} is too long (max ${f.max} characters)` };
     if (f.type === 'url' && v && !/^https?:\/\/[^\s"'`]+$/i.test(v)) return { error: `${f.label} must start with http:// or https://` };
     if (f.type === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return { error: `${f.label} is not a valid email address` };
+    if (f.type === 'date' && v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || isNaN(Date.parse(v + 'T00:00:00Z')))) return { error: `${f.label} must be a date like 2027-05-16` };
+    if (f.type === 'number') {
+      if (v === '') v = String(CONFIG[f.key] || '30');
+      if (!/^\d{1,3}$/.test(v) || parseInt(v, 10) > 365) return { error: `${f.label} must be a whole number from 0 to 365` };
+      v = String(parseInt(v, 10));
+    }
     if (f.type === 'color' && !/^#[0-9a-fA-F]{6}$/.test(v)) return { error: `${f.label} must be a hex color like #b45309` };
     if (['EVENT_NAME', 'EVENT_SHORT', 'ORGANIZER'].includes(f.key) && !v) return { error: `${f.label} is required` };
     out[f.key] = v;

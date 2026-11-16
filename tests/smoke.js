@@ -20,7 +20,7 @@ async function rpc(method, ...args) {
   if (sc) cookie = sc.split(';')[0];
   return { status: r.status, body: await r.json() };
 }
-const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', country: 'FI', ...o });
+const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', country: 'FI', privacyAck: true, ...o });
 
 (async () => {
   check('login for setup', (await rpc('checkAdminPassword', PW)).body.result === true, null);
@@ -183,6 +183,89 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   check('check-in works', (await ci.json()).ok === true, null);
   const pr = await fetch(`${BASE}/report?view=print&ref=TEST4-3`, { headers: { cookie } });
   check('print slip renders', pr.status === 200 && (await pr.text()).includes('TEST4'), pr.status);
+
+  // ---- GDPR: privacy notice, consent, export, erase, shutdown ----
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTG0', type: 'dayvisitor', visitorDays: ['d1'], privacyAck: false }))).body.result;
+  check('booking without privacy acknowledgement is rejected', !r.success && /privacy/i.test(r.error), r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTG1', type: 'dayvisitor', visitorDays: ['d1'], name: 'Gina Public', publishConsent: true }))).body.result;
+  const refG1 = r.bookingRef;
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTG2', type: 'dayvisitor', visitorDays: ['d1'], name: 'Hank Private' }))).body.result;
+  const refG2 = r.bookingRef;
+  const guests = (await rpc('getPublicGuestList')).body.result;
+  check('public list: opt-in only (consent given = listed)', guests.some(g => g.callsign === 'TESTG1'), guests.length);
+  check('public list: default (no consent) = not listed', !guests.some(g => g.callsign === 'TESTG2'), guests.length);
+  check('public list exposes no email/phone', guests.every(g => !('email' in g) && !('phone' in g) && !('name' in g)), guests[0]);
+
+  const pv = await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+    CONTROLLER_NAME: 'Smoke Club ry', PRIVACY_CONTACT_EMAIL: 'privacy@example.com', EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30' });
+  check('privacy fields saved', pv.body.result.success, pv.body.result);
+  r = (await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'X', EVENT_SHORT: 'X', ORGANIZER: 'Y', EVENT_END_DATE: '2027-13-45' })).body.result;
+  check('invalid end date is rejected', !r.success, r);
+  r = (await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'X', EVENT_SHORT: 'X', ORGANIZER: 'Y', RETENTION_DAYS: '9999' })).body.result;
+  check('retention days above 365 are rejected', !r.success, r);
+  await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+    CONTROLLER_NAME: 'Smoke Club ry', PRIVACY_CONTACT_EMAIL: 'privacy@example.com', EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30' });
+
+  const pn = await fetch(BASE + '/privacy');
+  const pnt = await pn.text();
+  check('privacy notice page served without login', pn.status === 200 && pnt.includes('Smoke Club ry') && pnt.includes('2020-02-01') && pnt.includes('privacy@example.com'), pn.status);
+  check('privacy notice states purpose limitation and rights', /only<\/strong> to register/.test(pnt) && /right to access/.test(pnt) && /complain/.test(pnt), null);
+  const bp = await (await fetch(BASE + '/')).text();
+  check('booking form carries notice, controller and required acknowledgement', bp.includes('id="privacy-ack"') && bp.includes('Smoke Club ry') && bp.includes('/privacy') && bp.includes('2020-02-01'), null);
+  check('no-store header on pages', (await fetch(BASE + '/')).headers.get('cache-control') === 'no-store', null);
+  const adminHdr = await fetch(BASE + '/?admin=1');
+  check('admin page cannot be framed', adminHdr.headers.get('x-frame-options') === 'DENY', null);
+
+  let ex = (await rpc('exportBooking', refG1)).body.result;
+  check('export returns the booking and log entries as JSON', ex.success && ex.data.booking.callsign === 'TESTG1' && Array.isArray(ex.data.logEntries) && /\.json$/.test(ex.filename), ex);
+  check('export of unknown booking fails cleanly', !(await rpc('exportBooking', 'NOPE-1')).body.result.success, null);
+  check('admin-only: export needs login', (await fetch(`${BASE}/api/rpc/exportBooking`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ args: [refG1] }) })).status === 401, null);
+  check('admin-only: erase needs login', (await fetch(`${BASE}/api/rpc/eraseBooking`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ args: [refG1] }) })).status === 401, null);
+
+  // a primary booker with active roommates cannot be erased on its own
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTG3', type: 'camper', name: 'Ida Primary' }))).body.result;
+  const refG3 = r.bookingRef;
+  check('GDPR test fixture: primary booked', r.success, r);
+  r = (await rpc('submitBooking', booking({ callsign: 'TESTG4', type: 'camper', joinExisting: true, roomRef: refG3, name: 'Jon Mate' }))).body.result;
+  const refG4 = r.bookingRef;
+  check('GDPR test fixture: roommate booked', r.success, r);
+  r = (await rpc('eraseBooking', refG3, { sendNotice: false })).body.result;
+  check('primary with active roommates cannot be erased alone', !r.success && r.error.includes(refG4), r);
+
+  r = (await rpc('eraseBooking', refG4, { sendNotice: true })).body.result;
+  check('erase joiner works; missing mail config reported, not fatal', r.success && r.notice.requested && !r.notice.sent && /not configured/i.test(r.notice.error), r);
+  let rows = (await rpc('getAdminData', '')).body.result.rows;
+  check('erased booking is gone from admin data', !rows.some(x => x.BookingRef === refG4 || x.Callsign === 'TESTG4'), null);
+  r = (await rpc('eraseBooking', refG3, { sendNotice: false })).body.result;
+  check('primary can be erased once roommates are gone', r.success, r);
+  check('erase of the same booking twice fails cleanly', !(await rpc('eraseBooking', refG3, {})).body.result.success, null);
+  // no trace of the erased person in the event log (checked through the export of another booking is not enough: query via report-free route)
+  ex = (await rpc('exportBooking', refG1)).body.result;
+  check('other people\'s log entries are untouched', ex.success && ex.data.logEntries.length >= 1, ex.data && ex.data.logEntries);
+
+  // shutdown (destructive): only against a throwaway database
+  if (process.env.SMOKE_ALLOW_SHUTDOWN === '1') {
+    let pvw = (await rpc('getShutdownPreview')).body.result;
+    check('shutdown preview shows retention overdue and counts', pvw.success && pvw.retention.state === 'overdue' && pvw.counts.bookings > 0 && pvw.confirmPhrase === 'ERASE ALL DATA', pvw);
+    r = (await rpc('shutdownEvent', { confirm: 'yes please' })).body.result;
+    check('shutdown needs the exact confirmation phrase', !r.success, r);
+    await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+      EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30', RETENTION_HOLD: 'Open payment dispute' });
+    pvw = (await rpc('getShutdownPreview')).body.result;
+    check('retention hold is reported', pvw.retention.state === 'hold', pvw.retention);
+    r = (await rpc('shutdownEvent', { confirm: 'ERASE ALL DATA' })).body.result;
+    check('shutdown is blocked while a retention hold is active', !r.success && /hold/i.test(r.error), r);
+    await rpc('saveEventConfig', { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
+      EVENT_END_DATE: '2099-01-02', RETENTION_DAYS: '30', RETENTION_HOLD: '' });
+    r = (await rpc('shutdownEvent', { confirm: 'ERASE ALL DATA' })).body.result;
+    check('shutdown before the event ends needs extra acknowledgement', !r.success && r.needsAck, r);
+    r = (await rpc('shutdownEvent', { confirm: 'ERASE ALL DATA', acknowledgeEarly: true, sendNotices: true })).body.result;
+    check('shutdown erases everything and verifies it', r.success && r.verified && r.verification.every(v => v.ok) && r.erased.bookings > 0, r);
+    pvw = (await rpc('getShutdownPreview')).body.result;
+    check('after shutdown: nothing left, last shutdown recorded', pvw.counts.bookings === 0 && pvw.counts.logRows === 1 && pvw.last && pvw.last.verified, pvw);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTG9', type: 'dayvisitor', visitorDays: ['d1'] }))).body.result;
+    check('registration is closed after shutdown', !r.success, r);
+  } else console.log('SKIP shutdown tests (set SMOKE_ALLOW_SHUTDOWN=1 on a throwaway database; it erases ALL data)');
 
   console.log(failures ? `\n${failures} check(s) FAILED` : '\nAll checks passed');
   process.exit(failures ? 1 : 0);

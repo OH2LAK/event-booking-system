@@ -91,3 +91,6 @@ UPDATE bookings SET visitor_days = CASE day_visitor_days WHEN 'both' THEN 'fri,s
 
 -- Per-night accommodation mode: core nights a room / single-bed booking stays (comma-separated day keys; empty = all core nights).
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights TEXT NOT NULL DEFAULT '';
+
+-- GDPR: when the person confirmed the privacy notice at registration (NULL for imported or older rows)
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS privacy_ack_at TIMESTAMPTZ;

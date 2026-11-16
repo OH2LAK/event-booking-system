@@ -27,9 +27,11 @@ async function sendMail(to, subject, text, opts) {
   const t = getTransporter();
   if (!to) return;
   if (!t) {
-    console.log(`[email disabled] to=${to} subject=${subject}`);
+    console.log(`[email disabled] subject=${subject}`); // never log the recipient (personal data)
     return;
   }
+  // Privacy footer on every message to a participant (not on organizer notifications or erasure notices)
+  if (!opts.noFooter && to !== CONFIG.REPLY_TO_EMAIL) text = text + '\n\n' + require('./privacy').footerText();
   const fromAddr = process.env.EMAIL_FROM || process.env.SMTP_USER || CONFIG.REPLY_TO_EMAIL;
   await t.sendMail({
     from: `"${(opts.name || CONFIG.EMAIL_SENDER_NAME).replace(/"/g, '')}" <${fromAddr}>`,
@@ -407,6 +409,7 @@ ${dsep}
 
 module.exports = {
   sendMail,
+  isEnabled: () => !!process.env.SMTP_HOST,
   sendConfirmationEmail,
   sendRoomJoinNotification,
   sendRoomFullNotification,

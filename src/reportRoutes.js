@@ -48,6 +48,7 @@ function toReportRow(row) {
 router.get('/report', async (req, res, next) => {
   try {
     const view = String(req.query.view || 'hotel');
+    res.set('X-Frame-Options', 'DENY');
     if (!auth.isAdmin(req)) return res.type('html').send(loginPage(view));
     const settings = await getSettings();
     report.setRC(settings);

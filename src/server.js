@@ -11,6 +11,8 @@ const { getSettings } = require('./settings');
 const eventConfig = require('./eventConfig');
 const rooms = require('./rooms');
 const structure = require('./structure');
+const gdpr = require('./gdpr');
+const privacy = require('./privacy');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -23,6 +25,8 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.static(path.join(__dirname, '..', 'public')));
+// Everything below serves personal data or admin functions: never cache it in browsers or shared proxies
+app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
 const secureCookies = (process.env.PUBLIC_URL || '').startsWith('https://');
 
@@ -40,11 +44,15 @@ app.get('/', async (req, res, next) => {
     const settings = await getSettings();
     let html;
     if (req.query.admin !== '1' && !eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
-    if (req.query.admin === '1') html = pages.buildAdminPage(settings);
+    if (req.query.admin === '1') { res.set('X-Frame-Options', 'DENY'); html = pages.buildAdminPage(settings); }
     else if (req.query.public === '1') html = pages.buildPublicPage();
     else html = pages.buildBookingPage(String(req.query.join || ''), String(req.query.bypass || ''), settings);
     res.type('html').send(html.replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
   } catch (e) { next(e); }
+});
+app.get('/privacy', (req, res) => {
+  if (!eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
+  res.type('html').send(privacy.noticePage().replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR));
 });
 app.get('/healthz', async (req, res) => {
   try { await db.query('SELECT 1'); res.json({ ok: true }); } catch (e) { res.status(503).json({ ok: false }); }
@@ -66,8 +74,19 @@ const ADMIN = {
   saveRoomCatalog: list => rooms.save(list),
   getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
   saveStructure: input => structure.save(input),
+  exportBooking: ref => gdpr.exportBooking(ref),
+  eraseBooking: (ref, opts) => gdpr.eraseBooking(ref, opts),
+  getShutdownPreview: () => gdpr.shutdownPreview(),
+  shutdownEvent: opts => gdpr.shutdownErase(opts),
   getAdminPanelHtml: () => {
-    const html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div>' + pages.getAdminPanelHtml();
+    let html = '<div id="event-setup"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div>' + pages.getAdminPanelHtml();
+    const rs = privacy.status();
+    if (rs.state === 'overdue' || rs.state === 'due_soon') {
+      const late = rs.state === 'overdue';
+      html = '<div style="background:' + (late ? '#b91c1c' : '#b45309') + ';color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
+        + (late ? 'Data retention deadline passed on ' + rs.deleteBy + '.' : 'Data retention deadline in ' + rs.daysLeft + ' day(s): ' + rs.deleteBy + '.')
+        + ' Personal data must be erased by then: use "Data protection and event shutdown" below (or set a retention hold in Event setup if a matter is still open).</div>' + html;
+    }
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
     const banner = '<div style="background:#b91c1c;color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'

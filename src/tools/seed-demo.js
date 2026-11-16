@@ -26,6 +26,7 @@ const person = (n, call, country) => ({ callsign: call, name: n, email: call.toL
     CHECKIN_TIME: 'Check-in from 15:00 on Thursday or Friday', CHECKOUT_TIME: 'Check-out by 12:00 on Sunday',
     REPLY_TO_EMAIL: 'organizer@example.com', EMAIL_SENDER_NAME: 'Example Radio Club', ACCENT_COLOR: '#0f766e',
     HOME_URL: 'https://example.com', HOME_LABEL: 'example.com',
+    CONTROLLER_NAME: 'Example Radio Club', PRIVACY_CONTACT_EMAIL: 'privacy@example.com', EVENT_END_DATE: '2027-05-16', RETENTION_DAYS: '30',
   });
   if (!cfg.success) throw new Error(cfg.error);
   await structure.load();
@@ -39,7 +40,7 @@ const person = (n, call, country) => ({ callsign: call, name: n, email: call.toL
   const [FRI, SAT] = ['d1', 'd2'];
 
   const book = async (p, extra) => {
-    const r = await service.submitBooking({ ...p, ...extra });
+    const r = await service.submitBooking({ privacyAck: true, publishConsent: true, ...p, ...extra });
     if (!r.success) throw new Error(`${p.callsign}: ${r.error}`);
     return r;
   };

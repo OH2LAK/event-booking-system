@@ -79,4 +79,4 @@ async function saveSettings(input) {
   if (input.ROOM_COUNTS || input.ROOM_PRICES) await rooms.updateCountsPrices(input.ROOM_COUNTS, input.ROOM_PRICES);
 }
 
-module.exports = { getSettings, saveSettings };
+module.exports = { getSettings, saveSettings, setKey };

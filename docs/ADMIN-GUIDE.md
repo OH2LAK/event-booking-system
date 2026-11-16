@@ -25,6 +25,11 @@ On a fresh install the card opens by itself and visitors see a "booking is not o
 event name, short name and organizer. Logo and home URLs must start with `http://` or `https://`; the accent color is a hex value.
 Changes apply immediately (reload the booking page).
 
+The **Privacy and data retention** group of the card holds the data controller (defaults to the organizer), an optional postal
+address, the privacy contact email, an optional URL to your own privacy notice, the **last day of the event**, the **retention
+period in days** (default 30) and a **retention hold**. These feed the privacy notice at `/privacy`, the statement on the booking
+form and the deletion date shown to participants. See section 9 and [GDPR.md](GDPR.md).
+
 ## 2. Dashboard (top of the page)
 
 Cards computed from the bookings table: total bookings, booked / total rooms per room type (with how many rooms are full
@@ -120,6 +125,7 @@ Opens a form for one booking. Editable: callsign, name, email, phone, country, s
 `NEEDS_ATTENTION`), day-visitor days, dietary requirements, meal package, extra nights, solo room, publish consent,
 staff flag, room number, additional information, organizer comment.
 
+- **Export data (JSON)** downloads everything stored about this booking (access / portability request). **Erase data…** permanently deletes the booking and related log entries (see section 9).
 - **Send change notification email to guest** (ticked by default): emails the guest the updated services and total.
 - Changing the meal package, extra nights, day-visitor days, solo room (or the booking type/room) **recalculates that booking's price**.
 - **Room number** is copied to everyone in the same room. It is for organizers only and is not shown to guests.
@@ -191,3 +197,31 @@ become invalid when `SESSION_SECRET` changes.
 
 Logs: `docker compose logs -f app` (Docker) or the terminal running Node. For the database structure, backups and
 queries see [DATABASE.md](DATABASE.md).
+
+## 9. Data protection and event shutdown
+
+The **Data protection and event shutdown** card (top of the panel) shows the retention deadline (last day of the event plus the
+retention period, 30 days by default), how much personal data is stored, and the shutdown tool. A banner at the very top of the
+panel turns amber 7 days before the deadline and red when it has passed. Full background: [GDPR.md](GDPR.md).
+
+### 9.1 Requests from one person
+
+Open the booking (Edit) and use:
+
+- **Export data (JSON)**: downloads everything stored about the booking and related log entries. Send it to the booking's email address.
+- **Erase data…**: type the callsign to confirm. You are asked whether to send the person a final email ("your data is being erased"). The email is sent first; if it cannot be sent (or email is not configured) the erasure still happens and you are told. The booking row and every log entry mentioning the callsign, booking reference or email are deleted. A neutral log line without personal data is added.
+- A primary booker whose room or spot is still shared by active roommates cannot be erased alone: move or erase the roommates first.
+- To remove someone from the public list only, untick **Publish consent** in Edit booking.
+
+### 9.2 Event shutdown
+
+After the event (and when no dispute or other matter is open), run **Event shutdown**:
+
+1. Download what you still need, e.g. the CSV from the report tool. Delete that file later.
+2. Tick whether to send a final notice email to everyone.
+3. If the event has not ended, tick the extra box. Type `ERASE ALL DATA` and press the red button.
+
+The tool deletes all bookings and log entries, closes registration, removes the deleted rows from the database files and shows a verification table (all rows should be green). Failed notice emails are listed once on screen.
+Then delete backups, exported files, print-outs and mail copies yourself: the app cannot reach those.
+
+If a dispute or other matter is open, enter a short reason in **Retention hold** (Event setup). Reminders pause and the shutdown is blocked until you clear it; erase the data as soon as the matter is closed.

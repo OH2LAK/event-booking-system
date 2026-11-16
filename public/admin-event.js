@@ -28,7 +28,7 @@
         var input;
         if (f.type === 'textarea') input = '<textarea id="' + id + '" rows="3" maxlength="' + f.max + '" style="width:100%;box-sizing:border-box;padding:0.4rem;border:1.5px solid #d1d5db;border-radius:3px">' + esc(v) + '</textarea>';
         else if (f.type === 'color') input = '<input type="color" id="' + id + '" value="' + esc(v) + '" style="height:2.2rem;width:4rem;padding:0;border:1.5px solid #d1d5db;border-radius:3px">';
-        else input = '<input type="' + (f.type === 'email' ? 'email' : 'text') + '" id="' + id + '" maxlength="' + f.max + '" value="' + esc(v) + '" style="width:100%;box-sizing:border-box;padding:0.4rem;border:1.5px solid #d1d5db;border-radius:3px">';
+        else input = '<input type="' + ({ email: 'email', date: 'date', number: 'number' }[f.type] || 'text') + '"' + (f.type === 'number' ? ' min="0" max="365"' : '') + ' id="' + id + '" maxlength="' + f.max + '" value="' + esc(v) + '" style="width:100%;box-sizing:border-box;padding:0.4rem;border:1.5px solid #d1d5db;border-radius:3px">';
         html += '<div><label for="' + id + '" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.2rem">' + esc(f.label) + '</label>' + input
           + (f.help ? '<div style="font-size:0.72rem;color:var(--muted,#57606a);margin-top:0.15rem">' + esc(f.help) + '</div>' : '') + '</div>';
       });
