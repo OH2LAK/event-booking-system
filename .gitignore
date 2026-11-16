@@ -4,3 +4,4 @@ node_modules/
 *.csv
 pgdata/
 .DS_Store
+backups/

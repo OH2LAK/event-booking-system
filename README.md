@@ -37,6 +37,11 @@ Note: PostgreSQL only reads `POSTGRES_PASSWORD` when the data volume is first cr
 either remove the volume (`docker compose down -v`, **deletes data**) or change it inside the database with
 `ALTER USER`.
 
+## Documentation
+
+- [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (admin panel, report and check-in tool)
+- [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
+
 ## Configuration
 
 All settings are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join links in emails. Leave `SMTP_HOST`
