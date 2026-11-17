@@ -58,7 +58,7 @@
   function save() {
     var msg = host.querySelector('#rc-msg');
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (r) {
         if (r && r.success) { msg.style.color = '#15803d'; msg.textContent = '✓ Saved. Reloading...'; setTimeout(function () { location.reload(); }, 600); }
         else { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Save failed'; }
@@ -70,7 +70,7 @@
   window.initRoomCatalog = function () {
     host = document.getElementById('room-catalog');
     if (!host) return;
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (d) {
         if (!d || !d.success) return;
         rows = d.rooms.map(function (r) { return { id: r.id, note_en: r.note_en, note_fi: r.note_fi || '', persons: r.persons, count: r.count, price_eur: r.price_eur, _existing: true }; });

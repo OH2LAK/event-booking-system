@@ -1,5 +1,5 @@
 'use strict';
-// Booking logic ported from the Apps Script version. Differences are marked "FIX:".
+// Booking logic.
 const { CONFIG } = require('./config');
 const db = require('./db');
 const repo = require('./repo');
@@ -17,8 +17,8 @@ const str = (v, max) => String(v === undefined || v === null ? '' : v).replace(/
 const roomCfgOf = id => CONFIG.ROOMS.find(r => r.id === id);
 const S = require('./structure');
 
-// Price inputs derived from a sheet-style booking object.
-// FIX: camper joiners are no longer charged the camper spot again when prices are recalculated.
+// Price inputs derived from a booking object (see repo.js).
+// Camper joiners are not charged the camper spot again when prices are recalculated.
 function priceInput(o) {
   return {
     type: o.type,
@@ -150,7 +150,7 @@ async function submitBooking(input) {
     return { success: false, error: i18n.t(lang, key, v(lang)) };
   };
 
-  // --- validate and normalize input (FIX: reject is defined before use; lengths are capped) ---
+  // --- validate and normalize input (lengths are capped) ---
   const callsign = str(input.callsign, 20).toUpperCase();
   if (!/^[A-Z0-9\/-]{3,20}$/.test(callsign)) return reject('err.callsign', null);
   const name = str(input.name, 100);
@@ -172,7 +172,6 @@ async function submitBooking(input) {
     dietary: str(input.dietary, 300), shirtSize: str(input.shirtSize, 10),
     publishConsent: input.publishConsent === true, soloDouble: !!input.soloDouble,
     visitorDays: S.pickDays(Array.isArray(input.visitorDays) ? input.visitorDays : S.keys(input.visitorDays)), freeText: str(input.freeText, 1000),
-    meals: input.meals && typeof input.meals === 'object' ? input.meals : null,
     bypassToken: str(input.bypassToken, 100),
     language: lang,
   };
@@ -184,7 +183,7 @@ async function submitBooking(input) {
     const rows = await repo.all(client);
     const bookings = repo.active(rows).map(repo.toObj);
 
-    // Registration window. FIX: joining an existing room/camper only bypasses a closed
+    // Registration window: joining an existing room/camper only bypasses a closed
     // registration for room and camper bookings, not for any type.
     const joinBypass = data.joinExisting && (data.type === 'room' || data.type === 'camper');
     const tokenBypass = settings.BYPASS_TOKEN && data.bypassToken && data.bypassToken === settings.BYPASS_TOKEN;
@@ -225,7 +224,7 @@ async function submitBooking(input) {
         const occ = S.occupancy(bookings, data.roomId);
         const full = S.nightsOf({ nights: data.nights, extraNights: data.extraNights }).find(k => occ[k] >= settings.ROOM_COUNTS[roomCfg.id]);
         if (full) return reject(S.mode() === 'per_night' ? 'err.noRoomsNight' : 'err.noRooms', l => ({ room: i18n.roomNote(l, roomCfg.id), night: i18n.nightLabel(l, full) }), callsign);
-        // FIX: solo occupancy is only allowed when enabled and for multi-person rooms
+        // Solo occupancy is only allowed when enabled and for multi-person rooms
         if (data.soloDouble) {
           if (!settings.ALLOW_SOLO_DOUBLE || roomCfg.persons < 2) return reject('err.soloNA', null, callsign);
           soloRoom = true;
@@ -243,12 +242,12 @@ async function submitBooking(input) {
         isPrimary = true;
       }
     } else if (data.type === 'tent') {
-      // FIX: the admin switch for tent bookings is enforced server-side as well
+      // The admin switch for tent bookings is enforced server-side as well
       if (!settings.TENT_ENABLED) return reject('err.tentNA', null, callsign);
       if (bookings.filter(b => b.type === 'tent').length >= settings.TENT_SPOTS) return reject('err.noTent', null, callsign);
       isPrimary = true;
     } else if (data.type === 'singlebed') {
-      // FIX: single-bed bookings must be enabled in settings and within the slot limit
+      // Single-bed bookings must be enabled in settings and within the slot limit
       const singleBedBooked = bookings.filter(b => b.type === 'singlebed').length;
       if (!settings.ALLOW_SINGLE_BED_BOOKING || singleBedBooked >= (settings.SINGLE_BED_SLOTS || 0)) return reject('err.noSingle', null, callsign);
       let free = 0;
@@ -277,15 +276,14 @@ async function submitBooking(input) {
     const price = calculatePrice(priceInput_, settings); // stored in the event's default language
     const priceGuest = calculatePrice(priceInput_, settings, lang); // shown to the guest in their language
 
-    const meals = data.meals ? Object.entries(data.meals).filter(([, v]) => v).map(([k]) => k).join(',') : '';
     await client.query(
       `INSERT INTO bookings (seq, booking_ref, callsign, name, email, phone, country, type, room_id, room_ref,
          is_primary, extra_nights, nights, full_board, dietary, shirt_size, total_price, price_breakdown, status,
-         publish_consent, solo_room, visitor_days, meals, free_text, privacy_ack_at, language, currency, display_currency, display_rate)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$23,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,$22,now(),$24,$25,$26,$27)`,
+         publish_consent, solo_room, visitor_days, free_text, privacy_ack_at, language, currency, display_currency, display_rate)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$22,$13,$14,$15,$16,$17,'CONFIRMED',$18,$19,$20,$21,now(),$23,$24,$25,$26)`,
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
-        data.publishConsent, soloRoom, data.visitorDays.join(','), meals, data.freeText, data.nights.join(','), lang, currency.native(), data.displayCurrency, data.displayRate]
+        data.publishConsent, soloRoom, data.visitorDays.join(','), data.freeText, data.nights.join(','), lang, currency.native(), data.displayCurrency, data.displayRate]
     );
 
     const existingJoiners = data.joinExisting && primaryRow

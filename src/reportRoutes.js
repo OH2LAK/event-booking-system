@@ -12,7 +12,7 @@ const router = express.Router();
 
 function loginPage(view) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VUSHF 2026 — Report</title>
+<title>${String(CONFIG.EVENT_SHORT).replace(/[<>&"]/g, "")} — Report</title>
 <style>body{font-family:-apple-system,Segoe UI,sans-serif;background:#f9fafb;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
 .box{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:2rem;width:320px}h1{font-size:1.1rem;margin:0 0 1rem}
 input{width:100%;padding:.55rem;border:1px solid #d1d5db;border-radius:4px;box-sizing:border-box;margin-bottom:.75rem}
@@ -32,14 +32,14 @@ document.getElementById('pw').addEventListener('keydown',function(e){if(e.key===
 </script></body></html>`;
 }
 
-// Same row shape the original report tool built from the sheet
+// Row shape used by the report views
 function toReportRow(row) {
   const o = repo.toObj(row);
   return {
     bookingRef: o.bookingRef, callsign: o.callsign, name: o.name, email: o.email, phone: o.phone,
     country: o.country, type: o.type, roomId: o.roomId, roomRef: o.roomRef,
     isPrimary: o.isPrimaryBooker === 'YES', extraNights: S.keys(o.extraNights), nights: S.pickNights(o.nights), fullBoard: o.fullBoard === 'YES',
-    meals: o.meals, dietary: o.dietary, shirtSize: o.shirtSize, totalPrice: o.totalPrice, status: o.status,
+    dietary: o.dietary, shirtSize: o.shirtSize, totalPrice: o.totalPrice, status: o.status,
     roomNumber: o.roomNumber, isOrganizer: o.isOrganizer === 'YES', visitorDays: S.keys(o.visitorDays),
     soloRoom: o.soloRoom === 'YES', freeText: o.freeText, orgComment: o.orgComment, checkedIn: o.status === 'CHECKED_IN',
   };
@@ -61,10 +61,10 @@ router.get('/report', async (req, res, next) => {
     const safe = report.escapeRows(rows);
     const ref = String(req.query.ref || '');
     let html;
-    if (view === 'checkin') html = report.checkinView_(safe, '', ref);
-    else if (view === 'summary') html = report.summaryView_(safe, '');
-    else if (view === 'print') html = report.printView_(safe, '', ref);
-    else html = report.hotelView_(safe, '');
+    if (view === 'checkin') html = report.checkinView_(safe, ref);
+    else if (view === 'summary') html = report.summaryView_(safe);
+    else if (view === 'print') html = report.printView_(safe, ref);
+    else html = report.hotelView_(safe);
     res.type('html').send(html);
   } catch (e) { next(e); }
 });

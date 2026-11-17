@@ -3,7 +3,7 @@ const crypto = require('crypto');
 
 const sha = s => crypto.createHash('sha256').update(String(s)).digest();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-const COOKIE = 'vushf_admin';
+const COOKIE = 'ebs_admin';
 
 const DEFAULT_MARKER = 'change-me';
 function usingDefaults() {

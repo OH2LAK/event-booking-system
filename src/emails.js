@@ -1,5 +1,5 @@
 'use strict';
-// Email templates, ported 1:1 from the Apps Script version (Gmail -> SMTP via nodemailer).
+// Email templates (sent through SMTP with nodemailer).
 // If SMTP_HOST is empty, emails are logged to the console instead of being sent.
 const nodemailer = require('nodemailer');
 const { CONFIG } = require('./config');

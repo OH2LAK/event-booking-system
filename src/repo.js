@@ -1,9 +1,9 @@
 'use strict';
-// Maps between PostgreSQL rows and the "sheet style" objects the original UI and email
-// templates expect (header names such as BookingRef, YES/NO strings).
+// Maps between PostgreSQL rows and the booking objects the UI and email templates expect
+// (header-style names such as BookingRef, YES/NO strings).
 const TZ = process.env.TZ_NAME || 'Europe/Helsinki';
 
-// [sheet header, db column, kind]   kind: t=text, b=YES/NO boolean, n=number
+// [header, db column, kind]   kind: t=text, b=YES/NO boolean, n=number
 const COLS = [
   ['Timestamp', 'created_at', 'ts'],
   ['BookingRef', 'booking_ref', 't'],
@@ -31,7 +31,6 @@ const COLS = [
   ['VisitorDays', 'visitor_days', 't'],
   ['IsOrganizer', 'is_organizer', 'b'],
   ['FreeText', 'free_text', 't'],
-  ['Meals', 'meals', 't'],
   ['Language', 'language', 't'],
   ['Currency', 'currency', 't'],
   ['DisplayCurrency', 'display_currency', 't'],
@@ -40,7 +39,7 @@ const COLS = [
 const HEADERS = COLS.map(c => c[0]);
 const BY_HEADER = Object.fromEntries(COLS.map(c => [c[0], c]));
 
-// Fields the admin may edit (same list as the Apps Script updateBooking)
+// Fields the admin may edit
 const EDITABLE = [
   'Callsign', 'Name', 'Email', 'Phone', 'Country', 'Type', 'RoomId', 'RoomRef',
   'IsPrimaryBooker', 'ExtraNights', 'Nights', 'FullBoard', 'Dietary', 'Status',
@@ -65,13 +64,13 @@ function cell(row, [, col, kind]) {
   return v === null || v === undefined ? '' : String(v);
 }
 
-// camelCase sheet-style object (what the booking logic and emails use)
+// camelCase booking object (what the booking logic and emails use)
 function toObj(row) {
   const o = {};
   COLS.forEach(c => { o[c[0].charAt(0).toLowerCase() + c[0].slice(1)] = cell(row, c); });
   return o;
 }
-// string-valued object keyed by sheet header (what the admin table uses)
+// string-valued object keyed by header name (what the admin table uses)
 function toAdminRow(row) {
   const o = {};
   COLS.forEach(c => { o[c[0]] = String(cell(row, c)); });

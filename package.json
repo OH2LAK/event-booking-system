@@ -1,7 +1,7 @@
 {
   "name": "event-booking-system",
   "version": "1.0.0",
-  "description": "Event booking system (Node.js + PostgreSQL), ported from the original Google Apps Script version",
+  "description": "Event booking system (Node.js + PostgreSQL)",
   "main": "src/server.js",
   "license": "MIT",
   "private": true,
@@ -10,7 +10,6 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "import-xlsx": "node src/tools/import-xlsx.js",
     "seed-demo": "node src/tools/seed-demo.js",
     "check-locales": "node scripts/locales.js check",
     "export-locales": "node scripts/locales.js export",
@@ -21,8 +20,5 @@
     "express": "^4.21.0",
     "nodemailer": "^10.6.0",
     "pg": "^8.13.0"
-  },
-  "devDependencies": {
-    "exceljs": "^4.4.0"
   }
 }

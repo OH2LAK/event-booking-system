@@ -1,11 +1,9 @@
 'use strict';
 // Report & check-in tool (hotel list, check-in desk, summary, printable slips, CSV).
-// Ported from the separate Apps Script project; it now reads the same PostgreSQL database
+// Reads the same PostgreSQL database
 // and shares the admin session cookie with the booking admin panel.
 const { CONFIG, VERSION } = require('./config');
 const cur = require('./currency');
-
-const token = ''; // legacy: URL tokens were replaced by the session cookie
 
 let RC = null;
 // Rebuild the view configuration from the current settings (call right before rendering).
@@ -101,7 +99,7 @@ function calcPrices_(r) {
   return { accommodation: acc, meals: meals, hotelTotal: acc + meals, meetingFee: fee, total: acc + meals + fee };
 }
 
-function nav_(token, active) {
+function nav_(active) {
   var u = '/report?x=1';
   function t(v, lbl) {
     return '<a href="' + u + '&view=' + v + '" target="_top" class="btn' + (v===active?' btn-active':'') + '">' + lbl + '</a>';
@@ -115,7 +113,7 @@ function nav_(token, active) {
     + '</div>';
 }
 
-function wrap_(title, body, token, active) {
+function wrap_(title, body, active) {
   return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<title>' + esc_(CONFIG.EVENT_SHORT) + ' — ' + title + '</title>'
@@ -124,7 +122,7 @@ function wrap_(title, body, token, active) {
     + '</head><body><div class="page">'
     + '<h1>' + esc_(CONFIG.EVENT_NAME) + '</h1>'
     + '<div class="meta">' + RC.LOCATION + ' · ' + RC.DATES_EN + '</div>'
-    + nav_(token, active) + body + '</div>'
+    + nav_(active) + body + '</div>'
     + '<script>function printPdf(){'
     + 'var tip=document.createElement("div");'
     + 'tip.style="position:fixed;bottom:1rem;right:1rem;background:#1d4ed8;color:#fff;padding:0.75rem 1rem;border-radius:6px;font-size:0.85rem;z-index:9999;max-width:260px";'
@@ -148,10 +146,10 @@ function extraLabels_(keys) {
 
 function mealLabel_(r) {
   if (r.fullBoard) return RC.MEALS_FI.map(function(l){return '✓ '+l;}).join('<br>') || '✓';
-  return r.meals ? r.meals : '—';
+  return '—';
 }
 
-function hotelView_(rows, token) {
+function hotelView_(rows) {
   var body = '<h2>🏨 Hotellilista</h2>'
     + '<div class="infobox">Hotellille ja ravintolalle toimitettava ennakkokoonti. '
     + 'Pe–Su ja To–Su majoittujat eritelty omiin listoihinsa. '
@@ -295,10 +293,10 @@ function hotelView_(rows, token) {
     body += '</tbody></table>';
   }
 
-  return wrap_('Hotellilista', body, token, 'hotel');
+  return wrap_('Hotellilista', body, 'hotel');
 }
 
-function checkinView_(rows, token, preRef) {
+function checkinView_(rows, preRef) {
   var url = '/report?view=checkin';
   var slipHtml = '';
   if (preRef) {
@@ -315,7 +313,7 @@ function checkinView_(rows, token, preRef) {
       + '<td>' + icon + ' <strong style="font-family:monospace">' + r.callsign + '</strong>' + attn + '</td>'
       + '<td>' + r.name + '</td><td>' + r.country + '</td>'
       + '<td>' + (r.type==='room'||r.type==='singlebed'?room:r.type) + '</td>'
-      + '<td>' + (r.fullBoard?'✓ TB':r.meals?'yks.':'') + '</td>'
+      + '<td>' + (r.fullBoard?'✓ TB':'') + '</td>'
       + '</tr>';
   }).join('');
 
@@ -342,7 +340,7 @@ function checkinView_(rows, token, preRef) {
           + '<td>'+r.country+'</td>'
           + '<td>'+room+'</td>'
           + '<td>'+[nightsText_(r)].concat(extraLabels_(r.extraNights)).filter(Boolean).join(', ')+'</td>'
-          + '<td>'+(r.fullBoard?'TB':r.meals?'yks.':'—')+'</td>'
+          + '<td>'+(r.fullBoard?'TB':'—')+'</td>'
           + '<td style="width:2rem;border:1px solid #d1d5db">&nbsp;</td>'
           + '</tr>';
       }).join('')
@@ -356,7 +354,7 @@ function checkinView_(rows, token, preRef) {
     + (preRef ? 'document.getElementById("list-wrap").style.display="none";' : '')
     + '</script>';
 
-  return wrap_('Sisäänkirjautuminen', body, token, 'checkin');
+  return wrap_('Sisäänkirjautuminen', body, 'checkin');
 }
 
 function confirmationSlip_(rows, r, pw) {
@@ -398,8 +396,6 @@ function confirmationSlip_(rows, r, pw) {
   var meals='';
   if (r.fullBoard) {
     meals='Full board: '+RC.MEALS_EN.join(', ');
-  } else if (r.meals) {
-    meals='Individual meals: '+r.meals;
   } else {
     meals='No meal package';
   }
@@ -410,7 +406,7 @@ function confirmationSlip_(rows, r, pw) {
       + 'Roommates</td></tr>';
     mates.forEach(function(x) {
       matesHtml += '<tr><td style="padding-left:1rem;color:#374151;font-family:monospace">' + x.callsign + '</td>'
-        + '<td>' + x.name + (x.fullBoard?' · Full board':x.meals?' · '+x.meals:'') + '</td></tr>';
+        + '<td>' + x.name + (x.fullBoard?' · Full board':'') + '</td></tr>';
     });
   }
 
@@ -476,18 +472,18 @@ function confirmationSlip_(rows, r, pw) {
     + '<div class="no-print" style="margin-bottom:1.5rem;display:flex;gap:0.5rem;flex-wrap:wrap">'
     + (r.checkedIn ? '' :
         '<button id="btn-checkin-print-' + r.bookingRef + '" class="btn" '
-        + 'onclick="doCheckinAndPrint(\'' + r.bookingRef + '\',\'' + encodeURIComponent(token) + '\')" '
+        + 'onclick="doCheckinAndPrint(\'' + r.bookingRef + '\')" '
         + 'style="background:#16a34a;color:#fff;border-color:#16a34a">✅ Tee sisäänkirjaus ja tulosta vahvistus</button>')
     + '<a href="' + '/report?view=print&ref=' + r.bookingRef + '" target="_blank" class="btn" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8">🖨 Tulosta vahvistus</a>'
     + '<a href="' + backUrl + '" class="btn" target="_top">← Takaisin listaan</a>'
     + '</div>'
     + '<script>'
-    + 'function doCheckinAndPrint(ref, token) {'
+    + 'function doCheckinAndPrint(ref) {'
     + '  var btn = document.getElementById("btn-checkin-print-" + ref);'
     + '  if (btn) { btn.disabled=true; btn.textContent="Kirjataan..."; }'
     + '  fetch("/report/checkin", {'
     + '    method: "POST",'
-    + '    body: JSON.stringify({token: decodeURIComponent(token), action: "checkin", ref: ref})'
+    + '    body: JSON.stringify({action: "checkin", ref: ref})'
     + '  }).then(function(r){return r.json();}).then(function(data){'
     + '    if (data.ok) {'
     + '      var badge = document.getElementById("checkin-status-" + ref);'
@@ -503,7 +499,7 @@ function confirmationSlip_(rows, r, pw) {
     + '</script>';
 }
 
-function summaryView_(rows, token) {
+function summaryView_(rows) {
   var roomGuests   = rows.filter(function(r){return r.type==='room';}).length;
   var camperSpots  = rows.filter(function(r){return r.type==='camper'&&r.isPrimary;}).length;
   var camperGuests = rows.filter(function(r){return r.type==='camper';}).length;
@@ -544,19 +540,19 @@ function summaryView_(rows, token) {
     + RC.MEALS_EN.map(function(l){return '<tr><td style="padding-left:1.5rem;color:#6b7280">'+l+'</td><td class="num">'+fb+'</td></tr>';}).join('')
     + '</tbody></table>';
 
-  return wrap_('Yhteenveto', body, token, 'summary');
+  return wrap_('Yhteenveto', body, 'summary');
 }
 
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
-    'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Meals','Dietary','ShirtSize',
+    'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Dietary','ShirtSize',
     'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
     lines.push([r.callsign,r.name,r.email,r.country,r.type,r.roomId,r.roomNumber,r.roomRef,
       r.isPrimary?'YES':'NO', r.nights.join('+'), r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
-      r.meals,r.dietary,r.shirtSize,
+      r.dietary,r.shirtSize,
       p.hotelTotal.toFixed(0), p.meetingFee.toFixed(0), p.total.toFixed(0),
       r.status, r.bookingRef,
     ].map(function(v){
@@ -569,7 +565,7 @@ function buildCsv_(rows) {
   return { filename: CONFIG.SLUG + '-' + fmtNow_('yyyyMMdd-HHmm') + '.csv', content: '\uFEFF' + lines.join('\r\n') };
 }
 
-function printView_(rows, token, ref) {
+function printView_(rows, ref) {
   if (!ref) return '<p>Viite puuttuu</p>';
   var r = rows.find(function(x) { return x.bookingRef === ref; });
   if (!r) return '<p>Varausta ei löydy: ' + ref + '</p>';
@@ -612,8 +608,6 @@ function printView_(rows, token, ref) {
   if (r.fullBoard) {
     mealsEN='Full board: '+RC.MEALS_EN.join(', ');
     mealsFI='Täyshoito: '+RC.MEALS_FI.join(', ');
-  } else if (r.meals) {
-    mealsEN='Individual meals: '+r.meals; mealsFI='Yksittäiset ateriat: '+r.meals;
   } else {
     mealsEN='No meal package'; mealsFI='Ei ruokapakettia';
   }
@@ -624,7 +618,7 @@ function printView_(rows, token, ref) {
       + 'Roommates / Huonetoverit</td></tr>';
     mates.forEach(function(x) {
       matesRows += '<tr><td style="padding:4px 8px 4px 20px;font-family:monospace">' + x.callsign + ' — ' + x.name + '</td>'
-        + '<td style="padding:4px 8px">' + (x.fullBoard?'✓ Full board / Täyshoito':x.meals||'—') + '</td></tr>';
+        + '<td style="padding:4px 8px">' + (x.fullBoard?'✓ Full board / Täyshoito':'—') + '</td></tr>';
     });
   }
 

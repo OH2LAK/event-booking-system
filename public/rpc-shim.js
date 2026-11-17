@@ -1,6 +1,6 @@
-// Compatibility layer: the pages were written for Google Apps Script and call
-// google.script.run.withSuccessHandler(fn).withFailureHandler(fn).<serverMethod>(args...).
-// This maps every such call to POST /api/rpc/<serverMethod>.
+// Tiny RPC client used by all pages:
+// rpc.run.withSuccessHandler(fn).withFailureHandler(fn).<serverMethod>(args...)
+// maps every call to POST /api/rpc/<serverMethod>.
 (function () {
   function makeRunner(ok, fail) {
     return new Proxy({}, {
@@ -29,5 +29,5 @@
       },
     });
   }
-  window.google = { script: { run: makeRunner(null, null) } };
+  window.rpc = { run: makeRunner(null, null) };
 })();

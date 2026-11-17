@@ -11,7 +11,7 @@ const check = (name, ok, info) => { console.log((ok ? 'PASS ' : 'FAIL ') + name 
 const NB = ' ';
 
 (async () => {
-  // EUR (default): output identical to the old hardcoded euro texts
+  // EUR (default): euro sign output
   check('EUR is the default native currency', cur.native() === 'EUR');
   check('EUR amounts keep the euro sign', cur.fmt(120) === '€120' && cur.fmt(12.5) === '€12.50' && cur.fmtSigned(-5) === '−€5' && cur.fmtSigned(5) === '+€5');
   check('catalog text is unchanged for EUR', cur.localizeText('€{price} / room · {pp} €') === '€{price} / room · {pp} €');

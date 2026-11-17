@@ -3,7 +3,7 @@ const { CONFIG } = require('./config');
 const S = require('./structure');
 const i18n = require('./i18n');
 
-// Pure function: pass in the current settings. Ported from calculatePrice(), generalized to the event structure.
+// Pure function: pass in the current settings.
 // - A solo-occupied room (soloRoom) is charged the whole room price.
 // - Each selected extra night costs (room price / nights included in the room price), shared by the room's persons.
 // - Day visitors pay the day fee per selected day, or the full-period fee when they select every day.

@@ -1,6 +1,5 @@
 'use strict';
-// HTML pages, copied from the Apps Script version. The pages still call
-// google.script.run.<method>(...); /rpc-shim.js maps those calls to POST /api/rpc/<method>.
+// HTML pages. The pages call rpc.run.<method>(...); /rpc-shim.js maps those calls to POST /api/rpc/<method>.
 const { CONFIG, VERSION } = require('./config');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
@@ -343,7 +342,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
       <h2>${te('form.extraNights')}</h2>
       <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">${te('form.extraNightsHelp', {dates: i18n.ev(lang, 'DATES_TEXT')})}</p>
       ${STRUCT.extraNights.map(x => `<label class="check-option">
-        <input type="checkbox" name="xn" value="${esc(x.key)}" onchange="onThuExtraChange()">
+        <input type="checkbox" name="xn" value="${esc(x.key)}" onchange="onExtraNightChange()">
         <div>
           <div class="opt-label">${te('form.addExtraNight', {label: x.label})}</div>
           <div class="opt-sub" data-xsub="${esc(x.key)}">${te('form.priceBasedOnRoom')}${x.includes ? ' · ' + esc(x.includes) : ''}</div>
@@ -660,7 +659,7 @@ function extraNightRoomPrice(roomPrice) { return Math.round(roomPrice / Math.max
 function selectedVisitorDays() { return Array.prototype.map.call(document.querySelectorAll('input[name="dv-day"]:checked'), function(e){ return e.value; }); }
 function dayShort(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.short : k; }
 
-function onThuExtraChange() {
+function onExtraNightChange() {
   applyNightAvailability();
   updatePriceDisplay();
 }
@@ -961,7 +960,6 @@ function submitForm() {
     shirtSize:   document.getElementById('shirt-size').value,
     freeText:    document.getElementById('free-text') ? document.getElementById('free-text').value.trim() : '',
     fullBoard:   document.getElementById('full-board').checked,
-    meals: {},
     privacyAck:     document.getElementById('privacy-ack').checked,
     language:       CONFIG_CLIENT.LANG,
     displayCurrency: displayCur,
@@ -1004,7 +1002,7 @@ function submitForm() {
   document.getElementById('loading').classList.add('visible');
   document.getElementById('submit-btn').disabled = true;
 
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       document.getElementById('loading').classList.remove('visible');
       if (result && result.success) {
@@ -1064,12 +1062,12 @@ window.renderAvailability = renderAvailability;
 window.renderRoomTypes = renderRoomTypes;
 window.renderOpenRooms = renderOpenRooms;
 window.onFullBoardChange = onFullBoardChange;
-window.onThuExtraChange = onThuExtraChange;
+window.onExtraNightChange = onExtraNightChange;
 window.updateFullBoardSub = updateFullBoardSub;
 window.onJoinRoomSelect = onJoinRoomSelect;
 window.initJoinFromRef = initJoinFromRef;
 window.onload = function() {
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(data) {
       avail = data;
       // Merge live prices into CONFIG_CLIENT so price display is always current
@@ -1208,7 +1206,7 @@ function loadGuests() {
   document.getElementById('guest-grid').innerHTML = '';
   document.getElementById('count-bar').style.display = 'none';
 
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(guests) {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('count-bar').style.display = 'flex';
@@ -1806,7 +1804,7 @@ function doRoleChange(newRole) {
 
   resultBox.style.display = 'none';
   console.log('Calling changeRole server function...');
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(res) {
       if (!res.success) {
         resultBox.style.cssText = 'display:block;background:rgba(248,81,73,0.1);border:1px solid var(--danger);border-radius:4px;padding:0.6rem 0.8rem;font-size:0.88rem;color:var(--danger)';
@@ -1870,7 +1868,7 @@ window.updateBypassLinkDisplay = updateBypassLinkDisplay;
 function recalcAllPrices() {
   var btn = document.getElementById('recalc-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Recalculating...'; }
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       if (btn) { btn.disabled = false; btn.textContent = '🔄 Recalculate prices'; }
       if (result.success) {
@@ -2055,7 +2053,7 @@ function saveAccChange() {
   btn.disabled = true; btn.textContent = 'Saving...';
   msgEl.style.display = 'none';
 
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       btn.disabled = false; btn.textContent = 'Save change';
       if (result.success) {
@@ -2083,12 +2081,12 @@ function doLogin() {
   const pw = document.getElementById('admin-pw').value;
   if (!pw) { document.getElementById('pw-err').textContent = 'Enter password'; return; }
   document.getElementById('pw-err').textContent = 'Checking...';
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(ok) {
       if (ok) {
         adminPw = pw;
         // Fetch admin panel HTML from server and inject before loading data
-        google.script.run
+        rpc.run
           .withSuccessHandler(function(html) {
             if (!html) { document.getElementById('pw-err').textContent = 'Panel load failed'; return; }
             document.body.innerHTML = html;
@@ -2128,7 +2126,7 @@ function loadAdmin() {
     });
   }
 
-  google.script.run
+  rpc.run
     .withFailureHandler(function(err) {
       resetBtns();
       document.body.innerHTML += '<div style="color:red;padding:1rem">Admin load error: ' + (err.message||err) + '</div>';
@@ -2233,7 +2231,7 @@ function renderAdmin(data) {
 
   document.getElementById('stats').innerHTML = statsHtml;
 
-  const showCols = ['_guest','Email','Country','_room','Nights','ExtraNights','FullBoard','VisitorDays','Meals','Dietary','FreeText','TotalPrice','_status','OrgComment'].filter(function(h){ return h !== 'Nights' || CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night'; });
+  const showCols = ['_guest','Email','Country','_room','Nights','ExtraNights','FullBoard','VisitorDays','Dietary','FreeText','TotalPrice','_status','OrgComment'].filter(function(h){ return h !== 'Nights' || CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night'; });
 
   // Sort state
   if (!window._adminSort) window._adminSort = { col: null, dir: 1 };
@@ -2559,7 +2557,7 @@ function saveEdit() {
   const saveBtn = document.getElementById('edit-save-btn');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving...';
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save';
@@ -2582,7 +2580,7 @@ function saveEdit() {
 }
 
 function loadSettings() {
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       if (!result || !result.success) return;
       const s = result.settings;
@@ -2655,7 +2653,7 @@ function savePricing() {
     MEETING_FEE_DAY:            document.getElementById('s-meeting-fee-day').value.trim(),
     ROOM_PRICES:                roomPrices,
   };
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       if (result && result.success) {
         msg.textContent = '\u2713 Saved';
@@ -2705,7 +2703,7 @@ function saveRoomCounts() {
   var msg = document.getElementById('room-counts-msg');
   msg.textContent = 'Saving...';
   msg.style.color = 'var(--muted)';
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       if (result && result.success) {
         msg.textContent = '\u2713 Saved';
@@ -2749,7 +2747,7 @@ function saveSettings() {
   const msg = document.getElementById('settings-msg');
   msg.textContent = 'Saving...';
   msg.style.color = 'var(--muted)';
-  google.script.run
+  rpc.run
     .withSuccessHandler(function(result) {
       if (result && result.success) {
         msg.textContent = '\u2713 Saved';

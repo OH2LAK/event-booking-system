@@ -1,6 +1,6 @@
 'use strict';
 // Event configuration. Defaults for everything that the admin panel can override
-// at runtime (see settings.js). Ported from the original Apps Script version.
+// at runtime (see settings.js).
 
 const VERSION = '20260504-2136-node';
 
@@ -41,9 +41,6 @@ const CONFIG = {
   EMAIL_SENDER_NAME: process.env.EMAIL_SENDER_NAME || "Example Event",
   REPLY_TO_EMAIL:    process.env.REPLY_TO_EMAIL || "",
 
-
-  // --- Sheet name ---
-  SHEET_NAME: "Bookings",
 
   // --- Room inventory ---
   // Default room types. They are copied into the database (room_types) on first start and are then

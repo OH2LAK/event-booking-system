@@ -40,7 +40,7 @@ function notConfiguredPage() {
     + '<p style="color:#57606a">This booking site has not been set up. Please check back later.</p></div></body></html>';
 }
 
-// ---- pages (same URL scheme as the Apps Script version) ----
+// ---- pages ----
 app.get('/', async (req, res, next) => {
   try {
     const settings = await getSettings();
@@ -67,13 +67,13 @@ app.get('/healthz', async (req, res) => {
 
 app.use(reportRoutes);
 
-// ---- RPC: replaces google.script.run ----
+// ---- RPC: the pages call these methods through /api/rpc/<method> ----
 const PUBLIC = {
   getAvailability: () => service.getAvailability(),
   getPublicGuestList: () => service.getPublicGuestList(),
   submitBooking: data => service.submitBooking(data),
 };
-// Admin methods: the first argument (the old password parameter) is ignored; the session cookie is the credential.
+// Admin methods: a leading unused first argument is ignored; the session cookie is the credential.
 const ADMIN = {
   getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
   saveEventConfig: values => eventConfig.save(values),

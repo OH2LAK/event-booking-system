@@ -11,9 +11,8 @@ report & check-in tool (hotel list, check-in desk, summary, printable slips).
 
 ## Background
 
-The system was first built as a Google Apps Script web app for the **Nordic VUSHF Meeting 2026** (organized by RATS ry at
-Hotel Martinhovi, Raisio, Finland), where it handled the real bookings. It was then ported to Node.js + PostgreSQL and made
-event-neutral. The original scripts (with secrets redacted) are kept in `legacy-apps-script/`.
+The first version of this system ran on the Google Apps Script platform. This is a rewrite in Node.js + PostgreSQL,
+kept event-neutral so it can be used for any event.
 
 ## First-time event setup
 
@@ -109,39 +108,6 @@ and stored in the database.
 
 To brand the pages for another event, edit `src/config.js` and the logo/links in `src/pages.js`.
 
-## Migrating from the Apps Script version
-
-1. **Bookings**: export the "Bookings" sheet as `.xlsx` and import it:
-   `DATABASE_URL=postgres://... npm install && npm run import-xlsx -- bookings.xlsx`
-   (re-running skips bookings that already exist).
-2. **Settings are not in the sheet.** Apps Script kept admin settings (price overrides, room counts, registration
-   open/close, bypass token, announcement) in *Script Properties*. Re-enter them in the new admin panel, otherwise the
-   defaults from `src/config.js` apply. Compare prices before going live.
-3. Point your DNS / Cloudflare redirect at the new server instead of the `script.google.com` URL.
-
-The original scripts are kept in `legacy-apps-script/` with secrets removed (placeholders `REDACTED_...`).
-
-## Differences from the Apps Script version
-
-Security
-- The public availability call no longer returns the admin password (it returned the whole config object).
-- No password in the browser: admin login sets an HttpOnly, SameSite=Strict session cookie (12 h); login attempts are
-  throttled; the password is no longer stored in `localStorage` or sent with every request.
-- Guest-supplied text has `<` and `>` removed and callsigns are validated, because several pages render values as HTML.
-- CSV exports neutralize spreadsheet formulas.
-- Secrets and deployment URLs moved out of the code into `.env`.
-
-Correctness
-- Bookings run in a database transaction under a lock, so simultaneous bookings cannot overbook a room or reuse a
-  booking reference. One active booking per callsign is enforced by the database.
-- Validation errors (empty callsign/name/email) now return the proper message instead of "Server error".
-- Solo-occupied rooms are charged the whole room price on the server (the booking page already showed this).
-- Recalculating prices no longer charges camper-spot joiners for the camper spot again.
-- Server enforces the admin switches for tents, single beds and solo rooms; joining a room no longer bypasses a closed
-  registration for non-room bookings.
-
-Not carried over: the Excel export button of the report tool (use CSV) and the `?debug=admin` endpoint.
-
 ## Development and tests
 
 ```bash
@@ -154,8 +120,8 @@ npm run check-locales    # validates the translation files in src/locales/
 ```
 
 Structure: `src/service.js` (booking logic), `src/pricing.js`, `src/settings.js`, `src/emails.js`, `src/pages.js` (HTML
-pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc-shim.js` (maps the old
-`google.script.run` calls used by the pages to `/api/rpc/<method>`), `src/i18n.js` + `src/locales/*.json`
+pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc-shim.js` (maps the
+`rpc.run` calls used by the pages to `/api/rpc/<method>`), `src/i18n.js` + `src/locales/*.json`
 (translations, see `src/locales/README.md`), `src/currency.js` (native currency, display currencies, exchange rates),
 `scripts/locales.js` (translation check and CSV export/import), `db/schema.sql`.
 

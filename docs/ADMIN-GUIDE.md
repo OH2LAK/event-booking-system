@@ -70,7 +70,6 @@ this action. Editing a single booking recalculates only that booking.
 
 How prices are built: room price divided by the room's persons per guest (the whole price for a solo room), plus the
 meeting fee, plus the meal package if chosen. Each extra night costs the room price divided by the nights included in the room price, divided the same way.
-Individual meals (`meals`) are recorded for catering but are not added to the price.
 
 ## 4b. Currencies
 

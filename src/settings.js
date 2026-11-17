@@ -1,6 +1,5 @@
 'use strict';
 // Runtime settings: defaults from config.js, overridden by rows in the "settings" table
-// (this replaces Apps Script "Script Properties").
 const { CONFIG } = require('./config');
 const db = require('./db');
 const rooms = require('./rooms');
@@ -69,7 +68,7 @@ async function setKey(key, value) {
 }
 async function deleteKey(key) { await db.query('DELETE FROM settings WHERE key = $1', [key]); }
 
-// Same semantics as the original saveAdminSettings (undefined = untouched).
+// undefined = untouched.
 async function saveSettings(input) {
   const present = v => v !== undefined && v !== '' && v !== null;
   for (const k of BOOL_KEYS) if (input[k] !== undefined) await setKey(k, input[k] ? 'true' : 'false');

@@ -4,7 +4,7 @@
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function run(method, args, ok, fail) {
-    var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail || function (e) { alert('Error: ' + e.message); });
+    var r = rpc.run.withSuccessHandler(ok).withFailureHandler(fail || function (e) { alert('Error: ' + e.message); });
     r[method].apply(r, args);
   }
 

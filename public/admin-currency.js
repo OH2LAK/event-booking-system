@@ -45,13 +45,13 @@
   }
   function save() {
     msg('Saving...', true);
-    google.script.run.withSuccessHandler(function (r) {
+    rpc.run.withSuccessHandler(function (r) {
       if (r && r.success) render(r, '<span style="color:#15803d">✓ Saved. Reload a booking page to see the changes.</span>'); else msg((r && r.error) || 'Save failed', false);
     }).withFailureHandler(function (e) { msg('Error: ' + e.message, false); }).saveCurrencyRates(collect());
   }
   function fetchRates() {
     msg('Fetching...', true);
-    google.script.run.withSuccessHandler(function (r) {
+    rpc.run.withSuccessHandler(function (r) {
       if (!r || !r.success) { msg((r && r.error) || 'Fetch failed', false); return; }
       var parts = ['ECB rates of ' + (r.ecbDate || 'today') + ': updated ' + (r.updated.join(', ') || 'none')];
       if (r.keptManual.length) parts.push('kept manual: ' + r.keptManual.join(', '));
@@ -62,7 +62,7 @@
   window.initCurrencies = function () {
     host = document.getElementById('currencies');
     if (!host) return;
-    google.script.run.withSuccessHandler(function (d) { if (d && d.success) render(d); })
+    rpc.run.withSuccessHandler(function (d) { if (d && d.success) render(d); })
       .withFailureHandler(function (e) { host.textContent = 'Could not load currencies: ' + e.message; }).getCurrencies();
   };
 })();

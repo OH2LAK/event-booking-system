@@ -17,24 +17,6 @@ const genericStructure = () => ({
   package: { enabled: true, sub: 'Meals during the event', includes: ['Day 1: dinner', 'Day 2: lunch + dinner'] },
 });
 
-// Existing installs (bookings already exist, no structure saved yet) keep the original Fri/Sat + Thursday shape,
-// so stored bookings (keys fri, sat, thu) stay valid. Labels come from the old Event setup values when present.
-function legacyStructure(stored) {
-  const c = k => (stored && stored[k]) || CONFIG[k] || '';
-  const includes = String(c('MEAL_INCLUDES') || (CONFIG.FULL_BOARD_INCLUDES_EN || []).join('\n'))
-    .split('\n').map(x => x.trim()).filter(Boolean);
-  return {
-    days: [
-      { key: 'fri', label: c('DATE_FRI') || 'Friday', short: c('DAY_FRI_SHORT') || 'Friday' },
-      { key: 'sat', label: c('DATE_SAT') || 'Saturday', short: c('DAY_SAT_SHORT') || 'Saturday' },
-    ],
-    accommodation: 'period',
-    coreNights: 2,
-    extraNights: [{ key: 'thu', label: c('THU_NIGHT_LABEL') ? 'Thursday night (' + c('THU_NIGHT_LABEL') + ')' : 'Thursday night', includes: c('THU_EXTRA_INCLUDES') || 'Includes Friday breakfast' }],
-    package: { enabled: true, sub: c('MEAL_PACKAGE_SUB') || 'Meal package', includes },
-  };
-}
-
 function apply(st) {
   if (!st.accommodation) st.accommodation = 'period';
   CONFIG.STRUCTURE = st;
@@ -46,12 +28,7 @@ function apply(st) {
 async function load() {
   let r = await db.query('SELECT structure FROM event_structure WHERE id = 1');
   if (!r.rows.length) {
-    const n = (await db.query('SELECT count(*)::int AS n FROM bookings')).rows[0].n;
-    let st;
-    if (n > 0) {
-      const ec = await db.query('SELECT config FROM event_config WHERE id = 1');
-      st = legacyStructure(ec.rows.length ? ec.rows[0].config : null);
-    } else st = genericStructure();
+    const st = genericStructure();
     await db.query('INSERT INTO event_structure (id, structure) VALUES (1, $1) ON CONFLICT (id) DO NOTHING', [JSON.stringify(st)]);
     r = await db.query('SELECT structure FROM event_structure WHERE id = 1');
   }
@@ -152,4 +129,4 @@ function occupancy(bookings, roomId) {
   return occ;
 }
 
-module.exports = { load, save, validate, genericStructure, legacyStructure, dayByKey, extraByKey, keys, pickDays, pickExtras, mode, coreNightKeys, allNightKeys, pickNights, nightsOf, nightLabel, occupancy };
+module.exports = { load, save, validate, genericStructure, dayByKey, extraByKey, keys, pickDays, pickExtras, mode, coreNightKeys, allNightKeys, pickNights, nightsOf, nightLabel, occupancy };

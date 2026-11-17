@@ -14,7 +14,7 @@ currency_rates   exchange rates for the extra (display-only) currencies (see CUR
 event_log        audit/diagnostic log written by the app
 ```
 
-Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is still called `price_eur` for historical reasons; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
+Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is called `price_eur`; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
 
 ## `bookings`
 
@@ -37,7 +37,6 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `is_primary` | boolean | `false` | `true` for the person who holds the room / camper spot, and for tent, single-bed and day-visitor bookings. `false` for joiners. |
 | `extra_nights` | text | `''` | Comma-separated extra-night keys from the event structure, e.g. `x1,x2` (room and single-bed bookings only). Joiners inherit them from the room. |
 | `nights` | text | `''` | Per-night mode only: comma-separated day keys for the nights a room or single-bed guest stays. Empty means all core nights. |
-| `thu_extra_night` | boolean | `false` | **Deprecated**: legacy column, no longer written. Migrated into `extra_nights` (`thu`) on first start. |
 | `full_board` | boolean | `false` | Meal package (contents defined in the event structure). |
 | `dietary` | text | `''` | Free text. |
 | `shirt_size` | text | `''` | Free text / size code. |
@@ -47,12 +46,10 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `room_number` | text | `''` | Hotel room number, set by organizers. Shared by everyone in the same room. |
 | `org_comment` | text | `''` | Internal organizer note. The app writes a note here when it flags a booking `NEEDS_ATTENTION`. |
 | `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). The booking form sends it explicitly and it is **opt-in** (unticked box = `false`); the column default only affects rows inserted outside the app. |
-| `privacy_ack_at` | timestamptz | `NULL` | When the participant confirmed the privacy notice on the booking form. `NULL` for imported or older rows. |
+| `privacy_ack_at` | timestamptz | `NULL` | When the participant confirmed the privacy notice on the booking form. `NULL` for rows created before the privacy notice existed. |
 | `language` | text | `''` | Language code the guest used when booking (`en`, `fi`, `sv`, `no`, `da`, `is`, `et`, `lv`, `lt`, `pl`, `de`). Emails to this guest use it. `''` = event default. |
 | `solo_room` | boolean | `false` | One person occupies a multi-person room alone and pays the whole room price; the room cannot be joined. |
 | `visitor_days` | text | `''` | Comma-separated day keys from the event structure that a day visitor attends, e.g. `d1,d2`; otherwise empty. |
-| `day_visitor_days` | text | `''` | **Deprecated**: legacy column (`fri`/`sat`/`both`), no longer written. Migrated into `visitor_days` on first start. |
-| `meals` | text | `''` | Legacy free-form list of individual meals (informational; not included in `total_price`). The booking form only offers the meal package. |
 | `is_organizer` | boolean | `false` | Staff/organizer; shows a badge on the public list. |
 | `free_text` | text | `''` | "Additional information" written by the booker. |
 | `currency` | text | `'EUR'` | Native currency of the event when the booking was made (ISO 4217). `total_price` and `price_breakdown` are in it. |
@@ -67,7 +64,7 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | unique `seq`, unique `booking_ref` | No duplicate references. |
 | `bookings_active_callsign_uq` | Unique `callsign` **where `status <> 'CANCELLED'`**: one active booking per callsign. A cancelled booking does not block a new one. |
 | `bookings_room_ref_idx`, `bookings_room_id_idx` | Lookup speed for room groups. |
-| CHECK on `type`, `status`, `day_visitor_days` | Only the values listed above. |
+| CHECK on `type`, `status` | Only the values listed above. |
 
 Capacity limits (rooms left, camper spots, tent spots, room full) are **not** database constraints. The app enforces them
 inside a transaction that takes a global advisory lock (`pg_advisory_xact_lock(2026051501)`), so simultaneous bookings
@@ -123,7 +120,7 @@ the full-event fee when they select every day. Meeting fee and meal package are 
 
 ## `settings`
 
-Key/value store that replaces Apps Script "Script Properties". A key that is absent means "use the default from
+Key/value store for the settings edited in the admin panel. A key that is absent means "use the default from
 `src/config.js`". Values are always text.
 
 | Column | Type | Description |
@@ -152,7 +149,6 @@ Keys written by the admin panel:
 | `SINGLE_BED_SLOTS` | integer | How many single-bed bookings may be offered (0 = none). |
 | `MEETING_FEE_WEEKEND`, `MEETING_FEE_DAY` | number | Meeting fee for the full event / for a single day (day visitors). |
 | `CAMPER_VAN_SPOTS`, `TENT_SPOTS` | integer | Camper / tent capacity. |
-| `ROOM_PRICE_<id>`, `ROOM_COUNT_<id>` | | Legacy keys. Only read once, to seed `room_types` on first start; afterwards room counts and prices live in `room_types`. |
 | `ROOMS_INITIALIZED` | `1` | Marks that `room_types` has been seeded. |
 | `LAST_SHUTDOWN` | JSON | Written by Event shutdown: `{at, bookingsErased, noticesSent, noticesFailed, verified}`. Contains no personal data. |
 
@@ -220,12 +216,11 @@ Single-row table (`id` is always 1) describing the shape of the event, edited in
 | `updated_at` | timestamptz | Last save |
 
 Keys are stored on bookings (`bookings.extra_nights`, `bookings.visitor_days`), so a day or extra night that is in use
-cannot be removed. On first start the row is created automatically: installs that already have bookings get the original
-shape (days `fri`, `sat`; extra night `thu`) so old data stays valid, fresh installs get "Day 1" and "Day 2".
+cannot be removed. On first start the row is created automatically with "Day 1" and "Day 2".
 
 ## `event_log`
 
-Append-only diagnostic log (replaces the "Log" sheet).
+Append-only diagnostic log.
 
 | Column | Type | Description |
 | --- | --- | --- |
@@ -238,11 +233,11 @@ Append-only diagnostic log (replaces the "Log" sheet).
 
 Entries are removed when the person they mention is erased (callsign, booking reference or email match). Event shutdown deletes the whole table and then writes one `event_shutdown` line; per-person erasure writes a `data_erased` line with only the numeric `seq`. No names or email addresses are logged on purpose.
 
-## Mapping to the old Google Sheet
+## Field names in the admin table
 
-The admin table and the importer still use the old sheet header names.
+The admin table, the booking objects in the code and the exports use these header names for the columns.
 
-| Sheet header | Column | Sheet header | Column |
+| Header | Column | Header | Column |
 | --- | --- | --- | --- |
 | Timestamp | `created_at` | PriceBreakdown | `price_breakdown` |
 | BookingRef | `booking_ref` | Status | `status` |
@@ -250,15 +245,15 @@ The admin table and the importer still use the old sheet header names.
 | Name | `name` | OrgComment | `org_comment` |
 | Email | `email` | PublishConsent | `publish_consent` |
 | Phone | `phone` | SoloRoom | `solo_room` |
-| Country | `country` | DayVisitorDays | `visitor_days` (now generic day keys) |
+| Country | `country` | VisitorDays | `visitor_days` (day keys from the event structure) |
 | Type | `type` | IsOrganizer | `is_organizer` |
 | RoomId | `room_id` | FreeText | `free_text` |
-| RoomRef | `room_ref` | Meals | `meals` |
-| IsPrimaryBooker | `is_primary` | ThuExtraNight | `extra_nights` (now generic extra-night keys) |
+| RoomRef | `room_ref` | Nights | `nights` |
+| IsPrimaryBooker | `is_primary` | ExtraNights | `extra_nights` (extra-night keys from the event structure) |
 | FullBoard | `full_board` | Dietary / ShirtSize / TotalPrice | `dietary` / `shirt_size` / `total_price` |
-| Language | `language` | (new, no sheet equivalent) | |
+| Language | `language` | | |
 
-In the sheet, booleans were `YES`/`NO` text; in the database they are real booleans.
+The admin table and the booking objects use `YES`/`NO` text for booleans; in the database they are real booleans.
 
 ## Useful queries
 

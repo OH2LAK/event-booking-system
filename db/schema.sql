@@ -1,4 +1,4 @@
--- Nordic VUSHF 2026 booking system schema (PostgreSQL)
+-- Event booking system schema (PostgreSQL). Applied when the app starts; every statement is idempotent.
 
 CREATE TABLE IF NOT EXISTS bookings (
   id               SERIAL PRIMARY KEY,
@@ -14,22 +14,27 @@ CREATE TABLE IF NOT EXISTS bookings (
   room_id          TEXT NOT NULL DEFAULT '',
   room_ref         TEXT NOT NULL,                    -- primary booking_ref of the room/spot
   is_primary       BOOLEAN NOT NULL DEFAULT false,
-  thu_extra_night  BOOLEAN NOT NULL DEFAULT false,
-  full_board       BOOLEAN NOT NULL DEFAULT false,
+  extra_nights     TEXT NOT NULL DEFAULT '',         -- comma-separated extra-night keys from the event structure
+  nights           TEXT NOT NULL DEFAULT '',         -- per-night mode: core nights booked (day keys); empty = all core nights
+  visitor_days     TEXT NOT NULL DEFAULT '',         -- day visitors: comma-separated day keys
+  full_board       BOOLEAN NOT NULL DEFAULT false,   -- meal package
   dietary          TEXT NOT NULL DEFAULT '',
   shirt_size       TEXT NOT NULL DEFAULT '',
-  total_price      NUMERIC(8,2) NOT NULL DEFAULT 0,
+  total_price      NUMERIC(8,2) NOT NULL DEFAULT 0,  -- in `currency`
   price_breakdown  TEXT NOT NULL DEFAULT '',
   status           TEXT NOT NULL DEFAULT 'CONFIRMED'
                    CHECK (status IN ('CONFIRMED','CHECKED_IN','NEEDS_ATTENTION','CANCELLED')),
   room_number      TEXT NOT NULL DEFAULT '',
   org_comment      TEXT NOT NULL DEFAULT '',
-  publish_consent  BOOLEAN NOT NULL DEFAULT true,
+  publish_consent  BOOLEAN NOT NULL DEFAULT true,    -- show callsign and first name on the public list
   solo_room        BOOLEAN NOT NULL DEFAULT false,
-  day_visitor_days TEXT NOT NULL DEFAULT '' CHECK (day_visitor_days IN ('','fri','sat','both')),
-  meals            TEXT NOT NULL DEFAULT '',         -- comma-separated meal keys
   is_organizer     BOOLEAN NOT NULL DEFAULT false,
-  free_text        TEXT NOT NULL DEFAULT ''
+  free_text        TEXT NOT NULL DEFAULT '',
+  privacy_ack_at   TIMESTAMPTZ,                      -- when the person confirmed the privacy notice
+  language         TEXT NOT NULL DEFAULT '',         -- language used when booking (emails use it); '' = event default
+  currency         TEXT NOT NULL DEFAULT 'EUR',      -- native currency of the event when booked
+  display_currency TEXT NOT NULL DEFAULT '',         -- extra currency the guest picked for an indicative conversion
+  display_rate     NUMERIC(18,8)                     -- its rate (units per 1 native unit), fixed when booked
 );
 
 -- One active booking per callsign (cancelled bookings do not block a new one)
@@ -38,13 +43,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS bookings_active_callsign_uq
 CREATE INDEX IF NOT EXISTS bookings_room_ref_idx ON bookings (room_ref);
 CREATE INDEX IF NOT EXISTS bookings_room_id_idx  ON bookings (room_id);
 
--- Admin-editable settings (replaces Apps Script Script Properties)
+-- Admin-editable settings (key/value)
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 
--- Event log (replaces the "Log" sheet)
+-- Diagnostic and audit log
 CREATE TABLE IF NOT EXISTS event_log (
   id         BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -63,6 +68,7 @@ CREATE TABLE IF NOT EXISTS event_config (
 );
 
 -- Room catalog (editable in the admin panel). Seeded from src/config.js defaults on first start.
+-- price_eur is the price in the event's native currency.
 CREATE TABLE IF NOT EXISTS room_types (
   id         TEXT PRIMARY KEY,
   sort       INTEGER NOT NULL DEFAULT 0,
@@ -80,23 +86,6 @@ CREATE TABLE IF NOT EXISTS event_structure (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Generic replacements for thu_extra_night and day_visitor_days (comma-separated structure keys).
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS extra_nights TEXT NOT NULL DEFAULT '';
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS visitor_days TEXT NOT NULL DEFAULT '';
--- One-time, idempotent data migration (legacy keys: thu, fri, sat).
-UPDATE bookings SET extra_nights = 'thu' WHERE thu_extra_night AND extra_nights = '';
-UPDATE bookings SET visitor_days = CASE day_visitor_days WHEN 'both' THEN 'fri,sat' ELSE day_visitor_days END
-  WHERE day_visitor_days <> '' AND visitor_days = '';
--- The legacy columns are no longer written; the old CHECK would block new keys only on them.
-
--- Per-night accommodation mode: core nights a room / single-bed booking stays (comma-separated day keys; empty = all core nights).
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS nights TEXT NOT NULL DEFAULT '';
-
--- GDPR: when the person confirmed the privacy notice at registration (NULL for imported or older rows)
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS privacy_ack_at TIMESTAMPTZ;
--- Language the guest used when booking (emails to this guest are sent in it); '' = event default
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT '';
-
 -- Admin-edited texts per language (overrides of the built-in catalog and translated event content)
 CREATE TABLE IF NOT EXISTS translations (
   lang       TEXT NOT NULL,
@@ -106,8 +95,8 @@ CREATE TABLE IF NOT EXISTS translations (
   PRIMARY KEY (lang, key)
 );
 
--- Currencies: the event has one native currency (event_config.CURRENCY, default EUR). Extra currencies are for
--- indicative display only. rate = units of `code` per 1 unit of `base` (the native currency when it was saved).
+-- Exchange rates for the extra display currencies (event_config.CURRENCIES). The event has one native currency
+-- (event_config.CURRENCY, default EUR). rate = units of `code` per 1 unit of `base` (the native currency when saved).
 CREATE TABLE IF NOT EXISTS currency_rates (
   code        TEXT PRIMARY KEY,
   rate        NUMERIC(18,8) NOT NULL CHECK (rate > 0),
@@ -115,6 +104,3 @@ CREATE TABLE IF NOT EXISTS currency_rates (
   base        TEXT NOT NULL DEFAULT 'EUR',
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'EUR';          -- native currency when booked
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS display_currency TEXT NOT NULL DEFAULT '';     -- guest's indicative currency
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS display_rate NUMERIC(18,8);                    -- rate used for it (per 1 native)

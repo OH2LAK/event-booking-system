@@ -75,7 +75,7 @@
   function save() {
     var msg = host.querySelector('#st-msg');
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (r) {
         if (r && r.success) { msg.style.color = '#15803d'; msg.textContent = '✓ Saved. Reloading...'; setTimeout(function () { location.reload(); }, 600); }
         else { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Save failed'; }
@@ -87,7 +87,7 @@
   window.initStructure = function () {
     host = document.getElementById('event-structure');
     if (!host) return;
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (d) { if (d && d.success) { st = d.structure; render(false); } })
       .withFailureHandler(function (e) { host.textContent = 'Could not load event structure: ' + e.message; })
       .getStructure();

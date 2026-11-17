@@ -1,6 +1,6 @@
 'use strict';
 // Room catalog stored in the database (table room_types) and mirrored into CONFIG.ROOMS.
-// First start: seeded from the defaults in config.js (plus any old ROOM_COUNT_/ROOM_PRICE_ settings overrides).
+// First start: seeded from the defaults in config.js.
 const { CONFIG } = require('./config');
 const db = require('./db');
 
@@ -18,16 +18,11 @@ function apply(rows) {
 async function load() {
   const init = await db.query("SELECT 1 FROM settings WHERE key = 'ROOMS_INITIALIZED'");
   if (!init.rows.length) {
-    const ov = {};
-    (await db.query("SELECT key, value FROM settings WHERE key LIKE 'ROOM\\_COUNT\\_%' OR key LIKE 'ROOM\\_PRICE\\_%'")).rows
-      .forEach(r => { ov[r.key] = r.value; });
     let i = 0;
     for (const d of DEFAULTS) {
-      const count = ov['ROOM_COUNT_' + d.id] !== undefined ? parseInt(ov['ROOM_COUNT_' + d.id], 10) : d.count;
-      const price = ov['ROOM_PRICE_' + d.id] !== undefined ? parseFloat(ov['ROOM_PRICE_' + d.id]) : d.price_eur;
       await db.query(
         'INSERT INTO room_types (id, sort, persons, count, price_eur, note_en, note_fi) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING',
-        [d.id, i++, d.persons, count, price, d.note_en, d.note_fi || '']);
+        [d.id, i++, d.persons, d.count, d.price_eur, d.note_en, d.note_fi || '']);
     }
     await db.query("INSERT INTO settings (key, value) VALUES ('ROOMS_INITIALIZED','1') ON CONFLICT (key) DO NOTHING");
   }

@@ -45,7 +45,7 @@
     var values = {};
     fields.forEach(function (f) { values[f.key] = document.getElementById('ev-' + f.key).value; });
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (r) {
         if (r && r.success) { msg.style.color = '#15803d'; msg.textContent = '✓ Saved. Reload the booking page to see the changes.'; }
         else { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Save failed'; }
@@ -57,7 +57,7 @@
   window.initEventSetup = function () {
     host = document.getElementById('event-setup');
     if (!host) return;
-    google.script.run
+    rpc.run
       .withSuccessHandler(function (d) { if (d && d.success) render(d); })
       .withFailureHandler(function (e) { host.textContent = 'Could not load event setup: ' + e.message; })
       .getEventConfig();
