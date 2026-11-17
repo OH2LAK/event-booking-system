@@ -15,7 +15,7 @@ A file is a flat list of `"key": "text"` lines in the same order as `en.json` (E
 | Code | Language | Notes |
 |------|----------|-------|
 | `en` | English | Reference language, always complete |
-| `fi` `sv` `no` `da` `is` `et` `lv` `lt` `pl` `de` | Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German | Complete. Machine-drafted, need native review (see below) |
+| `fi` `sv` `no` `da` `is` `et` `lv` `lt` `pl` `de` `es` `pt` `it` `fr` `nl` `el` `uk` `cs` `hu` | Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech, Hungarian | Complete. Machine-drafted, need native review (see below) |
 | `tlh` `fkv` `fit` | Klingon, Kven, Meänkieli | Hidden, **partial by design**: no `priv.*` and `mail.*` keys, those fall back to the default language |
 
 ## How to fix a translation on GitHub

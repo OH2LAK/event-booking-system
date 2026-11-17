@@ -57,11 +57,12 @@ function build(deps) {
       : !t('event_name') || !t('event_short') || !t('organizer') || !t('contact_name') ? 'Please fill in all required fields.'
       : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t('contact_email')) ? 'Invalid email address.'
       : t('event_end') && !/^\d{4}-\d{2}-\d{2}$/.test(t('event_end')) ? 'Invalid event end date.'
+      : t('event_mode') && !['overnight', 'day'].includes(t('event_mode')) ? 'Invalid event type.'
       : t('event_name').length > 120 || t('notes').length > 2000 ? 'Text too long.' : null;
     if (err) return res.status(400).json({ ok: false, error: err });
     try {
-      const r = await db.query(`INSERT INTO orders (slug,event_name,event_short,organizer,contact_name,contact_email,event_end,notes)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [slug, t('event_name'), t('event_short').slice(0, 20), t('organizer'), t('contact_name'), t('contact_email'), t('event_end') || null, t('notes') || null]);
+      const r = await db.query(`INSERT INTO orders (slug,event_name,event_short,organizer,contact_name,contact_email,event_end,notes,event_mode)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [slug, t('event_name'), t('event_short').slice(0, 20), t('organizer'), t('contact_name'), t('contact_email'), t('event_end') || null, t('notes') || null, t('event_mode') || 'overnight']);
       await db.log(r.rows[0].id, `order requested: ${slug}`);
       if (config.operatorEmail) await mailer.send(config.operatorEmail, `New hosting order: ${slug}`, `${t('event_name')} by ${t('organizer')}\n${t('contact_email')}\n${config.publicUrl}/operator`).catch(() => {});
       res.json({ ok: true });
@@ -93,7 +94,7 @@ function build(deps) {
     const o = (await db.query('SELECT o.*, t.state AS tenant_state, t.erase_after FROM orders o LEFT JOIN tenants t ON t.order_id=o.id ORDER BY o.id DESC LIMIT 200')).rows;
     const btn = (path, id, label, extra = '') => `<form method=post action=${path}><input type=hidden name=id value=${id}>${extra}<button>${label}</button></form>`;
     const rows = o.map(r => `<tr><td>${r.id}</td><td>${esc(r.status)}${r.tenant_state ? ' / ' + esc(r.tenant_state) : ''}</td><td><b>${esc(r.slug)}</b><br>${esc(r.event_name)}<br>${esc(r.organizer)}</td>
-      <td>${esc(r.contact_name)}<br>${esc(r.contact_email)}<br>ends ${r.event_end ? esc(new Date(r.event_end).toISOString().slice(0, 10)) : '?'}</td><td>${esc(r.notes)}</td>
+      <td>${esc(r.contact_name)}<br>${esc(r.contact_email)}<br>${r.event_mode === 'day' ? 'one-day event, ' : ''}ends ${r.event_end ? esc(new Date(r.event_end).toISOString().slice(0, 10)) : '?'}</td><td>${esc(r.notes)}</td>
       <td>${r.status === 'requested' ? btn('/operator/approve', r.id, 'Approve', `<input name=price type=number step=0.01 min=0 placeholder="price ${config.priceCents / 100}" style="width:7em"> `) + btn('/operator/reject', r.id, 'Reject') : ''}
       ${r.status === 'active' ? btn('/operator/suspend', r.id, 'Suspend') + btn('/operator/resume', r.id, 'Resume') + btn('/operator/erase', r.id, 'Erase now') : ''}
       ${r.status === 'failed' ? btn('/operator/retry', r.id, 'Retry') : ''}</td></tr>`).join('');

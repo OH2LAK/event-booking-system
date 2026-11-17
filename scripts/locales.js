@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DIR = path.join(__dirname, '..', 'src', 'locales');
-const LANGS = ['en', 'fi', 'sv', 'no', 'da', 'is', 'et', 'lv', 'lt', 'pl', 'de', 'tlh', 'fkv', 'fit']; // en first = key order
+const LANGS = ['en', 'fi', 'sv', 'no', 'da', 'is', 'et', 'lv', 'lt', 'pl', 'de', 'es', 'pt', 'it', 'fr', 'nl', 'el', 'uk', 'cs', 'hu', 'tlh', 'fkv', 'fit']; // en first = key order
 const PARTIAL = ['tlh', 'fkv', 'fit']; // hidden languages: no priv.* / mail.* keys on purpose
 const file = l => path.join(DIR, l + '.json');
 const load = l => JSON.parse(fs.readFileSync(file(l), 'utf8'));

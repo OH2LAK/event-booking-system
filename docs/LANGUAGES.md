@@ -4,8 +4,10 @@ One event can be offered in several languages at the same time. The guest choose
 remembered on the booking so that every later email to that guest is sent in the same language.
 
 Built-in languages (all texts are translated in each): English (`en`), Finnish (`fi`), Swedish (`sv`), Norwegian (`no`, Bokmål),
-Danish (`da`), Icelandic (`is`), Estonian (`et`), Latvian (`lv`), Lithuanian (`lt`), Polish (`pl`) and German (`de`).
-The first six cover the Nordic countries and the rest the Baltic states, Poland and Germany. Norwegian browsers that report
+Danish (`da`), Icelandic (`is`), Estonian (`et`), Latvian (`lv`), Lithuanian (`lt`), Polish (`pl`), German (`de`),
+Spanish (`es`), Portuguese (`pt`), Italian (`it`), French (`fr`), Dutch (`nl`), Greek (`el`), Ukrainian (`uk`), Czech (`cs`) and Hungarian (`hu`).
+The first six cover the Nordic countries; the others cover the Baltic states, Central and Southern Europe and Ukraine.
+Russian and Belarusian are deliberately not included. Norwegian browsers that report
 `nb` or `nn` get `no`.
 
 The built-in translations were machine-drafted for this project and have **not** been reviewed by native speakers.
@@ -14,7 +16,7 @@ Before a real event, have the privacy notice and the emails checked in each lang
 ## Turn it on
 
 1. Open the setup page (`/?setup=1`), **Event setup**, group **Languages**.
-2. **Enabled languages**: comma-separated codes, for example `en,fi,sv` or `en,fi,sv,no,da,is,et,lv,lt,pl,de` for all. **Default language**: one of the enabled codes.
+2. **Enabled languages**: comma-separated codes, for example `en,fi,sv` or `en,fi,sv,no,da,is,et,lv,lt,pl,de,es,pt,it,fr,nl,el,uk,cs,hu` for all. **Default language**: one of the enabled codes.
 3. Save. When more than one language is enabled, a language switcher appears at the top of the booking pages,
    the public list and the privacy notice. With only one language enabled nothing changes for guests.
 

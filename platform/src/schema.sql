@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS orders (
   contact_name  TEXT NOT NULL,
   contact_email TEXT NOT NULL,
   event_end     DATE,
+  event_mode    TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day')),
   notes         TEXT,
   price_cents   INTEGER,
   currency      TEXT NOT NULL DEFAULT 'eur',
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS orders (
   paid_at       TIMESTAMPTZ,
   decided_at    TIMESTAMPTZ
 );
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS event_mode TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day'));
 -- one live order per slug; rejected/cancelled/failed orders free the name again
 CREATE UNIQUE INDEX IF NOT EXISTS orders_live_slug ON orders (slug) WHERE status IN ('requested','approved','paid','active');
 

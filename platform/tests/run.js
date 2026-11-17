@@ -27,7 +27,7 @@ process.env.PLATFORM_PUBLIC_URL = 'https://platform.test'; process.env.EVENT_PRI
   const srv = http.createServer(app); await new Promise(r => srv.listen(0, r));
   const base = 'http://localhost:' + srv.address().port;
   const j = (path, opt = {}) => fetch(base + path, { redirect: 'manual', ...opt });
-  const body = { slug: 'oh-camp', event_name: 'OH Camp 2027', event_short: 'OHC27', organizer: 'OH Club', contact_name: 'Matti', contact_email: 'matti@example.com', event_end: '2027-07-04' };
+  const body = { slug: 'oh-camp', event_name: 'OH Camp 2027', event_short: 'OHC27', organizer: 'OH Club', contact_name: 'Matti', contact_email: 'matti@example.com', event_end: '2027-07-04', event_mode: 'day' };
   let ipn = 0;
   const postJson = (b, ip) => j('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip || '10.0.0.' + (++ipn) }, body: JSON.stringify(b) });
 
@@ -35,6 +35,7 @@ process.env.PLATFORM_PUBLIC_URL = 'https://platform.test'; process.env.EVENT_PRI
   assert.strictEqual((await postJson({ ...body, slug: 'Bad Slug' })).status, 400);
   assert.strictEqual((await postJson({ ...body, slug: 'admin' })).status, 400);
   assert.strictEqual((await postJson({ ...body, contact_email: 'x' })).status, 400);
+  assert.strictEqual((await postJson({ ...body, event_mode: 'hotel' })).status, 400);   // unknown event type
   assert.strictEqual((await postJson({ ...body, website: 'spam' })).status, 200);       // honeypot
   assert.strictEqual((await db.query('SELECT count(*) FROM orders')).rows[0].count, '0');
   assert.strictEqual((await postJson(body)).status, 200);
@@ -70,6 +71,7 @@ process.env.PLATFORM_PUBLIC_URL = 'https://platform.test'; process.env.EVENT_PRI
   assert.strictEqual(start.args[0], 'ebs-oh-camp'); assert.ok(start.args[2]['traefik.http.routers.ebs-oh-camp.rule'].includes('oh-camp.hamradio-events.com'));
   assert.ok(start.args[1].ADMIN_PASSWORD && start.args[1].SETUP_PASSWORD && start.args[1].ADMIN_PASSWORD !== start.args[1].SETUP_PASSWORD);
   const init = runner.calls.find(c => c.op === 'initEvent'); assert.strictEqual(JSON.parse(init.args[2]).EVENT_SHORT, 'OHC27');
+  assert.strictEqual(JSON.parse(init.args[2]).EVENT_MODE, 'day');                         // event type reaches the new instance
   const ready = mailer.outbox.find(m => m.subject.startsWith('Your event system is ready'));
   assert.ok(ready.text.includes(start.args[1].SETUP_PASSWORD));
 

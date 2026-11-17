@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Event booking for ham radio meetings | hamradio-events.com</title>
-<meta name="description" content="Open-source registration and accommodation booking for ham radio meetings and other events: rooms, camper vans, tents and day visitors, automatic prices, 11 languages and built-in data protection. Self-hosted. Try the live demo.">
+<meta name="description" content="Open-source registration and accommodation booking for ham radio meetings and other events: rooms, camper vans, tents and day visitors, automatic prices, optional extras such as meals, 20 languages and built-in data protection. Self-hosted. Try the live demo.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="Event booking for ham radio meetings">
-<meta property="og:description" content="Rooms, camper vans, tents and day visitors, automatic prices, 11 languages, built-in data protection. Open source and self-hosted. Try the live demo.">
+<meta property="og:description" content="Rooms, camper vans, tents and day visitors, automatic prices, optional extras, 20 languages, built-in data protection. Open source and self-hosted. Try the live demo.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://hamradio-events.com/">
 <meta property="og:image" content="https://hamradio-events.com/img/guest/booking-form.png">
@@ -116,8 +116,8 @@ footer a{color:var(--muted)}
   <p class="sub">A hotel weekend with 60 radio amateurs has the same hard parts every time. They are solved here.</p>
   <div class="cards">
     <div class="card"><div class="ic">🏨</div><h3>Accommodation done properly</h3><p>Rooms of any size, people joining an existing room with a booking reference, camper vans, tents, single beds and day visitors. Availability updates as people book.</p></div>
-    <div class="card"><div class="ic">🧮</div><h3>Prices calculate themselves</h3><p>Room, extra nights, meal package and meeting fee add up to a total that guests see before they book and that is kept in the confirmation.</p></div>
-    <div class="card"><div class="ic">🌍</div><h3>11 languages, your currency</h3><p>Guests switch language with one click. Prices are in your currency and guests can see an approximate amount in theirs.</p></div>
+    <div class="card"><div class="ic">🧮</div><h3>Prices calculate themselves</h3><p>Room, extra nights, meal package, optional extras and meeting fee add up to a total that guests see before they book and that is kept in the confirmation.</p></div>
+    <div class="card"><div class="ic">🌍</div><h3>20 languages, your currency</h3><p>Guests switch language with one click. Prices are in your currency and guests can see an approximate amount in theirs.</p></div>
     <div class="card"><div class="ic">📋</div><h3>Ready for the venue</h3><p>Hotel list, check-in desk and printable slips come from the same data as the registration. No re-typing on arrival day.</p></div>
     <div class="card"><div class="ic">🛡️</div><h3>Privacy built in</h3><p>Consent at booking, an opt-in public guest list, per-person export and erasure, retention reminders and a verified "erase everything" for after the event.</p></div>
     <div class="card"><div class="ic">🔑</div><h3>You own it</h3><p>Your server and your data. Three runtime dependencies, no trackers or analytics, no build step. One Docker command starts it.</p></div>
@@ -129,13 +129,16 @@ footer a{color:var(--muted)}
   <p class="sub">Everything below is configured in the browser. No code changes are needed to run your own event.</p>
   <div class="cards">
     <div class="card"><h3>Booking types</h3><p>Rooms, camper van spots, tent spots, organizer-assigned single beds and day visitors who pick their days. Optional solo use of a double room.</p></div>
+    <div class="card"><h3>One-day events</h3><p>Switch the event to a one-day event and the form becomes a plain registration: no accommodation, just who is coming and what they want to join.</p></div>
+    <div class="card"><h3>Optional extras</h3><p>Dinner, an excursion, a workshop: guests tick what they want. Each extra has its own price, capacity and sign-up deadline, and you see how many to order.</p></div>
+    <div class="card"><h3>Payment status</h3><p>Show prices and how to pay (for example at the door) and mark bookings paid as money arrives. Online payment is not built in yet.</p></div>
     <div class="card"><h3>Event structure</h3><p>Event days, optional extra nights such as a Thursday night, rooms booked for the whole event or per night, and an optional meal package.</p></div>
     <div class="card"><h3>Registration control</h3><p>Open and close by hand or by date, an announcement banner, a closed message, and a secret bypass link for late registrants.</p></div>
     <div class="card"><h3>Emails</h3><p>Confirmation to the guest, notification to the organizer, and updates when a booking or its accommodation changes.</p></div>
     <div class="card"><h3>Booking admin</h3><p>Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference worked out, CSV export. One password for the whole team.</p></div>
     <div class="card"><h3>Event setup</h3><p>Details, branding, structure, room types, prices, currencies and translations. A separate password keeps a helper from breaking the event.</p></div>
     <div class="card"><h3>Currencies</h3><p>One native currency for payment plus display currencies with approximate conversion. Rates by hand or from the European Central Bank.</p></div>
-    <div class="card"><h3>Translations</h3><p>English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish and German. Plain JSON files, easy to improve on GitHub.</p></div>
+    <div class="card"><h3>Translations</h3><p>English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech and Hungarian. Plain JSON files, easy to improve on GitHub.</p></div>
     <div class="card"><h3>Who is coming</h3><p>An opt-in public page with callsign, first name and the kind of stay, only for guests who agreed.</p></div>
   </div>
 </div></section>
@@ -208,6 +211,7 @@ docker compose up --build -d</code></pre>
     <label>Your name<input name="contact_name" required maxlength="120"></label>
     <label>Your email<input name="contact_email" type="email" required maxlength="200"></label>
     <label>Event ends<input name="event_end" type="date"></label>
+    <label>Event type<select name="event_mode"><option value="overnight">Overnight event (rooms, camper vans, tents)</option><option value="day">One-day event (registration only)</option></select></label>
     <label class="full">Anything we should know?<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
     <label class="full" style="flex-direction:row;align-items:flex-start;gap:.6rem"><input type="checkbox" name="agree" required style="margin-top:.25rem"> <span>I have read the <a href="/terms.html">terms</a> and the <a href="/privacy.html">privacy notice</a>.</span></label>
     <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>

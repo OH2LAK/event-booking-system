@@ -23,7 +23,7 @@ async function seed() {
       REPLY_TO_EMAIL: 'organizer@example.com', EMAIL_SENDER_NAME: 'Example Radio Club', ACCENT_COLOR: '#0f766e',
       HOME_URL: 'https://example.com', HOME_LABEL: 'example.com',
       CONTROLLER_NAME: 'Example Radio Club', PRIVACY_CONTACT_EMAIL: 'privacy@example.com', EVENT_END_DATE: endDate, RETENTION_DAYS: '30',
-      LANGUAGES: 'en,fi,sv,no,da,is,et,lv,lt,pl,de', DEFAULT_LANGUAGE: 'en', CURRENCY: 'EUR', CURRENCIES: 'USD,SEK,NOK,DKK,GBP',
+      LANGUAGES: 'en,fi,sv,no,da,is,et,lv,lt,pl,de,es,pt,it,fr,nl,el,uk,cs,hu', DEFAULT_LANGUAGE: 'en', CURRENCY: 'EUR', CURRENCIES: 'USD,SEK,NOK,DKK,GBP',
     });
     if (!cfg.success) throw new Error(cfg.error);
     await currency.load();

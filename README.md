@@ -16,7 +16,7 @@ web page.
   booking reference, camper vans, tents, single beds and day visitors, with availability that updates as people book.
 - **Prices calculate themselves.** Room price, extra nights, meal package and meeting fee add up to a total that is shown
   before booking, written into the confirmation email and kept in the booking.
-- **It speaks your guests' language.** 11 languages are built in and guests switch with one click. The currency is yours
+- **It speaks your guests' language.** 20 languages are built in and guests switch with one click. The currency is yours
   too, and guests can see an approximate price in theirs.
 - **Day-of-event tools are included.** A hotel list for the venue, a check-in desk and printable slips, so the event runs
   from the same data as the registration.
@@ -36,7 +36,7 @@ web page.
 | **Event structure** | Event days, optional extra nights ("Thursday night"), rooms booked for the whole event or per night, optional meal package. All defined in the browser. |
 | **Pricing** | Per room type, camper van per night, tent, single bed, meal package and meeting fee (full event or single day). Totals and breakdown are stored with each booking. |
 | **Currencies** | One native currency for all payments, plus optional display currencies with approximate conversion. Exchange rates entered by hand or fetched from the European Central Bank. |
-| **Languages** | English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish and German. Translations are plain JSON files, easy to improve on GitHub, and event texts can be translated in the browser. |
+| **Languages** | English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech and Hungarian. Translations are plain JSON files, easy to improve on GitHub, and event texts can be translated in the browser. |
 | **Emails** | Booking confirmation to the guest and a notification to the organizer, plus updates when a booking or its accommodation changes. Optional: without SMTP, messages are only logged. |
 | **Registration control** | Open and close manually or by date, announcement banner, closed message, and a secret bypass link for late registrants. |
 | **Booking admin** | Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference calculated, CSV export. Its own password for the whole registration team. |
@@ -162,7 +162,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 - [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
 - [docs/GDPR.md](docs/GDPR.md) - data protection: what the software does, what the organizer must do, handling requests, event shutdown
 - [docs/CURRENCIES.md](docs/CURRENCIES.md) - native currency, extra display currencies and exchange rates (manual or ECB)
-- [docs/LANGUAGES.md](docs/LANGUAGES.md) - offering the booking pages and emails in several languages (English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German), editing translations
+- [docs/LANGUAGES.md](docs/LANGUAGES.md) - offering the booking pages and emails in several languages (English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech, Hungarian), editing translations
 
 ## Configuration
 

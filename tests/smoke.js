@@ -279,7 +279,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
 
   // ---- i18n: languages, switcher, translated pages/emails/errors, admin overrides ----
   {
-    const ALL_LANGS = 'en,fi,sv,no,da,is,et,lv,lt,pl,de';
+    const ALL_LANGS = 'en,fi,sv,no,da,is,et,lv,lt,pl,de,es,pt,it,fr,nl,el,uk,cs,hu';
     const base = { ...ec.values, EVENT_NAME: 'Smoke Test Event 2027', EVENT_SHORT: 'SmokeEvt', ORGANIZER: 'Smoke Club', ACCENT_COLOR: '#123456',
       EVENT_END_DATE: '2020-01-02', RETENTION_DAYS: '30', RETENTION_HOLD: '' };
     r = (await rpc('saveEventConfig', { ...base, LANGUAGES: 'en,xx', DEFAULT_LANGUAGE: 'en' })).body.result;
