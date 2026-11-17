@@ -1,7 +1,7 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are eight tables.
+applied automatically when the app starts (and by the `db` container on first start). There are ten tables.
 
 ```
 bookings         one row per registered person (all booking types)
@@ -12,6 +12,8 @@ event_structure  days, nights, extra nights and meal package (single row)
 translations     admin-edited texts per language (see LANGUAGES.md)
 currency_rates   exchange rates for the extra (display-only) currencies (see CURRENCIES.md)
 event_log        audit/diagnostic log written by the app
+addons           optional extras the organizer offers (meals, excursions ...)
+booking_addons   which extras each booking chose (name and price are a snapshot)
 ```
 
 Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is called `price_eur`; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
@@ -47,12 +49,14 @@ One row per **person**, not per room. A room with three occupants is three rows 
 | `org_comment` | text | `''` | Internal organizer note. The app writes a note here when it flags a booking `NEEDS_ATTENTION`. |
 | `publish_consent` | boolean | `true` | `true` = may appear on the public "Who's coming?" page (callsign and first name only). The booking form sends it explicitly and it is **opt-in** (unticked box = `false`); the column default only affects rows inserted outside the app. |
 | `privacy_ack_at` | timestamptz | `NULL` | When the participant confirmed the privacy notice on the booking form. `NULL` for rows created before the privacy notice existed. |
-| `language` | text | `''` | Language code the guest used when booking (`en`, `fi`, `sv`, `no`, `da`, `is`, `et`, `lv`, `lt`, `pl`, `de`). Emails to this guest use it. `''` = event default. |
+| `language` | text | `''` | Language code the guest used when booking (`en`, `fi`, `sv`, `no`, `da`, `is`, `et`, `lv`, `lt`, `pl`, `de`, `es`, `pt`, `it`, `fr`, `nl`, `el`, `uk`, `cs`, `hu`). Emails to this guest use it. `''` = event default. |
 | `solo_room` | boolean | `false` | One person occupies a multi-person room alone and pays the whole room price; the room cannot be joined. |
 | `visitor_days` | text | `''` | Comma-separated day keys from the event structure that a day visitor attends, e.g. `d1,d2`; otherwise empty. |
 | `is_organizer` | boolean | `false` | Staff/organizer; shows a badge on the public list. |
 | `free_text` | text | `''` | "Additional information" written by the booker. |
 | `currency` | text | `'EUR'` | Native currency of the event when the booking was made (ISO 4217). `total_price` and `price_breakdown` are in it. |
+| `payment_status` | text | `'UNPAID'` | `UNPAID`, `PAID` or `WAIVED` (total is 0). Set by the organizer in the booking list; no online payment yet. |
+| `paid_at` | timestamptz | null | When the booking was marked `PAID`. |
 | `display_currency` | text | `''` | Extra currency the guest picked for an indicative conversion, or empty. Never used for payment. |
 | `display_rate` | numeric(18,8) | null | Units of `display_currency` per 1 native unit, fixed when the guest booked. Used for the approximate amount in emails. |
 
@@ -179,6 +183,16 @@ Single-row table (`id` is always 1) holding the event identity set in the admin 
 | `updated_at` | timestamptz | Last save |
 
 No row means the event is not configured yet and the public booking page shows "not open yet".
+
+## `addons` and `booking_addons`
+
+`addons` is the catalog edited in the **Extras** card of Event setup: `id` (letters, digits, `-`, max 12), `name`, `description`,
+`price`, `max_qty` per booking (1-20), `capacity` (0 = unlimited), `closes` (last sign-up day, empty = until registration closes),
+`enabled` and `sort`. `booking_addons` holds one row per booking and extra with `qty`, and a snapshot of `name` and `unit_price`
+taken when the guest chose it, so later catalog edits do not change existing bookings (until prices are recalculated). Cancelled
+bookings do not count against an extra's capacity. Rows are deleted together with their booking.
+
+The `event_config` keys `EVENT_MODE` (`overnight` or `day`) and `PAYMENT_INFO` (text shown to guests on how to pay) belong to the same feature.
 
 ## `translations`
 

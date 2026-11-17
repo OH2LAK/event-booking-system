@@ -6,7 +6,7 @@ The app itself stays single-event; this folder only adds ordering, payment and a
 
 ## Flow
 
-1. Organiser fills in the order form on the website → `POST /api/order` (honeypot, per-IP limit, name validation).
+1. Organiser fills in the order form on the website (including the event type, overnight or one-day) → `POST /api/order` (honeypot, per-IP limit, name validation). The event type is passed to the new instance as `EVENT_MODE`.
 2. You get an email and review it in the operator page (`/operator`): **Approve** (set the price) or **Reject**.
 3. Approve creates a Stripe Checkout Session and emails the payment link (price 0 skips payment).
 4. Stripe calls `/stripe/webhook` (signature verified, replays ignored) → the instance is provisioned:
