@@ -20,8 +20,12 @@ CREATE TABLE IF NOT EXISTS orders (
   decided_at    TIMESTAMPTZ
 );
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS event_mode TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day'));
+-- Optional own domain for the instance (extra fee). domain_fee_cents is the part of price_cents that pays for it.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_domain TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS domain_fee_cents INTEGER NOT NULL DEFAULT 0;
 -- one live order per slug; rejected/cancelled/failed orders free the name again
 CREATE UNIQUE INDEX IF NOT EXISTS orders_live_slug ON orders (slug) WHERE status IN ('requested','approved','paid','active');
+CREATE UNIQUE INDEX IF NOT EXISTS orders_live_domain ON orders (custom_domain) WHERE custom_domain IS NOT NULL AND status IN ('requested','approved','paid','active');
 
 CREATE TABLE IF NOT EXISTS tenants (
   id          SERIAL PRIMARY KEY,
@@ -33,6 +37,13 @@ CREATE TABLE IF NOT EXISTS tenants (
   erase_after TIMESTAMPTZ,
   warned_at   TIMESTAMPTZ
 );
+
+-- Own-domain state (Cloudflare for SaaS custom hostname). none = no domain ordered.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS custom_domain TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS cf_hostname_id TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain_status TEXT NOT NULL DEFAULT 'none' CHECK (domain_status IN ('none','pending','active','failed'));
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain_note TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain_checked_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS stripe_events (
   id TEXT PRIMARY KEY,

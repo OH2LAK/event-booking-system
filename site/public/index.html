@@ -131,6 +131,7 @@ footer a{color:var(--muted)}
     <div class="card"><h3>Booking types</h3><p>Rooms, camper van spots, tent spots, organizer-assigned single beds and day visitors who pick their days. Optional solo use of a double room.</p></div>
     <div class="card"><h3>One-day events</h3><p>Switch the event to a one-day event and the form becomes a plain registration: no accommodation, just who is coming and what they want to join.</p></div>
     <div class="card"><h3>Optional extras</h3><p>Dinner, an excursion, a workshop: guests tick what they want. Each extra has its own price, capacity and sign-up deadline, and you see how many to order.</p></div>
+    <div class="card"><h3>Your own domain</h3><p>Hosted events can use your own address, for example ilmo.yourclub.fi, for an extra fee. One DNS record from you, the certificate is automatic.</p></div>
     <div class="card"><h3>Payment status</h3><p>Show prices and how to pay (for example at the door) and mark bookings paid as money arrives. Online payment is not built in yet.</p></div>
     <div class="card"><h3>Event structure</h3><p>Event days, optional extra nights such as a Thursday night, rooms booked for the whole event or per night, and an optional meal package.</p></div>
     <div class="card"><h3>Registration control</h3><p>Open and close by hand or by date, an announcement banner, a closed message, and a secret bypass link for late registrants.</p></div>
@@ -212,6 +213,7 @@ docker compose up --build -d</code></pre>
     <label>Your email<input name="contact_email" type="email" required maxlength="200"></label>
     <label>Event ends<input name="event_end" type="date"></label>
     <label>Event type<select name="event_mode"><option value="overnight">Overnight event (rooms, camper vans, tents)</option><option value="day">One-day event (registration only)</option></select></label>
+    <label class="full">Your own address (optional, extra fee)<input name="custom_domain" maxlength="253" placeholder="ilmo.yourclub.fi" autocomplete="off"><small style="color:var(--muted,#57606a)">A subdomain of a domain you control, not the bare domain. You add one DNS record (a CNAME) and we handle the certificate. We tell you the price when we approve the order.</small></label>
     <label class="full">Anything we should know?<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
     <label class="full" style="flex-direction:row;align-items:flex-start;gap:.6rem"><input type="checkbox" name="agree" required style="margin-top:.25rem"> <span>I have read the <a href="/terms.html">terms</a> and the <a href="/privacy.html">privacy notice</a>.</span></label>
     <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>

@@ -18,6 +18,11 @@ module.exports = {
   stripeSecretKey: env.STRIPE_SECRET_KEY,
   stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
   stripeAutomaticTax: env.STRIPE_AUTOMATIC_TAX === '1',
+  // Customer's own domain via Cloudflare for SaaS (custom hostnames). Off unless both CF_* values are set.
+  cfApiToken: env.CF_API_TOKEN,                // zone-scoped token: SSL and Certificates: Edit
+  cfZoneId: env.CF_ZONE_ID,                    // the zone that holds the fallback origin (hamradio-events.com)
+  customDomainTarget: env.CUSTOM_DOMAIN_TARGET || `custom.${env.BASE_DOMAIN || 'hamradio-events.com'}`,   // what customers point their CNAME at
+  customDomainFeeCents: int(env.CUSTOM_DOMAIN_FEE_CENTS, 0),   // default extra fee; can be overridden per order when approving
   retentionDays: int(env.RETENTION_DAYS, 30),  // data is erased this long after the event ends
   warnDays: int(env.WARN_DAYS, 7),
   runner: env.RUNNER || 'docker',              // 'docker' | 'fake'

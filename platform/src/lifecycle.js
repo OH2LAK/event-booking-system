@@ -19,5 +19,9 @@ async function tick(prov, now = new Date()) {
   for (const r of del.rows) await prov.erase(r.slug);
   return { warned: warn.rowCount, suspended: susp.rowCount, erased: del.rowCount };
 }
-function start(prov) { const run = () => tick(prov).catch(e => console.error('lifecycle:', e.message)); setInterval(run, 3600000); setTimeout(run, 30000); }
+function start(prov) {
+  const run = () => tick(prov).catch(e => console.error('lifecycle:', e.message)); setInterval(run, 3600000); setTimeout(run, 30000);
+  // own domains waiting for DNS/certificate: check every 10 minutes
+  if (prov.pollDomains) setInterval(() => prov.pollDomains().catch(e => console.error('domains:', e.message)), 600000);
+}
 module.exports = { tick, start };

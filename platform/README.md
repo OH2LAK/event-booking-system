@@ -44,6 +44,39 @@ The app itself stays single-event; this folder only adds ordering, payment and a
 Price: set `EVENT_PRICE_CENTS` (default shown in the operator page; you can override it per order when approving).
 Set `STRIPE_AUTOMATIC_TAX=1` only after configuring Stripe Tax.
 
+## Own domains (Cloudflare for SaaS)
+
+An organiser can order their own subdomain (for example `ilmo.myclub.fi`) for an extra fee. How it works:
+
+1. The order form has an optional domain field. The platform accepts a domain only when `CF_API_TOKEN` and `CF_ZONE_ID` are set,
+   and only subdomains (three or more labels; a CNAME cannot be set on a bare domain) outside `hamradio-events.com`.
+2. When you approve the order, the domain fee (`CUSTOM_DOMAIN_FEE_CENTS`, or what you type in the operator page) is added to the hosting fee
+   and shown as its own line in Stripe Checkout.
+3. After payment the instance is created as usual and answers at `<slug>.hamradio-events.com` and at the own domain. Its public URL
+   (join links in emails) is the own domain. The platform creates a **custom hostname** with the Cloudflare API and emails the organiser the
+   DNS record to add: `CNAME <domain> → custom.hamradio-events.com` (plus an ownership TXT record if validation is slow).
+4. Every 10 minutes the platform checks pending hostnames. When the hostname and its certificate are active, the organiser gets an email.
+   The operator page shows the state (`pending`, `active`, `failed`) with buttons **Check domain** and **Retry domain**.
+5. When the instance is erased, the custom hostname is deleted too (it counts against the Cloudflare quota until deleted).
+   If that call fails you get an email to remove it by hand.
+
+One-time setup:
+
+1. Cloudflare dashboard → the `hamradio-events.com` zone → SSL/TLS → **Custom Hostnames**: enable Cloudflare for SaaS.
+   `infra/` creates the proxied `custom` DNS record and the fallback origin; without Terraform, create a proxied CNAME `custom` → `<tunnel-id>.cfargotunnel.com`
+   and set it as the fallback origin on that page.
+2. The tunnel's last ingress rule must send unknown host names to Traefik (`http://localhost:8081`), not to a 404. `infra/` does this; with the tunnel
+   managed in the dashboard, change the catch-all rule there.
+3. Create an API token: Zone → SSL and Certificates: Edit, restricted to the `hamradio-events.com` zone. Put it in `CF_API_TOKEN`, the zone ID in `CF_ZONE_ID`.
+4. Test with your own spare domain before selling it.
+
+Cost: Cloudflare lists 100 custom hostnames as included on the Free, Pro and Business plans and $0.10 per extra hostname per month; check the current
+terms in the Cloudflare docs. Limits: subdomains only; the customer needs a DNS provider that lets them add a CNAME. If the customer's DNS is on Cloudflare,
+the record should be "DNS only".
+
+**Not verified against live Cloudflare.** The code follows the Cloudflare for SaaS API documentation and is tested with a stubbed API only. Do the first
+real hostname by hand to confirm the validation method (`http`) and the tunnel route work together.
+
 ## Security notes
 
 - The control plane runs on the host, not in a container, so the Docker socket is never exposed to it.
@@ -68,4 +101,4 @@ automatic backups of tenant databases, upgrading running instances to a new imag
 ## Testing
 
 `npm test` needs a Postgres: set `DATABASE_URL` to a throwaway database, or install `embedded-postgres` next to it.
-The real Docker runner, real Stripe and Terraform have **not** been exercised against live services yet.
+The real Docker runner, real Stripe, real Cloudflare for SaaS and Terraform have **not** been exercised against live services yet.

@@ -34,7 +34,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "ebs" {
       hostname = "*.${var.domain}"
       service  = "http://localhost:8081"   # Traefik routes by Host header
     }
-    ingress_rule { service = "http_status:404" }
+    # Customers' own domains (Cloudflare for SaaS) arrive with their own Host header, which none of the rules above match.
+    # Traefik answers 404 for names it does not know, so this catch-all is safe.
+    ingress_rule { service = "http://localhost:8081" }
   }
 }
 
@@ -52,6 +54,21 @@ resource "cloudflare_record" "platform" {
   type    = "CNAME"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.ebs.id}.cfargotunnel.com"
   proxied = true
+}
+
+# Own domains (Cloudflare for SaaS): customers point a CNAME at custom.<domain>, which is the fallback origin of the zone.
+# The "SSL and Certificates" feature (Custom Hostnames) must be switched on for the zone in the Cloudflare dashboard.
+resource "cloudflare_record" "custom" {
+  zone_id = var.cloudflare_zone_id
+  name    = "custom"
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.ebs.id}.cfargotunnel.com"
+  proxied = true
+}
+resource "cloudflare_custom_hostname_fallback_origin" "ebs" {
+  zone_id = var.cloudflare_zone_id
+  origin  = "custom.${var.domain}"
+  depends_on = [cloudflare_record.custom]
 }
 
 resource "hcloud_ssh_key" "admin" {

@@ -1,7 +1,8 @@
 # Infrastructure (Terraform)
 
 Creates the hosting VPS (Hetzner), its firewall (SSH from your IPs only; no web ports), the Cloudflare Tunnel and
-the DNS records (`*` and `platform` → tunnel). After `terraform apply`, follow `platform/README.md` to finish
+the DNS records (`*`, `platform` and `custom` → tunnel) and the Cloudflare for SaaS fallback origin (`custom.<domain>`) that
+customers' own domains point at. The tunnel's last rule sends unknown host names to Traefik, which is how own domains reach their instance. After `terraform apply`, follow `platform/README.md` to finish
 the server (database password, control-plane settings, start the services).
 
 > **Status: not validated.** These files were written without access to `terraform validate/plan`. Run
@@ -17,5 +18,6 @@ terraform plan -var cloudflare_account_id=... -var cloudflare_zone_id=... \
 terraform apply   # same variables
 ```
 
-The Cloudflare token needs: Account → Cloudflare Tunnel: Edit; Zone → DNS: Edit. State contains the tunnel secret,
+The Cloudflare token needs: Account → Cloudflare Tunnel: Edit; Zone → DNS: Edit; Zone → SSL and Certificates: Edit (fallback origin).
+The runtime token the platform uses for custom hostnames is a different, narrower one (see `platform/README.md`). State contains the tunnel secret,
 so keep it private (use a remote backend with encryption if you share it).
