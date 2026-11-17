@@ -166,6 +166,8 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 Server settings (passwords, database, SMTP, `PUBLIC_URL`) are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join
 links in emails. Leave `SMTP_HOST` empty to disable email (messages are then only logged to the console).
 
+**SMS (optional).** Set `SMS_GATEWAY_URL`, `SMS_API_TOKEN` and `SMS_SENDER_ID` to send a short confirmation SMS (booking reference) to guests who entered a phone number. The sender ID is the alphanumeric name shown to the recipient: at most 11 letters/digits and approved by your SMS provider. The request format is that of the Setera HTTP gateway (`token` header, JSON body); other gateways need a small change in `src/sms.js`. Numbers need a country prefix (`+`, `00` or a leading `0`, which gets `SMS_DEFAULT_COUNTRY_CODE`). `SMS_MAX_PER_INSTANCE` caps the number of messages. SMS is always off in demo mode. The hamradio-events.com hosting uses the sender `HamEvents`. Check that your terms and privacy notice mention SMS before enabling it.
+
 Everything about the event itself is edited in the browser and stored in the database: event details and branding
 (logos, accent colour) in **Event setup**, and prices, room counts, registration open/close and announcements on the setup
 page and in the booking admin. `src/config.js` only holds the defaults used on the first start.

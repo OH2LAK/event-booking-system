@@ -14,7 +14,7 @@
     "check-locales": "node scripts/locales.js check",
     "export-locales": "node scripts/locales.js export",
     "import-locales": "node scripts/locales.js import",
-    "test:unit": "node tests/currency.test.js"
+    "test:unit": "node tests/currency.test.js && node tests/sms.test.js"
   },
   "dependencies": {
     "express": "^4.21.0",

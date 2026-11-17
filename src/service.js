@@ -8,6 +8,7 @@ const { getSettings, saveSettings } = require('./settings');
 const { calculatePrice } = require('./pricing');
 const i18n = require('./i18n');
 const currency = require('./currency');
+const sms = require('./sms');
 
 const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor'];
 const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
@@ -300,6 +301,10 @@ async function submitBooking(input) {
     roomRef: data.joinExisting && primaryRow ? data.roomRef : bookingRef,
   });
   await safeEmail(callsign, () => emails.sendConfirmationEmail(mailData, bookingRef, priceGuest, CONFIG.FRIENDLY_URL, settings, primaryRow));
+  if (sms.enabled() && data.phone) {
+    // Short service message with the booking reference; the full confirmation goes by email.
+    await sms.send(data.phone, `${CONFIG.EVENT_SHORT}: booking ${bookingRef} confirmed. Details sent by email.`, { label: callsign, externalId: bookingRef });
+  }
 
   if (data.joinExisting && primaryRow && primaryRow.email) {
     await safeEmail(callsign, () => emails.sendRoomJoinNotification(primaryRow, data, bookingRef, settings));

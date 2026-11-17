@@ -1,0 +1,36 @@
+# Shared services on the hosting VPS: Postgres, Traefik (host routing) and the Cloudflare tunnel.
+# The control plane itself runs on the host under systemd (see platform/README.md), not in a container,
+# so the Docker socket is never exposed to a container.
+name: ebs-host
+services:
+  ebs-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?set in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [ebs-net]
+    ports: ["127.0.0.1:5432:5432"]       # host-only: the control plane connects here
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=ebs-net
+      - --entrypoints.web.address=:80
+    ports: ["127.0.0.1:8081:80"]         # only the tunnel reaches it
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+    networks: [ebs-net]
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set in .env}
+    network_mode: host
+volumes:
+  pgdata:
+networks:
+  ebs-net:
+    name: ebs-net

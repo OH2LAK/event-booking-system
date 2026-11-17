@@ -1,0 +1,17 @@
+{
+  "name": "ebs-platform",
+  "version": "0.1.0",
+  "description": "Control plane for hosting event-booking-system instances (orders, Stripe Checkout, provisioning)",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node tests/run.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "nodemailer": "^10.6.0",
+    "pg": "^8.13.0"
+  }
+}

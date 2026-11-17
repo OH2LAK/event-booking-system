@@ -7,3 +7,8 @@ pgdata/
 .DS_Store
 backups/
 .i18n-build/
+platform/.env
+infra/.terraform/
+infra/*.tfstate*
+infra/*.tfvars
+site/.wrangler/

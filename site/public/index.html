@@ -72,6 +72,17 @@ ul.tick li::before{content:"\2713";position:absolute;left:0;color:var(--teal);fo
 footer{border-top:1px solid var(--border);padding:2rem 0;color:var(--muted);font-size:.9rem}
 footer .wrap{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:space-between}
 footer a{color:var(--muted)}
+
+.host form{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;max-width:760px;margin-top:1.2rem}
+.host label{display:flex;flex-direction:column;gap:.3rem;font-size:.9rem;color:var(--muted)}
+.host label.full,.host .full{grid-column:1/-1}
+.host input,.host textarea{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.6rem .7rem;font:inherit}
+.host input:focus,.host textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+.host .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+.host .msg{grid-column:1/-1;min-height:1.4em}
+.host .msg.ok{color:var(--teal)}.host .msg.err{color:#ff7b72}
+.host button.btn{cursor:pointer}
+@media(max-width:620px){.host form{grid-template-columns:1fr}}
 @media(max-width:820px){.hero .grid,.demo{grid-template-columns:1fr}.hero{padding-top:2.5rem}nav{display:none}}
 </style>
 </head>
@@ -79,7 +90,7 @@ footer a{color:var(--muted)}
 <header class="nav"><div class="wrap">
   <a class="brand" href="/">hamradio<span>-events</span>.com</a>
   <nav aria-label="Main">
-    <a href="#features">Features</a><a href="#screens">Screenshots</a><a href="#how">How it works</a><a href="#demo">Live demo</a><a href="#get">Get it</a>
+    <a href="#features">Features</a><a href="#screens">Screenshots</a><a href="#how">How it works</a><a href="#demo">Live demo</a><a href="#get">Get it</a><a href="#hosting">Hosting</a>
     <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a>
   </nav>
 </div></header>
@@ -184,11 +195,46 @@ docker compose up --build -d</code></pre>
   <p class="sub" style="margin-top:1.2rem">Open <code>/?setup=1</code>, describe your event, and share the booking page. The <a href="https://github.com/OH2LAK/event-booking-system#readme">README</a> covers installation, HTTPS and passwords, and the <a href="https://github.com/OH2LAK/event-booking-system/tree/main/docs">guides</a> cover the admin, languages, currencies and data protection.</p>
   <div class="cta"><a class="btn primary" href="https://github.com/OH2LAK/event-booking-system">Get the code on GitHub</a><a class="btn ghost" href="https://github.com/OH2LAK/event-booking-system/blob/main/docs/ADMIN-GUIDE.md">Read the admin guide</a></div>
 </div></section>
+
+<section class="band host" id="hosting"><div class="wrap">
+  <h2>Don't want to run a server? We host it for you</h2>
+  <p class="sub">Organising an event and just need the booking system? Order your own instance at <code>your-event.hamradio-events.com</code>: your own database, your own passwords, set up for you with the event name and organiser already filled in. Priced per event, quoted when we approve your request. Your data is erased automatically 30 days after the event.</p>
+  <form id="order" novalidate>
+    <label>Address you want <span style="display:flex;align-items:center;gap:.3rem"><input name="slug" required pattern="[a-z0-9-]{3,32}" placeholder="my-event" style="flex:1"> <span>.hamradio-events.com</span></span></label>
+    <label>Event name<input name="event_name" required maxlength="120" placeholder="Summer Camp 2027"></label>
+    <label>Short name<input name="event_short" required maxlength="20" placeholder="SC27"></label>
+    <label>Organiser (club or company)<input name="organizer" required maxlength="120"></label>
+    <label>Your name<input name="contact_name" required maxlength="120"></label>
+    <label>Your email<input name="contact_email" type="email" required maxlength="200"></label>
+    <label>Event ends<input name="event_end" type="date"></label>
+    <label class="full">Anything we should know?<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+    <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="full"><button class="btn primary" type="submit">Send request</button></div>
+    <div class="msg" id="order-msg" role="status"></div>
+  </form>
+  <p class="sub" style="font-size:.85rem">We use your details only to handle this order. We act as a processor for your attendees' data; a data processing agreement is available on request.</p>
+</div></section>
 </main>
 
 <footer><div class="wrap">
   <div>Open source event booking, built by a radio amateur (OH2LAK) for the events he organises.</div>
   <div>This site sets no cookies and uses no analytics. <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a></div>
 </div></footer>
+<script>
+(function(){
+  var f=document.getElementById('order'),m=document.getElementById('order-msg');
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    if(!f.reportValidity())return;
+    var d={};new FormData(f).forEach(function(v,k){d[k]=v});
+    d.slug=String(d.slug||'').toLowerCase();
+    m.className='msg';m.textContent='Sending...';
+    fetch('https://platform.hamradio-events.com/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+      .then(function(r){return r.json().catch(function(){return{ok:false,error:'Server error.'}})})
+      .then(function(j){if(j.ok){m.className='msg ok';m.textContent='Thank you! We will review your request and email you.';f.reset()}else{m.className='msg err';m.textContent=j.error||'Something went wrong.'}})
+      .catch(function(){m.className='msg err';m.textContent='Could not reach the server. Please try again later.'});
+  });
+})();
+</script>
 </body>
 </html>

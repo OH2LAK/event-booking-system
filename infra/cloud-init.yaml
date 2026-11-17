@@ -1,0 +1,20 @@
+#cloud-config
+# First boot of the hosting VPS: Docker, Node 22, a service user and the shared services.
+# Secrets (.env files) are NOT created here; fill them in over SSH afterwards (see platform/README.md).
+package_update: true
+packages: [ca-certificates, curl, git, ufw, fail2ban, unattended-upgrades]
+write_files:
+  - path: /opt/ebs/host.env
+    permissions: "0600"
+    content: |
+      TUNNEL_TOKEN=${tunnel_token}
+      PG_ADMIN_PASSWORD=CHANGE_ME
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  - apt-get install -y nodejs
+  - useradd --system --create-home --groups docker ebs || true
+  - git clone https://github.com/OH2LAK/event-booking-system /opt/ebs/repo || true
+  - ln -sfn /opt/ebs/repo/platform /opt/ebs/platform
+  - cp /opt/ebs/repo/platform/deploy/ebs-platform.service /etc/systemd/system/
+  - echo "Edit /opt/ebs/host.env (PG_ADMIN_PASSWORD) and /etc/ebs-platform.env, then follow platform/README.md" > /root/NEXT-STEPS.txt

@@ -1,0 +1,19 @@
+[Unit]
+Description=Event booking system hosting control plane
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+User=ebs
+Group=docker
+WorkingDirectory=/opt/ebs/platform
+EnvironmentFile=/etc/ebs-platform.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
