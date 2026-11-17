@@ -301,5 +301,16 @@
   "err.noTent": "Keine Zeltplätze mehr verfügbar.",
   "err.noSingle": "Keine Einzelbetten verfügbar.",
   "err.extraOnly": "Zusatznächte sind nur bei Zimmer- oder Einzelbettbuchungen möglich.",
-  "err.days": "Bitte wählen Sie, an welchen Tagen Sie teilnehmen."
+  "err.days": "Bitte wählen Sie, an welchen Tagen Sie teilnehmen.",
+  "form.extras": "Optionale Extras",
+  "form.extrasHelp": "Wählen Sie, was Sie hinzufügen möchten. Sie können dies überspringen.",
+  "form.extraLeft": "Nur noch {n} übrig",
+  "form.extraClosed": "Die Anmeldung ist geschlossen",
+  "form.extraFull": "Ausgebucht",
+  "err.addon": "Das Extra „{name}“ ist nicht verfügbar.",
+  "err.addonClosed": "Die Anmeldung für „{name}“ ist geschlossen.",
+  "err.addonQty": "Sie können höchstens {max} von „{name}“ hinzufügen.",
+  "err.addonFull": "Leider ist „{name}“ ausgebucht.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

@@ -58,6 +58,13 @@ const CONFIG = {
   // Extra bed add-on (per person, whole event 2 nights)
   EXTRA_BED_PRICE: 74,
 
+  // Event type: 'overnight' (rooms, camping, nights) or 'day' (one-day event: registration plus optional extras)
+  EVENT_MODE: 'overnight',
+  // How guests pay (shown on the booking page and in the confirmation email), e.g. "Pay at the door by card or cash."
+  PAYMENT_INFO: '',
+  // Optional extras (meals, excursions ...); loaded from the database by addons.js
+  ADDONS: [],
+
   // --- Meal package ---
   FULL_BOARD_PRICE: 75,
   FULL_BOARD_INCLUDES_EN: [],

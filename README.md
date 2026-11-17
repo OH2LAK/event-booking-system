@@ -29,6 +29,9 @@ web page.
 
 | | |
 |---|---|
+| **One-day events** | A setting in Event setup switches from an overnight event to a one-day event: no accommodation, everyone registers as an attendee. |
+| **Optional extras** | A free list of extras (dinner, excursion, workshop ...) with price, optional capacity, sign-up deadline and maximum per booking. Guests tick what they want when registering; the price is added to the total and the organizer sees totals per extra. |
+| **Payments** | Prices and a "how to pay" text (for example "pay at the door") are shown to guests; the organizer marks bookings paid in the booking list. Online payment (Stripe/SumUp) is not built in yet. |
 | **Booking types** | Rooms (any sizes you define), camper van spots, tent spots, organizer-assigned single beds, day visitors who pick their days. Join an existing booking with its reference. Optional solo use of a double room. |
 | **Event structure** | Event days, optional extra nights ("Thursday night"), rooms booked for the whole event or per night, optional meal package. All defined in the browser. |
 | **Pricing** | Per room type, camper van per night, tent, single bed, meal package and meeting fee (full event or single day). Totals and breakdown are stored with each booking. |

@@ -37,6 +37,17 @@ address, the privacy contact email, an optional URL to your own privacy notice, 
 period in days** (default 30) and a **retention hold**. These feed the privacy notice at `/privacy`, the statement on the booking
 form and the deletion date shown to participants. See section 9 and [GDPR.md](GDPR.md).
 
+**Event type and payment info.** *Event type* chooses between an overnight event (rooms, tents, camper vans, extra nights) and a
+one-day event. In a one-day event the booking page has no accommodation: everyone registers as an attendee, the event days are
+all included, and the meeting fee is the only base price (set it to 0 for a free event). *How guests pay* is a short text shown on
+the booking page and in the confirmation email, for example "Pay at the door by card or cash". There is no online payment yet.
+
+**Extras (setup page).** The **Extras** card lists optional things guests can add: a dinner, an excursion, a workshop. Each extra has
+an id (letters, digits and "-"), a name, a description, a price (0 = free), a maximum quantity per booking, an optional capacity
+(0 = unlimited) and an optional sign-up deadline. Disabled extras are hidden from guests. The name and price are copied into each
+booking when it is made, so later price changes do not alter existing bookings until you use *Recalculate all prices*. Names and
+descriptions can be translated in the translations card. Cancelled bookings free their capacity.
+
 ## 2. Dashboard (top of the page)
 
 Cards computed from the bookings table: total bookings, booked / total rooms per room type (with how many rooms are full
@@ -133,6 +144,11 @@ all rows with all fields.
 
 Careful with the CSV: it contains names, emails and phone numbers. Keep it off shared drives and out of Git. Opening
 it in a spreadsheet can execute formulas that start with `=`, so open it in a text editor first if in doubt.
+
+The **Extras** column shows what each booking chose and the **Payment** column shows UNPAID, PAID or WAIVED (a booking whose total is 0 is
+WAIVED automatically). Click the payment badge to toggle between unpaid and paid, for example when a guest has paid at the door. The
+dashboard shows totals per extra (how many to order for catering). In **Edit booking** you can change the chosen extras; the price is
+recalculated and the capacity limit is not enforced for the organizer.
 
 Each row has two buttons: one for **Edit booking** and one for **Change accommodation**. Status colors: `CANCELLED` and
 `NEEDS_ATTENTION` rows are highlighted.

@@ -84,7 +84,7 @@ function content(lang, key, original) {
   const o = overrides[lang] && overrides[lang]['content.' + key];
   return o !== undefined && o !== '' ? o : original;
 }
-const EVENT_KEYS = ['EVENT_NAME', 'ORGANIZER', 'LOCATION', 'DATES_TEXT', 'CHECKIN_TIME', 'CHECKOUT_TIME', 'HOME_LABEL'];
+const EVENT_KEYS = ['EVENT_NAME', 'ORGANIZER', 'LOCATION', 'DATES_TEXT', 'CHECKIN_TIME', 'CHECKOUT_TIME', 'HOME_LABEL', 'PAYMENT_INFO'];
 const ev = (lang, key) => content(lang, 'event.' + key, CONFIG[key]);
 const SETTING_KEYS = ['ANNOUNCEMENT', 'CLOSED_MESSAGE', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER'];
 
@@ -121,6 +121,7 @@ function contentItems(settings) {
     (CONFIG.STRUCTURE.package.includes || []).forEach((s, i) => add(`structure.package.includes.${i}`, `Meal package: includes #${i + 1}`, s));
   }
   CONFIG.ROOMS.forEach(r => add(`room.${r.id}.note`, `Room type ${r.id}`, r.note_en));
+  (CONFIG.ADDONS || []).forEach(a => { add(`addon.${a.id}.name`, `Extra ${a.id}: name`, a.name); add(`addon.${a.id}.desc`, `Extra ${a.id}: description`, a.description); });
   return items;
 }
 

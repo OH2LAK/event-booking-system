@@ -301,5 +301,16 @@
   "err.noTent": "Ingen teltplasser igjen.",
   "err.noSingle": "Ingen enkeltsenger tilgjengelig.",
   "err.extraOnly": "Ekstra netter kan bare bestilles sammen med rom eller enkeltseng.",
-  "err.days": "Velg hvilke dager du deltar."
+  "err.days": "Velg hvilke dager du deltar.",
+  "form.extras": "Valgfrie tillegg",
+  "form.extrasHelp": "Velg det du vil legge til. Du kan hoppe over dette.",
+  "form.extraLeft": "Bare {n} igjen",
+  "form.extraClosed": "Påmeldingen er stengt",
+  "form.extraFull": "Fullt",
+  "err.addon": "Tillegget «{name}» er ikke tilgjengelig.",
+  "err.addonClosed": "Påmeldingen til «{name}» er stengt.",
+  "err.addonQty": "Du kan legge til maks {max} av «{name}».",
+  "err.addonFull": "Beklager, «{name}» er fullt.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

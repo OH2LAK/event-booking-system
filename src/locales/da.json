@@ -301,5 +301,16 @@
   "err.noTent": "Ingen teltpladser tilbage.",
   "err.noSingle": "Ingen enkeltsenge til rådighed.",
   "err.extraOnly": "Ekstra nætter kan kun bookes sammen med værelse eller enkeltseng.",
-  "err.days": "Vælg, hvilke dage du deltager."
+  "err.days": "Vælg, hvilke dage du deltager.",
+  "form.extras": "Valgfrie tilvalg",
+  "form.extrasHelp": "Vælg det, du vil tilføje. Du kan springe det over.",
+  "form.extraLeft": "Kun {n} tilbage",
+  "form.extraClosed": "Tilmeldingen er lukket",
+  "form.extraFull": "Udsolgt",
+  "err.addon": "Tilvalget \"{name}\" er ikke tilgængeligt.",
+  "err.addonClosed": "Tilmeldingen til \"{name}\" er lukket.",
+  "err.addonQty": "Du kan højst tilføje {max} af \"{name}\".",
+  "err.addonFull": "Beklager, \"{name}\" er udsolgt.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

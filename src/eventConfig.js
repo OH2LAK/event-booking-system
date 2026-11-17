@@ -13,11 +13,13 @@ const FIELDS = [
   { group: 'Event', key: 'ORGANIZER_SHORT', label: 'Organizer (short)', type: 'text', max: 40 },
   { group: 'Event', key: 'LOCATION', label: 'Venue (full)', type: 'text', max: 150, help: 'e.g. venue, city, country.' },
   { group: 'Event', key: 'LOCATION_SHORT', label: 'Venue (short)', type: 'text', max: 60, help: 'Usually the city.' },
+  { group: 'Event', key: 'EVENT_MODE', label: 'Event type', type: 'select', max: 10, options: [['overnight', 'Overnight event (rooms, camping, nights)'], ['day', 'One-day event (registration and optional extras only)']], help: 'A one-day event hides rooms, camping and nights: guests register, and can add optional extras such as meals (set them up in the "Extras" card). For a one-day event define a single day in "Event structure".' },
   { group: 'Dates and times', key: 'DATES_TEXT', label: 'Event dates (short text)', type: 'text', max: 60, help: 'e.g. 13-16 May 2027' },
   { group: 'Dates and times', key: 'CHECKIN_TIME', label: 'Check-in text', type: 'text', max: 100 },
   { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
   { group: 'Languages', key: 'LANGUAGES', label: 'Enabled languages', type: 'langs', max: 60, help: 'Comma-separated codes: en, fi, sv, no, da, is, et, lv, lt, pl, de. Guests can switch between them on the booking pages.' },
   { group: 'Languages', key: 'DEFAULT_LANGUAGE', label: 'Default language', type: 'text', max: 2, help: 'One of the enabled codes. Event texts you enter in this panel (event name, announcement, ...) are in this language; translate them in "Translations".' },
+  { group: 'Payments', key: 'PAYMENT_INFO', label: 'How guests pay', type: 'textarea', max: 300, help: 'Shown on the booking page and in the confirmation email, e.g. "Pay at the door by card or cash." Online payment is not available yet; mark bookings as paid in the booking list.' },
   { group: 'Currency', key: 'CURRENCY', label: 'Native currency (ISO code)', type: 'currency', max: 3, help: 'The currency of all prices and of the payment, e.g. EUR, SEK, NOK, DKK, ISK, PLN. Enter the room, meal and fee prices in this currency. Changing it does not convert existing prices.' },
   { group: 'Currency', key: 'CURRENCIES', label: 'Extra currencies for guests (optional)', type: 'currencies', max: 60, help: 'Comma-separated ISO codes, e.g. USD, GBP, SEK. Guests can pick one to see an approximate conversion; payment is always in the native currency. Set the rates in the "Currencies" card below.' },
   { group: 'Contact and email', key: 'REPLY_TO_EMAIL', label: 'Organizer email', type: 'email', max: 150, help: 'Reply-To address; organizer notifications are sent here.' },
@@ -87,6 +89,10 @@ function validate(input) {
       v = v.toLowerCase() || 'en';
       const enabled = String(out.LANGUAGES || 'en').split(',');
       if (!enabled.includes(v)) return { error: `${f.label} must be one of the enabled languages (${enabled.join(', ')})` };
+    }
+    if (f.type === 'select') {
+      v = v || f.options[0][0];
+      if (!f.options.some(o => o[0] === v)) return { error: `${f.label}: choose one of the listed values` };
     }
     if (f.type === 'currency') {
       v = v.toUpperCase() || 'EUR';

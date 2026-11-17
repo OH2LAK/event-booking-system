@@ -11,6 +11,7 @@ const { getSettings } = require('./settings');
 const eventConfig = require('./eventConfig');
 const rooms = require('./rooms');
 const structure = require('./structure');
+const addons = require('./addons');
 const gdpr = require('./gdpr');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
@@ -83,7 +84,7 @@ const PUBLIC = {
 // Methods that need the setup role (they change how the event is configured or can destroy data).
 // Everything else in ADMIN is available to both roles.
 const SETUP_ONLY = new Set(['getEventConfig', 'saveEventConfig', 'getCurrencies', 'saveCurrencyRates', 'fetchCurrencyRates',
-  'saveRoomCatalog', 'saveStructure', 'getTranslations', 'saveTranslations', 'getShutdownPreview', 'shutdownEvent', 'recalcAllPrices']);
+  'saveRoomCatalog', 'saveStructure', 'getAddons', 'saveAddons', 'getTranslations', 'saveTranslations', 'getShutdownPreview', 'shutdownEvent', 'recalcAllPrices']);
 // Registration settings that the admin role may change; every other setting (prices, inventory) needs the setup role.
 const ADMIN_SETTING_KEYS = new Set(['REGISTRATION_OPEN', 'REGISTRATION_CLOSES', 'ALLOW_SOLO_DOUBLE', 'ALLOW_SINGLE_BED_BOOKING', 'TENT_ENABLED',
   'ANNOUNCEMENT', 'CLOSED_MESSAGE', 'BYPASS_TOKEN', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER']);
@@ -95,6 +96,8 @@ const ADMIN = {
   fetchCurrencyRates: () => currency.fetchEcb(),
   getRoomCatalog: () => ({ success: true, rooms: CONFIG.ROOMS }),
   saveRoomCatalog: list => rooms.save(list),
+  getAddons: () => ({ success: true, addons: CONFIG.ADDONS }),
+  saveAddons: list => addons.save(list),
   getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
   saveStructure: input => structure.save(input),
   exportBooking: ref => gdpr.exportBooking(ref),
@@ -106,7 +109,7 @@ const ADMIN = {
   getAdminPanelHtml: (_pw, mode) => {
     const setup = mode === 'setup';
     let html = setup
-      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
+      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
       : pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
@@ -185,6 +188,7 @@ async function main() {
   await currency.load();
   await rooms.load();
   await structure.load();
+  await addons.load();
   await demo.start();
   const warn = auth.usingDefaults();
   if (warn.length) {

@@ -301,5 +301,16 @@
   "err.noTent": "Vabu telgikohti ei ole.",
   "err.noSingle": "Üksikuid voodikohti ei ole saadaval.",
   "err.extraOnly": "Lisaöid saab broneerida ainult koos toa või üksiku voodiga.",
-  "err.days": "Palun vali, millistel päevadel osaled."
+  "err.days": "Palun vali, millistel päevadel osaled.",
+  "form.extras": "Valikulised lisad",
+  "form.extrasHelp": "Vali, mida soovid lisada. Võid selle vahele jätta.",
+  "form.extraLeft": "Alles vaid {n}",
+  "form.extraClosed": "Registreerimine on lõppenud",
+  "form.extraFull": "Täis",
+  "err.addon": "Lisa \"{name}\" ei ole saadaval.",
+  "err.addonClosed": "\"{name}\" registreerimine on lõppenud.",
+  "err.addonQty": "Saad lisada \"{name}\" kuni {max} tk.",
+  "err.addonFull": "Vabandust, \"{name}\" on täis.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

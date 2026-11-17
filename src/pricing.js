@@ -78,7 +78,8 @@ function calculatePrice(data, s, lang) {
       total += s.MEETING_FEE_WEEKEND;
       lines.push(t('price.meetingAll', { n: s.MEETING_FEE_WEEKEND }));
     } else {
-      days.forEach(k => { total += s.MEETING_FEE_DAY; lines.push(t('price.meetingDay', { day: dayShort(k), n: s.MEETING_FEE_DAY })); });
+      // A free day (fee 0) adds no price line
+      if (s.MEETING_FEE_DAY > 0) days.forEach(k => { total += s.MEETING_FEE_DAY; lines.push(t('price.meetingDay', { day: dayShort(k), n: s.MEETING_FEE_DAY })); });
     }
     packageLine();
   }
@@ -88,7 +89,14 @@ function calculatePrice(data, s, lang) {
     meetingFee();
   }
 
-  return { total, breakdown: lines.join(' | ') };
+  // Optional extras (meals, excursions ...): price is a snapshot taken when the guest chose them
+  (data.addons || []).forEach(a => {
+    const n = Math.round(a.unit_price * a.qty * 100) / 100;
+    total += n;
+    lines.push(t('price.addon', { name: i18n.content(lang, `addon.${a.id}.name`, a.name), qty: a.qty, n }));
+  });
+
+  return { total: Math.round(total * 100) / 100, breakdown: lines.join(' | ') };
 }
 
 module.exports = { calculatePrice };

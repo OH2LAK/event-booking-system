@@ -301,5 +301,16 @@
   "err.noTent": "Brak wolnych miejsc na namioty.",
   "err.noSingle": "Brak dostępnych pojedynczych łóżek.",
   "err.extraOnly": "Dodatkowe noce są dostępne tylko przy rezerwacji pokoju lub pojedynczego łóżka.",
-  "err.days": "Wybierz, w których dniach weźmiesz udział."
+  "err.days": "Wybierz, w których dniach weźmiesz udział.",
+  "form.extras": "Opcjonalne dodatki",
+  "form.extrasHelp": "Wybierz, co chcesz dodać. Możesz to pominąć.",
+  "form.extraLeft": "Zostało tylko {n}",
+  "form.extraClosed": "Zapisy zostały zamknięte",
+  "form.extraFull": "Brak miejsc",
+  "err.addon": "Dodatek „{name}” jest niedostępny.",
+  "err.addonClosed": "Zapisy na „{name}” zostały zamknięte.",
+  "err.addonQty": "Możesz dodać najwyżej {max} szt. „{name}”.",
+  "err.addonFull": "Przepraszamy, „{name}” nie ma już wolnych miejsc.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

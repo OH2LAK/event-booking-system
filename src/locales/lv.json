@@ -301,5 +301,16 @@
   "err.noTent": "Brīvu telšu vietu vairs nav.",
   "err.noSingle": "Atsevišķu gultu nav pieejamu.",
   "err.extraOnly": "Papildu naktis var rezervēt tikai kopā ar istabu vai vienu gultu.",
-  "err.days": "Lūdzu, izvēlieties, kurās dienās piedalīsieties."
+  "err.days": "Lūdzu, izvēlieties, kurās dienās piedalīsieties.",
+  "form.extras": "Neobligātas papildu iespējas",
+  "form.extrasHelp": "Izvēlies, ko vēlies pievienot. Šo var izlaist.",
+  "form.extraLeft": "Atlikuši tikai {n}",
+  "form.extraClosed": "Reģistrācija ir beigusies",
+  "form.extraFull": "Pilns",
+  "err.addon": "Papildu iespēja \"{name}\" nav pieejama.",
+  "err.addonClosed": "Reģistrācija \"{name}\" ir beigusies.",
+  "err.addonQty": "Vari pievienot ne vairāk kā {max} \"{name}\".",
+  "err.addonFull": "Diemžēl \"{name}\" ir pilns.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

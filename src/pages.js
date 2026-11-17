@@ -44,6 +44,12 @@ function getClientConfigJson_(joinRef, settings, lang) {
     MEETING_FEE_WEEKEND: s.MEETING_FEE_WEEKEND,
     MEETING_FEE_DAY: s.MEETING_FEE_DAY,
     CURRENCY: currency.publicInfo(),
+    EVENT_MODE: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight',
+    PAYMENT_INFO: i18n.ev(lang, 'PAYMENT_INFO'),
+    ADDONS: (CONFIG.ADDONS || []).filter(a => a.enabled).map(a => ({
+      id: a.id, price: a.price, maxQty: a.max_qty,
+      name: i18n.content(lang, `addon.${a.id}.name`, a.name), desc: i18n.content(lang, `addon.${a.id}.desc`, a.description),
+    })),
   };
   return JSON.stringify(cfg);
 }
@@ -120,6 +126,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
   const EV = k => esc(i18n.ev(lang, k));
   settings = i18n.localizedSettings(lang, settings);
   const STRUCT = i18n.localizedStructure(lang);
+  const DAY = CONFIG.EVENT_MODE === 'day';
   sw = sw || '';
   return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -263,7 +270,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
 
   ${settings.ANNOUNCEMENT ? '<div id="announcement-banner" style="background:#fffbeb;border:1.5px solid var(--accent);border-radius:6px;padding:0.85rem 1.1rem;margin-bottom:1.5rem;font-size:0.95rem;color:var(--text);white-space:pre-line">' + settings.ANNOUNCEMENT + '</div>' : ''}
 
-  <div class="avail-bar">
+  <div class="avail-bar" ${DAY ? 'style="display:none"' : ''}>
     <h3>${te('form.availability')}</h3>
     <div class="avail-grid" id="avail-grid"><div style="color:var(--muted);font-family:var(--mono);font-size:.85rem">${te('form.loading')}</div></div>
   </div>
@@ -294,7 +301,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
   </div>
 
   <div id="form-section" class="section">
-    <button class="back-btn" onclick="goBack()">${te('form.back')}</button>
+    ${DAY ? '<div style="margin-bottom:1rem"><a href="#" onclick="openPublicPage();return false">\u{1F4CB} ' + te('form.whoTitle') + '</a></div>' : '<button class="back-btn" onclick="goBack()">' + te('form.back') + '</button>'}
 
     <div id="acc-type-section" class="card section">
       <h2>${te('form.accType')}</h2>
@@ -474,7 +481,13 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
       </label>
     </div>
 
-    <div id="price-section" class="section"><div id="price-box"></div><div id="price-disclaimer" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;font-style:italic"></div></div>
+    <div id="extras-section" class="card section">
+      <h2>${te('form.extras')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">${te('form.extrasHelp')}</p>
+      <div id="extras-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
+    </div>
+
+    <div id="price-section" class="section"><div id="price-box"></div><div id="price-disclaimer" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;font-style:italic"></div>${settings && CONFIG.PAYMENT_INFO ? '<div class="info-box" style="margin-top:0.75rem;white-space:pre-line">' + esc(i18n.ev(lang, 'PAYMENT_INFO')) + '</div>' : ''}</div>
     <div id="submit-section" class="section">
       <div id="form-msg" class="msg"></div>
       <button class="submit-btn" id="submit-btn" onclick="submitForm()">${te('form.confirm')}</button>
@@ -551,12 +564,14 @@ function selectMode(mode) {
     document.getElementById('addons-section').classList.remove('visible');
     document.getElementById('individual-meals-section').style.display = 'none';
     resetExtras();
+    showExtras();
     updatePriceDisplay();
   } else if (mode === 'dayvisitor') {
     currentAccType = 'dayvisitor';
     hide('acc-type-section'); hide('room-type-section'); hide('join-section'); hide('thu-section'); hideNights();
-    document.getElementById('dayvisitor-section').style.display = 'block';
+    document.getElementById('dayvisitor-section').style.display = CONFIG_CLIENT.EVENT_MODE === 'day' ? 'none' : 'block';
     document.getElementById('individual-meals-section').style.display = 'block';
+    showExtras();
     document.getElementById('full-board-row').style.display = '';
     updateFullBoardSub();
     show('addons-section'); show('guest-section'); show('gdpr-section');
@@ -566,7 +581,7 @@ function selectMode(mode) {
     currentAccType = null;
     show('acc-type-section');
     hide('join-section'); hide('room-type-section'); hide('guest-section');
-    hide('addons-section'); hide('gdpr-section'); hide('price-section'); hide('submit-section');
+    hide('addons-section'); hide('extras-section'); hide('gdpr-section'); hide('price-section'); hide('submit-section');
     document.getElementById('dayvisitor-section').style.display = 'none';
     document.getElementById('individual-meals-section').style.display = 'none';
   }
@@ -610,7 +625,7 @@ function onTypeChange() {
   document.getElementById('individual-meals-section').style.display = 'block';
   document.getElementById('full-board-row').style.display = '';
   updateFullBoardSub();
-  show('guest-section'); show('addons-section'); show('gdpr-section'); show('price-section'); show('submit-section');
+  show('guest-section'); show('addons-section'); showExtras(); show('gdpr-section'); show('price-section'); show('submit-section');
   updatePriceDisplay();
 }
 
@@ -656,7 +671,37 @@ function selectedExtras() { return Array.prototype.map.call(document.querySelect
 function resetExtras() { document.querySelectorAll('input[name="xn"]').forEach(function(e){ e.checked = false; e.disabled = false; }); }
 function extraLabel(k) { var x = (CONFIG_CLIENT.STRUCTURE.extraNights || []).find(function(y){ return y.key === k; }); return x ? x.label : k; }
 function extraNightRoomPrice(roomPrice) { return Math.round(roomPrice / Math.max(1, CONFIG_CLIENT.STRUCTURE.coreNights)); }
-function selectedVisitorDays() { return Array.prototype.map.call(document.querySelectorAll('input[name="dv-day"]:checked'), function(e){ return e.value; }); }
+function selectedVisitorDays() {
+  // A one-day event has no day choice: everyone attends the event day(s)
+  if (CONFIG_CLIENT.EVENT_MODE === 'day') return CONFIG_CLIENT.STRUCTURE.days.map(function(d){ return d.key; });
+  return Array.prototype.map.call(document.querySelectorAll('input[name="dv-day"]:checked'), function(e){ return e.value; });
+}
+function escH(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function selectedAddons() {
+  return Array.prototype.map.call(document.querySelectorAll('select[data-addon]'), function(e){ return { id: e.getAttribute('data-addon'), qty: parseInt(e.value, 10) || 0 }; })
+    .filter(function(x){ return x.qty > 0; });
+}
+function renderExtras() {
+  var host = document.getElementById('extras-list');
+  if (!host) return;
+  var keep = {}; selectedAddons().forEach(function(x){ keep[x.id] = x.qty; });
+  var live = {}; ((avail && avail.addons) || []).forEach(function(a){ live[a.id] = a; });
+  host.innerHTML = (CONFIG_CLIENT.ADDONS || []).map(function(a) {
+    var l = live[a.id] || {};
+    var left = (l.left === null || l.left === undefined) ? null : l.left;
+    var max = left === null ? a.maxQty : Math.min(a.maxQty, left);
+    var off = !!l.closed || max < 1;
+    var opts = '<option value="0">0</option>';
+    for (var i = 1; i <= max; i++) opts += '<option value="' + i + '"' + (keep[a.id] === i ? ' selected' : '') + '>' + i + '</option>';
+    var note = l.closed ? T('form.extraClosed') : (max < 1 ? T('form.extraFull') : (left !== null && left <= 10 ? T('form.extraLeft', {n: left}) : ''));
+    return '<div class="check-option' + (off ? ' disabled-meal' : '') + '" style="cursor:default;align-items:center">'
+      + '<div style="flex:1"><div class="opt-label">' + escH(a.name) + ' \u00b7 ' + M(a.price) + '</div>'
+      + (a.desc ? '<div class="opt-sub">' + escH(a.desc) + '</div>' : '')
+      + (note ? '<div class="opt-sub" style="color:var(--danger)">' + escH(note) + '</div>' : '') + '</div>'
+      + '<select data-addon="' + escH(a.id) + '" aria-label="' + escH(a.name) + '"' + (off ? ' disabled' : '') + ' onchange="updatePriceDisplay()" style="padding:0.3rem 0.4rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">' + opts + '</select></div>';
+  }).join('');
+}
+function showExtras() { if ((CONFIG_CLIENT.ADDONS || []).length) show('extras-section'); }
 function dayShort(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.short : k; }
 
 function onExtraNightChange() {
@@ -917,7 +962,7 @@ function updatePriceDisplay() {
         rows.push({label:T('js.pMeetingAll'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
         total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
       } else {
-        dvSel.forEach(function(k) {
+        if (CONFIG_CLIENT.MEETING_FEE_DAY > 0) dvSel.forEach(function(k) {
           rows.push({label:T('js.pMeetingDay', {day: dayShort(k)}), val:M(CONFIG_CLIENT.MEETING_FEE_DAY)});
           total += CONFIG_CLIENT.MEETING_FEE_DAY;
         });
@@ -936,6 +981,13 @@ function updatePriceDisplay() {
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
     }
   }
+  selectedAddons().forEach(function(sel) {
+    var a = (CONFIG_CLIENT.ADDONS || []).filter(function(x){ return x.id === sel.id; })[0];
+    if (!a) return;
+    var n = Math.round(a.price * sel.qty * 100) / 100;
+    rows.push({label:T('js.pAddon', {name: escH(a.name), qty: sel.qty}), val:M(n)});
+    total += n;
+  });
   if (!rows.length) { box.innerHTML = ''; return; }
   let html = '<div class="price-box">';
   rows.forEach(function(r) { html += '<div class="price-row"><span>' + r.label + '</span><span>' + r.val + '</span></div>'; });
@@ -965,6 +1017,7 @@ function submitForm() {
     displayCurrency: displayCur,
     publishConsent: document.getElementById('publish-consent').checked,
     extraNights:    [],
+    addons:         selectedAddons(),
     bypassToken:    CONFIG_CLIENT.BYPASS_TOKEN || '',
   };
   if (currentMode === 'join') {
@@ -1086,12 +1139,14 @@ window.onload = function() {
       }
       renderAvailability(data);
       renderRoomTypes(data);
+      renderExtras();
       const joinRef = CONFIG_CLIENT.INITIAL_JOIN || '';
       if (joinRef) {
         selectMode('join');
         setTimeout(function() { var js = document.getElementById('join-section'); if (js) js.scrollIntoView({behavior:'smooth',block:'start'}); }, 300);
       }
       renderOpenRooms(data);  // initialises join form if INITIAL_JOIN is set
+      if (CONFIG_CLIENT.EVENT_MODE === 'day') selectMode('dayvisitor');
     })
     .withFailureHandler(function(err) {
       document.getElementById('avail-grid').innerHTML = '<div style="color:var(--danger)">' + T('js.errGeneric', {msg: err.message}) + '</div>';
@@ -1257,6 +1312,7 @@ window.onload = loadGuests;
 
 function getAdminConfigJson_(settings) {
   return {
+    EVENT_MODE: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight',
     STRUCTURE: CONFIG.STRUCTURE,
     CAMPER_VAN_SPOTS: settings.CAMPER_VAN_SPOTS,
     TENT_SPOTS: settings.TENT_SPOTS,
@@ -1550,6 +1606,20 @@ function getAdminPanelHtml() {
       <label style="margin:0">👷 Staff <span style="font-size:0.78rem;color:#7c3aed">(shows organizer badge on Who's coming?)</span></label>
     </div>
     <hr class="divider">
+    <div class="modal-row2">
+      <div class="modal-field">
+        <label>Payment</label>
+        <select id="edit-payment">
+          <option value="UNPAID">UNPAID</option>
+          <option value="PAID">PAID</option>
+          <option value="WAIVED">WAIVED (nothing to pay)</option>
+        </select>
+      </div>
+      <div class="modal-field" id="edit-addons-row" style="display:none">
+        <label>Extras (quantity)</label>
+        <div id="edit-addons-box" style="display:flex;flex-direction:column;gap:0.3rem"></div>
+      </div>
+    </div>
     <div class="modal-field">
       <label class="org-label">🔒 Room number (organizers only)</label>
       <input type="text" id="edit-roomnum" placeholder="e.g. 214">
@@ -1672,6 +1742,7 @@ function buildAdminPage(settings, mode) {
 <script src="/admin-event.js"></script>
 <script src="/admin-currency.js"></script>
 <script src="/admin-rooms.js"></script>
+<script src="/admin-addons.js"></script>
 <script src="/admin-structure.js"></script>
 <script src="/admin-privacy.js"></script>
 <script src="/admin-translations.js"></script>
@@ -2122,6 +2193,7 @@ function doLogin() {
               if (window.initCurrencies) window.initCurrencies();
               if (window.initStructure) window.initStructure();
               if (window.initRoomCatalog) window.initRoomCatalog();
+              if (window.initAddons) window.initAddons();
               if (window.initPrivacy) window.initPrivacy();
               if (window.initTranslations) window.initTranslations();
             } else {
@@ -2202,6 +2274,8 @@ function renderAdmin(data) {
   const dayvisitors= rows.filter(function(r){return r.Type==='dayvisitor'}).length;
   const meals      = rows.filter(function(r){return r.FullBoard==='YES'}).length;
   const total      = rows.reduce(function(s,r){return s+(parseFloat(r.TotalPrice)||0)},0);
+  const paidSum    = rows.reduce(function(s,r){return s+(r.PaymentStatus==='PAID' ? (parseFloat(r.TotalPrice)||0) : 0)},0);
+  window._addonCatalog = data.addonCatalog || [];
 
   // Per room-type stats
   var roomStats = [];
@@ -2256,13 +2330,25 @@ function renderAdmin(data) {
     return {l:'Extra night: '+x.label, v:rows.filter(function(r){return (r.ExtraNights||'').split(',').indexOf(x.key)>=0 && r.Status!=='CANCELLED';}).length};
   })).concat([
     {l:'Revenue (est.)',    v:M(total)},
-  ]).map(function(s){
+    {l:'Collected',         v:M(paidSum)},
+    {l:'Still to collect',  v:M(total - paidSum)},
+  ]).concat((data.addonTotals || []).map(function(a){
+    return {l:'Extra: '+a.name, v:a.qty + (a.bookings !== a.qty ? ' <span style="font-size:0.7rem;color:var(--muted)">(' + a.bookings + ' bookings)</span>' : '')};
+  })).map(function(s){
     return '<div class="stat"><div class="label">'+s.l+'</div><div class="value">'+s.v+'</div></div>';
   }).join('');
 
   document.getElementById('stats').innerHTML = statsHtml;
 
-  const showCols = ['_guest','Email','Country','_room','Nights','ExtraNights','FullBoard','VisitorDays','Dietary','FreeText','TotalPrice','_status','OrgComment'].filter(function(h){ return h !== 'Nights' || CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night'; });
+  const dayEvent = CONFIG_ADMIN.EVENT_MODE === 'day';
+  const showCols = ['_guest','Email','Country','_room','Nights','ExtraNights','FullBoard','Addons','VisitorDays','Dietary','FreeText','TotalPrice','_paid','_status','OrgComment'].filter(function(h){
+    if (h === 'Nights') return CONFIG_ADMIN.STRUCTURE.accommodation === 'per_night' && !dayEvent;
+    // A one-day event has no rooms, extra nights or day selection
+    if (dayEvent && (h === '_room' || h === 'ExtraNights' || h === 'VisitorDays')) return false;
+    if (h === 'FullBoard') return !!(CONFIG_ADMIN.STRUCTURE.package && CONFIG_ADMIN.STRUCTURE.package.enabled);
+    if (h === 'Addons') return (data.addonCatalog || []).length > 0 || rows.some(function(r){ return r.Addons; });
+    return true;
+  });
 
   // Sort state
   if (!window._adminSort) window._adminSort = { col: null, dir: 1 };
@@ -2280,6 +2366,8 @@ function renderAdmin(data) {
                   : h === 'Nights'       ? 'Nights'
                   : h === 'ExtraNights'  ? 'Extra nights'
                   : h === 'FullBoard'    ? 'FB'
+                  : h === 'Addons'       ? 'Extras'
+                  : h === '_paid'        ? 'Payment'
                   : h === 'VisitorDays'  ? 'Days'
                   : h;
         var sortable = h[0] !== '_';
@@ -2360,6 +2448,14 @@ function renderAdmin(data) {
         var rnum = r['RoomNumber'] || '';
         var rnumHtml = '<span class="org-field room-num" data-ref="'+ref+'">' + (rnum || '<em style="opacity:0.4">&mdash;</em>') + '</span>';
         return '<td>' + rid + (rid ? '<br>' : '') + '<span style="font-size:0.8rem;color:var(--muted)">' + rnumHtml + '</span></td>';
+      }
+      if (h === '_paid') {
+        var ps = r['PaymentStatus'] || 'UNPAID';
+        var due = parseFloat(r['TotalPrice']) || 0;
+        if (r['Status'] === 'CANCELLED' || (due <= 0 && ps !== 'PAID')) return '<td style="color:var(--muted)">&mdash;</td>';
+        return ps === 'PAID'
+          ? '<td><span style="color:var(--success);font-weight:700;font-size:0.8rem">\u2713 PAID</span><br><button class="edit-btn" style="font-size:0.7rem" title="Mark as unpaid" onclick="togglePaid(\\'' + ref + '\\',\\'PAID\\')">undo</button></td>'
+          : '<td><span style="color:var(--danger);font-weight:700;font-size:0.8rem">DUE ' + M(due) + '</span><br><button class="edit-btn" style="font-size:0.7rem" title="Mark as paid" onclick="togglePaid(\\'' + ref + '\\',\\'UNPAID\\')">mark paid</button></td>';
       }
       if (h === '_status') {
         var st = r['Status'] || '';
@@ -2477,6 +2573,17 @@ function openEdit(ref) {
   document.getElementById('edit-country').value   = row.Country   || '';
   document.getElementById('edit-dietary').value      = row.Dietary    || '';
   document.getElementById('edit-status').value       = row.Status     || 'CONFIRMED';
+  document.getElementById('edit-payment').value      = row.PaymentStatus || 'UNPAID';
+  // Extras: every catalog item plus anything the booking has that is no longer in the catalog
+  var haveAddons = []; try { haveAddons = JSON.parse(row.AddonsJson || '[]'); } catch (e) {}
+  var addonList = (window._addonCatalog || []).map(function(a){ return { id: a.id, name: a.name }; });
+  haveAddons.forEach(function(h){ if (!addonList.some(function(a){ return a.id === h.id; })) addonList.push({ id: h.id, name: h.name }); });
+  document.getElementById('edit-addons-row').style.display = addonList.length ? '' : 'none';
+  document.getElementById('edit-addons-box').innerHTML = addonList.map(function(a){
+    var q = (haveAddons.filter(function(h){ return h.id === a.id; })[0] || {}).qty || 0;
+    return '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem"><input type="number" min="0" max="99" data-edit-addon="' + a.id + '" value="' + q + '" style="width:4rem"> ' + String(a.name).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</label>';
+  }).join('');
+  document.getElementById('edit-modal')._addonsBefore = JSON.stringify(editAddonSelection());
   document.getElementById('edit-fullboard').checked  = row.FullBoard  === 'YES';
   document.querySelectorAll('input[name="edit-xn"]').forEach(function(cb){ cb.checked = (row.ExtraNights||'').split(',').indexOf(cb.value) >= 0; });
   var ntSel = (row.Nights||'').split(',').filter(Boolean);
@@ -2564,6 +2671,18 @@ function closeEdit() {
   document.getElementById('edit-modal').style.display = 'none';
 }
 
+function editAddonSelection() {
+  return Array.prototype.map.call(document.querySelectorAll('input[data-edit-addon]'), function(i){ return { id: i.getAttribute('data-edit-addon'), qty: parseInt(i.value, 10) || 0 }; })
+    .filter(function(x){ return x.qty > 0; });
+}
+function togglePaid(ref, cur) {
+  rpc.run
+    .withSuccessHandler(function(r){ if (r && r.success) loadAdmin(); else alert('Error: ' + ((r && r.error) || 'failed')); })
+    .withFailureHandler(function(e){ alert('Error: ' + e.message); })
+    .updateBooking(adminPw, ref, { PaymentStatus: cur === 'PAID' ? 'UNPAID' : 'PAID' }, false);
+}
+window.togglePaid = togglePaid;
+
 function saveEdit() {
   const ref = document.getElementById('edit-modal')._ref;
   const fields = {
@@ -2584,7 +2703,11 @@ function saveEdit() {
     RoomNumber:    document.getElementById('edit-roomnum').value.trim(),
     FreeText:      document.getElementById('edit-freetext').value.trim(),
     OrgComment:    document.getElementById('edit-orgcomment').value.trim(),
+    PaymentStatus: document.getElementById('edit-payment').value,
   };
+  // Only send the extras when they were changed, so saving other fields never reprices a booking
+  var addonsNow = editAddonSelection();
+  if (JSON.stringify(addonsNow) !== document.getElementById('edit-modal')._addonsBefore) fields.Addons = addonsNow;
   const saveBtn = document.getElementById('edit-save-btn');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving...';

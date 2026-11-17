@@ -301,5 +301,16 @@
   "err.noTent": "Inga tältplatser kvar.",
   "err.noSingle": "Inga enkelsängsplatser tillgängliga.",
   "err.extraOnly": "Extranätter kan endast bokas tillsammans med rum eller enkelsäng.",
-  "err.days": "Välj vilka dagar du deltar."
+  "err.days": "Välj vilka dagar du deltar.",
+  "form.extras": "Valfria tillägg",
+  "form.extrasHelp": "Välj det du vill lägga till. Du kan hoppa över detta.",
+  "form.extraLeft": "Bara {n} kvar",
+  "form.extraClosed": "Anmälan har stängt",
+  "form.extraFull": "Fullt",
+  "err.addon": "Tillägget \"{name}\" är inte tillgängligt.",
+  "err.addonClosed": "Anmälan till \"{name}\" har stängt.",
+  "err.addonQty": "Du kan lägga till högst {max} av \"{name}\".",
+  "err.addonFull": "Tyvärr är \"{name}\" fullbokat.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

@@ -93,7 +93,7 @@ async function reset() {
   try {
     const tables = (await db.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")).rows.map(r => '"' + r.tablename + '"');
     await db.withBookingLock(client => client.query('TRUNCATE TABLE ' + tables.join(', ') + ' RESTART IDENTITY CASCADE'));
-    await i18n.load(); await eventConfig.load(); await currency.load(); await rooms.load(); await structure.load();
+    await i18n.load(); await eventConfig.load(); await currency.load(); await rooms.load(); await structure.load(); await require('./addons').load();
     await require('./demoData').seed();
     dirtySince = 0;
     console.log('[demo] reset done ' + new Date().toISOString());

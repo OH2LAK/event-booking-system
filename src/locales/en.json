@@ -301,5 +301,16 @@
   "err.noTent": "No tent spots left.",
   "err.noSingle": "No single bed spots available.",
   "err.extraOnly": "Extra nights are only available with room or single-bed bookings.",
-  "err.days": "Please select which day(s) you will attend."
+  "err.days": "Please select which day(s) you will attend.",
+  "form.extras": "Optional extras",
+  "form.extrasHelp": "Choose anything you would like to add. You can skip this.",
+  "form.extraLeft": "Only {n} left",
+  "form.extraClosed": "Sign-up for this has closed",
+  "form.extraFull": "Full",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}",
+  "err.addon": "The extra \"{name}\" is not available.",
+  "err.addonClosed": "Sign-up for \"{name}\" has closed.",
+  "err.addonQty": "You can add at most {max} of \"{name}\".",
+  "err.addonFull": "Sorry, \"{name}\" is full."
 }

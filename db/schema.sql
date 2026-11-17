@@ -104,3 +104,35 @@ CREATE TABLE IF NOT EXISTS currency_rates (
   base        TEXT NOT NULL DEFAULT 'EUR',
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Payment tracking. Today payment happens at the event: the admin marks bookings as paid.
+-- (Online payment via Stripe/SumUp can set the same field later.)
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'UNPAID';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+DO $$ BEGIN
+  ALTER TABLE bookings ADD CONSTRAINT bookings_payment_status_chk CHECK (payment_status IN ('UNPAID','PAID','WAIVED'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Optional extras the organizer offers (meals, excursions, workshops ...), edited in Event setup.
+-- capacity 0 = unlimited. closes = last day guests can add it (empty = until registration closes).
+CREATE TABLE IF NOT EXISTS addons (
+  id          TEXT PRIMARY KEY,
+  sort        INTEGER NOT NULL DEFAULT 0,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  price       NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (price >= 0),
+  max_qty     INTEGER NOT NULL DEFAULT 1 CHECK (max_qty BETWEEN 1 AND 20),
+  capacity    INTEGER NOT NULL DEFAULT 0 CHECK (capacity >= 0),
+  closes      DATE,
+  enabled     BOOLEAN NOT NULL DEFAULT true
+);
+
+-- What each booking chose. name and unit_price are a snapshot, so history survives catalog edits.
+CREATE TABLE IF NOT EXISTS booking_addons (
+  booking_id  INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  addon_id    TEXT NOT NULL,
+  qty         INTEGER NOT NULL CHECK (qty >= 1),
+  unit_price  NUMERIC(10,2) NOT NULL,
+  name        TEXT NOT NULL,
+  PRIMARY KEY (booking_id, addon_id)
+);

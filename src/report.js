@@ -96,7 +96,9 @@ function calcPrices_(r) {
     fee = (r.visitorDays.length > 1 && r.visitorDays.length === RC.DAYS.length) ? RC.MEETING_FEE_WEEKEND : RC.MEETING_FEE_DAY * r.visitorDays.length;
   }
   if (r.fullBoard) meals = RC.FULL_BOARD_PRICE;
-  return { accommodation: acc, meals: meals, hotelTotal: acc + meals, meetingFee: fee, total: acc + meals + fee };
+  // Optional extras are not part of the hotel bill, only of the guest's total
+  var extras = (r.extras || []).reduce(function(s, a) { return s + a.qty * (a.unitPrice || 0); }, 0);
+  return { accommodation: acc, meals: meals, hotelTotal: acc + meals, meetingFee: fee, extras: extras, total: acc + meals + fee + extras };
 }
 
 function nav_(active) {
@@ -281,6 +283,15 @@ function hotelView_(rows) {
     + extraRows
     + '</tbody></table>';
 
+  // Optional extras (meals, excursions ...): totals per extra
+  var extraTotals = {};
+  rows.forEach(function(r) { (r.extras || []).forEach(function(a) { extraTotals[a.name] = (extraTotals[a.name] || 0) + a.qty; }); });
+  if (Object.keys(extraTotals).length) {
+    body += '<h2>Lisäpalvelut</h2><table style="max-width:380px"><thead><tr><th>Lisä</th><th class="num">kpl</th></tr></thead><tbody>'
+      + Object.keys(extraTotals).map(function(n) { return '<tr><td>' + n + '</td><td class="num bold">' + extraTotals[n] + '</td></tr>'; }).join('')
+      + '</tbody></table>';
+  }
+
   // Dietary
   var dietary = rows.filter(function(r) { return r.dietary; });
   if (dietary.length) {
@@ -437,6 +448,7 @@ function confirmationSlip_(rows, r, pw) {
     +     '<td style="font-weight:700;padding:0.35rem 0.6rem;font-size:0.82rem">Meals</td>'
     +     '<td style="padding:0.35rem 0.6rem;font-size:0.82rem">' + meals + '</td>'
     +   '</tr>'
+    + (r.extrasText ? '<tr><td style="font-weight:700;padding:0.35rem 0.6rem;font-size:0.82rem">Extras</td><td style="padding:0.35rem 0.6rem;font-size:0.82rem">' + r.extrasText + '</td></tr>' : '')
     + (r.dietary ? '<tr><td style="font-weight:700;padding:0.35rem 0.6rem;color:#b45309;font-size:0.82rem">⚠ Dietary requirement</td><td style="padding:0.35rem 0.6rem;color:#b45309;font-size:0.82rem">' + r.dietary + '</td></tr>' : '')
     + matesHtml
     + '</table>'
@@ -546,7 +558,7 @@ function summaryView_(rows) {
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
     'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Dietary','ShirtSize',
-    'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef'];
+    'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef','Extras','Payment'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
@@ -554,7 +566,7 @@ function buildCsv_(rows) {
       r.isPrimary?'YES':'NO', r.nights.join('+'), r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
       r.dietary,r.shirtSize,
       p.hotelTotal.toFixed(0), p.meetingFee.toFixed(0), p.total.toFixed(0),
-      r.status, r.bookingRef,
+      r.status, r.bookingRef, r.extrasText, r.paymentStatus,
     ].map(function(v){
       v=(v||'').toString();
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; // neutralize spreadsheet formulas

@@ -1,6 +1,7 @@
 'use strict';
 // End-to-end smoke test against a running instance.
 //   BASE_URL=http://localhost:3000 ADMIN_PASSWORD=... [SETUP_PASSWORD=...] node tests/smoke.js
+// Covers bookings, admin, GDPR, languages, currencies, extras (add-ons), payment status and one-day mode.
 // With SETUP_PASSWORD set (and different from ADMIN_PASSWORD) the two roles are tested as well.
 // WARNING: creates test bookings (callsigns starting with TEST) in the target database.
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
@@ -410,6 +411,78 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     await rpc('saveEventConfig', { ...base, CURRENCY: 'EUR', CURRENCIES: '' });
     home = await (await fetch(BASE + '/')).text();
     check('back to EUR: euro signs again', /Includes electricity · €\d+/.test(home), (home.match(/Includes electricity[^<]*/) || [])[0]);
+  }
+
+  // ---- extras (add-ons), payment status and one-day events ----
+  {
+    await rpc('checkAdminPassword', PW, 'setup');
+    const ecA = (await rpc('getEventConfig')).body.result;
+    let x = (await rpc('saveAddons', [{ id: 'BAD ID', name: 'x' }])).body.result;
+    check('addons: bad id rejected', x && x.success === false, x);
+    x = (await rpc('saveAddons', [{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }])).body.result;
+    check('addons: duplicate id rejected', x && x.success === false, x);
+    x = (await rpc('saveAddons', [{ id: 'a', name: 'A', price: -1 }])).body.result;
+    check('addons: negative price rejected', x && x.success === false, x);
+    x = (await rpc('saveAddons', [
+      { id: 'dinner', name: 'Saturday dinner', description: 'Three courses', price: 25, max_qty: 3, capacity: 4, enabled: true },
+      { id: 'tour', name: 'Station tour', price: 0, max_qty: 2, capacity: 0, enabled: true },
+      { id: 'old', name: 'Closed one', price: 5, max_qty: 1, closes: '2000-01-01', enabled: true },
+      { id: 'off', name: 'Disabled', price: 5, max_qty: 1, enabled: false },
+    ])).body.result;
+    check('addons: save catalog', x && x.success, x);
+    let avA = (await rpc('getAvailability')).body.result;
+    check('availability lists enabled extras only, with capacity left',
+      avA.addons.length === 3 && !avA.addons.some(a => a.id === 'off') && avA.addons.find(a => a.id === 'dinner').left === 4 && avA.addons.find(a => a.id === 'old').closed === true, avA.addons);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA1', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'dinner', qty: 2 }, { id: 'tour', qty: 1 }] }))).body.result;
+    check('booking with extras: total includes them', r.success && r.price.total === 5 + 50 && /Saturday dinner/.test(r.price.breakdown), r);
+    const refA = r.bookingRef;
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA2', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'dinner', qty: 4 }] }))).body.result;
+    check('extras: max per booking enforced', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA3', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'dinner', qty: 3 }] }))).body.result;
+    check('extras: capacity enforced (2 used, 3 more > 4)', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA4', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'old', qty: 1 }] }))).body.result;
+    check('extras: closed deadline rejected', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA5', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'off', qty: 1 }] }))).body.result;
+    check('extras: disabled extra rejected', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTA6', type: 'dayvisitor', visitorDays: ['d1'], addons: [{ id: 'dinner', qty: 2 }] }))).body.result;
+    check('extras: remaining capacity can be taken', r.success, r);
+    const refA6 = r.bookingRef;
+    r = (await rpc('updateBooking', '', refA6, { Status: 'CANCELLED' }, false)).body.result;
+    avA = (await rpc('getAvailability')).body.result;
+    check('cancelled booking frees extras capacity', r.success && avA.addons.find(a => a.id === 'dinner').left === 2, avA.addons);
+    r = (await rpc('updateBooking', '', refA, { Addons: [{ id: 'dinner', qty: 1 }] }, false)).body.result;
+    let bA = (await rpc('exportBooking', refA)).body.result.data;
+    check('admin can change extras and the price follows', r.success && Number(bA.booking.TotalPrice || bA.booking.total_price) === 5 + 25, bA.booking);
+    check('GDPR export includes the extras', JSON.stringify(bA).includes('Saturday dinner'), Object.keys(bA));
+    r = (await rpc('updateBooking', '', refA, { PaymentStatus: 'PAID' }, false)).body.result;
+    const adA = (await rpc('getAdminData', '')).body.result;
+    const rowA = adA.rows.find(z => z.BookingRef === refA);
+    check('admin can mark a booking paid', r.success && rowA.PaymentStatus === 'PAID', rowA && rowA.PaymentStatus);
+    check('admin data has extras column and totals', rowA.Addons.includes('Saturday dinner') && adA.addonTotals.length >= 1, adA.addonTotals);
+    r = (await rpc('updateBooking', '', refA, { PaymentStatus: 'MAYBE' }, false)).body.result;
+    check('invalid payment status rejected', !r.success, r);
+    r = (await rpc('saveAdminSettings', '', { MEETING_FEE_WEEKEND: 11 })).body.result;
+    r = (await rpc('recalcAllPrices', '')).body.result;
+    bA = (await rpc('exportBooking', refA)).body.result.data;
+    check('recalc keeps extras in the price', r.success && Number(bA.booking.TotalPrice || bA.booking.total_price) >= 25, bA.booking);
+    await rpc('saveAdminSettings', '', { MEETING_FEE_WEEKEND: 10 });
+    await rpc('recalcAllPrices', '');
+
+    // one-day event mode
+    r = (await rpc('saveEventConfig', { ...ecA.values, EVENT_MODE: 'day', PAYMENT_INFO: 'Pay at the door' })).body.result;
+    check('day mode: saved', r && r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTD1', type: 'tent' }))).body.result;
+    check('day mode: accommodation types rejected', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTD2', type: 'dayvisitor', visitorDays: [], addons: [{ id: 'tour', qty: 1 }] }))).body.result;
+    check('day mode: attendee registers without choosing days', r.success, r);
+    const homeD = await (await fetch(BASE + '/')).text();
+    check('day mode: booking page shows the extras and payment info', homeD.includes('Station tour') && homeD.includes('Pay at the door'), homeD.length);
+    const scripts = [...homeD.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    let parsed = 0; for (const s of scripts) { try { new Function(s); parsed++; } catch (e) { console.log(e.message); } }
+    check('day mode: inline scripts parse', scripts.length > 0 && parsed === scripts.length, [parsed, scripts.length]);
+    r = (await rpc('saveEventConfig', { ...ecA.values, EVENT_MODE: 'overnight', PAYMENT_INFO: '' })).body.result;
+    check('back to overnight mode', r && r.success, r);
+    await rpc('saveAddons', []);
   }
 
   // shutdown (destructive): only against a throwaway database

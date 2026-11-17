@@ -301,5 +301,16 @@
   "err.noTent": "Engin tjaldstæði eftir.",
   "err.noSingle": "Engin stök rúm í boði.",
   "err.extraOnly": "Aukanætur eru aðeins í boði með herbergis- eða eins manns rúmbókun.",
-  "err.days": "Veldu hvaða daga þú tekur þátt."
+  "err.days": "Veldu hvaða daga þú tekur þátt.",
+  "form.extras": "Valfrjálsir aukahlutir",
+  "form.extrasHelp": "Veldu það sem þú vilt bæta við. Þú getur sleppt þessu.",
+  "form.extraLeft": "Aðeins {n} eftir",
+  "form.extraClosed": "Skráningu er lokið",
+  "form.extraFull": "Fullt",
+  "err.addon": "Aukahluturinn „{name}“ er ekki í boði.",
+  "err.addonClosed": "Skráningu í „{name}“ er lokið.",
+  "err.addonQty": "Þú getur að hámarki bætt við {max} af „{name}“.",
+  "err.addonFull": "Því miður er „{name}“ fullt.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

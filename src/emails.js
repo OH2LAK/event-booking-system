@@ -135,15 +135,17 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
   }
 
   const extraLines = [];
-  extraLines.push(data.fullBoard ? `${t('mail.mealIncludes')}\n${H.mealLines(isRoomLike)}` : t('mail.mealNo'));
+  if (data.fullBoard) extraLines.push(`${t('mail.mealIncludes')}\n${H.mealLines(isRoomLike)}`);
+  else if (CONFIG.STRUCTURE.package.enabled) extraLines.push(t('mail.mealNo'));
   if (data.dietary) extraLines.push(t('mail.dietary', { v: data.dietary }));
   if (data.shirtSize) extraLines.push(t('mail.shirt', { v: data.shirtSize }));
   if (data.freeText) extraLines.push(`${t('mail.freeText')}\n${data.freeText}`);
   parts.push(sec(t('mail.secServices')) + '\n' + String(price.breakdown).split(' | ').join('\n') + '\n\n' + extraLines.join('\n\n'));
   parts.push(SGL + '\n' + t('mail.total', { n: price.total }) + approxLine(t, price.total, data.displayCurrency, data.displayRate) + (s.PRICE_DISCLAIMER ? `\n\n* ${s.PRICE_DISCLAIMER}` : ''));
-  parts.push(sec(t('mail.secPayment')) + '\n' + t('mail.payBody')
+  // Nothing to pay: no payment section. The organizer's own payment text replaces the built-in one when set.
+  if (price.total > 0) parts.push(sec(t('mail.secPayment')) + '\n' + (ev('PAYMENT_INFO') || t('mail.payBody'))
     + (data.isPrimaryBooker && data.type === 'room' && roomCfg ? '\n\n' + t('mail.roomBookerNote', { n: livePrice(settings, roomCfg) }) : ''));
-  parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
+  if (CONFIG.EVENT_MODE !== 'day') parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
   parts.push(`${SGL}\n${t('mail.questions')}\n${CONFIG.REPLY_TO_EMAIL}\n\n${signoff()}\n${DBL}`);
 
   await sendMail(data.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.confirmSubject', { ref: bookingRef })}`, parts.join('\n\n'), mailOpts(lang));

@@ -301,5 +301,16 @@
   "err.noTent": "Laisvų vietų palapinėms nebėra.",
   "err.noSingle": "Pavienių lovų nėra.",
   "err.extraOnly": "Papildomas naktis galima rezervuoti tik kartu su kambariu arba viena lova.",
-  "err.days": "Pasirinkite, kuriomis dienomis dalyvausite."
+  "err.days": "Pasirinkite, kuriomis dienomis dalyvausite.",
+  "form.extras": "Pasirenkami priedai",
+  "form.extrasHelp": "Pasirinkite, ką norite pridėti. Galite praleisti.",
+  "form.extraLeft": "Liko tik {n}",
+  "form.extraClosed": "Registracija baigėsi",
+  "form.extraFull": "Užimta",
+  "err.addon": "Priedas \"{name}\" nepasiekiamas.",
+  "err.addonClosed": "Registracija į \"{name}\" baigėsi.",
+  "err.addonQty": "Galite pridėti ne daugiau kaip {max} \"{name}\".",
+  "err.addonFull": "Atsiprašome, \"{name}\" užimta.",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}"
 }

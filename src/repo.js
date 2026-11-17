@@ -35,6 +35,7 @@ const COLS = [
   ['Currency', 'currency', 't'],
   ['DisplayCurrency', 'display_currency', 't'],
   ['DisplayRate', 'display_rate', 'n'],
+  ['PaymentStatus', 'payment_status', 't'],
 ];
 const HEADERS = COLS.map(c => c[0]);
 const BY_HEADER = Object.fromEntries(COLS.map(c => [c[0], c]));
@@ -43,7 +44,7 @@ const BY_HEADER = Object.fromEntries(COLS.map(c => [c[0], c]));
 const EDITABLE = [
   'Callsign', 'Name', 'Email', 'Phone', 'Country', 'Type', 'RoomId', 'RoomRef',
   'IsPrimaryBooker', 'ExtraNights', 'Nights', 'FullBoard', 'Dietary', 'Status',
-  'RoomNumber', 'OrgComment', 'PublishConsent', 'SoloRoom', 'FreeText', 'IsOrganizer', 'VisitorDays',
+  'RoomNumber', 'OrgComment', 'PublishConsent', 'SoloRoom', 'FreeText', 'IsOrganizer', 'VisitorDays', 'PaymentStatus',
 ];
 
 const ACTIVE = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION'];

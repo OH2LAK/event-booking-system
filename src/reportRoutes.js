@@ -33,9 +33,11 @@ document.getElementById('pw').addEventListener('keydown',function(e){if(e.key===
 }
 
 // Row shape used by the report views
-function toReportRow(row) {
+function toReportRow(row, addonMap) {
   const o = repo.toObj(row);
+  const extras = (addonMap && addonMap[row.id]) || [];
   return {
+    extras, extrasText: extras.map(a => a.name + (a.qty > 1 ? ' x' + a.qty : '')).join(', '), paymentStatus: o.paymentStatus,
     bookingRef: o.bookingRef, callsign: o.callsign, name: o.name, email: o.email, phone: o.phone,
     country: o.country, type: o.type, roomId: o.roomId, roomRef: o.roomRef,
     isPrimary: o.isPrimaryBooker === 'YES', extraNights: S.keys(o.extraNights), nights: S.pickNights(o.nights), fullBoard: o.fullBoard === 'YES',
@@ -52,7 +54,9 @@ router.get('/report', async (req, res, next) => {
     if (!auth.isAdmin(req)) return res.type('html').send(loginPage(view));
     const settings = await getSettings();
     report.setRC(settings);
-    const rows = (await repo.all(db)).filter(r => r.status !== 'CANCELLED').map(toReportRow);
+    const addonMap = {};
+    (await db.query('SELECT booking_id, name, qty, unit_price FROM booking_addons ORDER BY addon_id')).rows.forEach(a => { (addonMap[a.booking_id] = addonMap[a.booking_id] || []).push({ name: a.name, qty: Number(a.qty), unitPrice: Number(a.unit_price) }); });
+    const rows = (await repo.all(db)).filter(r => r.status !== 'CANCELLED').map(r => toReportRow(r, addonMap));
     if (req.query.fmt === 'csv') {
       const csv = report.buildCsv_(rows);
       res.set('Content-Disposition', `attachment; filename="${csv.filename}"`);

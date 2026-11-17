@@ -301,5 +301,16 @@
   "err.noTent": "Telttapaikkoja ei ole jäljellä.",
   "err.noSingle": "Yhden vuoteen paikkoja ei ole saatavilla.",
   "err.extraOnly": "Lisäyöt ovat mahdollisia vain huone- ja yhden vuoteen varauksissa.",
-  "err.days": "Valitse, minä päivinä osallistut."
+  "err.days": "Valitse, minä päivinä osallistut.",
+  "form.extras": "Valinnaiset lisät",
+  "form.extrasHelp": "Valitse haluamasi lisät. Voit myös jättää ne väliin.",
+  "form.extraLeft": "Vain {n} jäljellä",
+  "form.extraClosed": "Ilmoittautuminen on päättynyt",
+  "form.extraFull": "Täynnä",
+  "js.pAddon": "{name} × {qty}",
+  "price.addon": "{name} × {qty}: €{n}",
+  "err.addon": "Lisää \"{name}\" ei ole saatavilla.",
+  "err.addonClosed": "Ilmoittautuminen kohteeseen \"{name}\" on päättynyt.",
+  "err.addonQty": "Voit valita enintään {max} kpl kohdetta \"{name}\".",
+  "err.addonFull": "Valitettavasti \"{name}\" on täynnä."
 }
