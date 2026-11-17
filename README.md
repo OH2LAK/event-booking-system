@@ -22,6 +22,10 @@ event-neutral. The original scripts (with secrets redacted) are kept in `legacy-
    check-in/out times, contact email, logos and accent color, then press **Save event setup**.
 3. Until this is saved, visitors only see a "booking is not open yet" page.
 4. Then set registration dates, prices and room inventory further down the admin panel.
+5. Optional: choose the **native currency** (default EUR) and the languages in **Event setup**. Enter all prices in the native
+   currency. Extra currencies for an approximate conversion and their exchange rates are set in the **Currencies** card
+   (see [docs/CURRENCIES.md](docs/CURRENCIES.md)); translations are edited in the **Translations** card (see
+   [docs/LANGUAGES.md](docs/LANGUAGES.md)).
 
 Room types (id, description, persons per room, count, price) are defined in the **Room types** card of the admin panel. On first start they are seeded from the defaults in `src/config.js`. The days of the event, optional extra nights and the meal package are defined in the **Event structure** card (installs that already hold bookings keep the original Fri/Sat + Thursday shape automatically). The booking types (room, camper, tent, single bed, day visitor) are fixed.
 
@@ -145,11 +149,15 @@ npm install
 # needs a PostgreSQL; schema is applied automatically on start
 DATABASE_URL=postgres://user:pass@localhost:5432/vushf ADMIN_PASSWORD=secret SESSION_SECRET=x node src/server.js
 BASE_URL=http://localhost:3000 ADMIN_PASSWORD=secret node tests/smoke.js   # creates TEST* bookings!
+npm run test:unit        # currency unit tests, no database needed
+npm run check-locales    # validates the translation files in src/locales/
 ```
 
 Structure: `src/service.js` (booking logic), `src/pricing.js`, `src/settings.js`, `src/emails.js`, `src/pages.js` (HTML
 pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc-shim.js` (maps the old
-`google.script.run` calls used by the pages to `/api/rpc/<method>`), `db/schema.sql`.
+`google.script.run` calls used by the pages to `/api/rpc/<method>`), `src/i18n.js` + `src/locales/*.json`
+(translations, see `src/locales/README.md`), `src/currency.js` (native currency, display currencies, exchange rates),
+`scripts/locales.js` (translation check and CSV export/import), `db/schema.sql`.
 
 ## Privacy and GDPR
 
