@@ -573,7 +573,7 @@ function selectMode(mode) {
 }
 
 function openPublicPage() {
-  window.open(CONFIG_CLIENT.WEBAPP_URL + '?public=1' + (CONFIG_CLIENT.LANG_QS ? '&' + CONFIG_CLIENT.LANG_QS : ''), '_blank');
+  window.open(location.pathname + '?public=1' + (CONFIG_CLIENT.LANG_QS ? '&' + CONFIG_CLIENT.LANG_QS : ''), '_blank');
 }
 
 function hardRefresh() {
@@ -1190,7 +1190,7 @@ function buildPublicPage(lang, sw) {
     <button class="refresh-btn" onclick="loadGuests()">&#8635; ${te('pub.refresh')}</button>
     <div class="updated" id="updated-time"></div>
     <div style="margin-top:0.75rem">
-      <a href="${esc((CONFIG.FRIENDLY_URL || CONFIG.WEBAPP_URL) + (i18n.qsLang(lang) ? '?' + i18n.qsLang(lang) : ''))}" style="font-family:var(--sans);font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">${te('pub.back')}</a>
+      <a href="${esc('/' + (i18n.qsLang(lang) ? '?' + i18n.qsLang(lang) : ''))}" style="font-family:var(--sans);font-size:0.85rem;color:var(--muted);text-decoration:none;border-bottom:1px solid var(--border)">${te('pub.back')}</a>
     </div>
   </div>
 

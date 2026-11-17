@@ -146,11 +146,22 @@ function switcher(lang, req) {
     p.set('lang', c);
     const name = LANGS.find(l => l.code === c).name;
     return c === lang
-      ? `<strong style="color:var(--text,#1c2128)">${escAttr(name)}</strong>`
-      : `<a href="${escAttr(req.path + '?' + p.toString())}" hreflang="${c}" style="color:var(--muted,#57606a);text-decoration:none">${escAttr(name)}</a>`;
+      ? `<strong data-n="${escAttr(name)}" data-c="${c.toUpperCase()}" style="color:var(--text,#1c2128)">${escAttr(name)}</strong>`
+      : `<a href="${escAttr(req.path + '?' + p.toString())}" hreflang="${c}" data-n="${escAttr(name)}" data-c="${c.toUpperCase()}" style="color:var(--muted,#57606a);text-decoration:none">${escAttr(name)}</a>`;
   });
-  return `<div class="lang-switch" style="text-align:right;font-size:0.82rem;font-family:var(--mono,monospace);padding:0.4rem 0.2rem">${links.join(' &middot; ')}</div>`;
+  return `<div class="lang-switch" style="text-align:right;white-space:nowrap;overflow:hidden;font-size:0.82rem;font-family:var(--mono,monospace);padding:0.4rem 0.2rem">${links.join(' &middot; ')}</div>` + FIT_SCRIPT;
 }
+// Keeps the language list on one line however many languages are enabled:
+// shrink the font first; if that is not enough, show language codes instead of names.
+const FIT_SCRIPT = `<script>(function(){var b=document.querySelector('.lang-switch');if(!b)return;
+var items=b.querySelectorAll('[data-n]');
+function fit(){var mode='n',size=13.1;b.style.fontSize=size+'px';
+items.forEach(function(e){e.textContent=e.getAttribute('data-n')});
+function over(){return b.scrollWidth>b.clientWidth+1}
+while(over()&&size>10.5){size-=0.5;b.style.fontSize=size+'px'}
+if(over()){items.forEach(function(e){e.textContent=e.getAttribute('data-c')});size=13.1;b.style.fontSize=size+'px';
+while(over()&&size>8){size-=0.5;b.style.fontSize=size+'px'}}}
+fit();window.addEventListener('resize',fit);})();</script>`;
 function pickCode(x) { const l = String(x || '').toLowerCase(); return enabledCodes().includes(l) ? l : defaultLang(); }
 function roomNote(lang, id) { const r = localizedRooms(lang).find(x => x.id === id); return r ? r.note_en : ''; }
 function nightLabel(lang, k) {
