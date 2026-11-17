@@ -58,6 +58,6 @@ const person = (n, call, country) => ({ callsign: call, name: n, email: call.toL
   await service.updateBooking(d1.bookingRef, { RoomNumber: '101', Status: 'CHECKED_IN' }, false);
   await service.updateBooking(d2.bookingRef, { RoomNumber: '102' }, false);
   await service.updateBooking(k.bookingRef, { Status: 'CANCELLED' }, false);
-  console.log('Demo event and bookings created. Admin panel: /?admin=1');
+  console.log('Demo event and bookings created. Booking admin: /?admin=1, event setup: /?setup=1');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

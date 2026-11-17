@@ -1271,6 +1271,88 @@ function getAdminConfigJson_(settings) {
   };
 }
 
+function getSetupPanelHtml() {
+  return `
+<div id="setup-panel">
+  <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:0.25rem">
+    ${logos('height:60px;width:auto;', 'height:50px;width:auto;')}
+    <div style="flex:1">
+      <h1>${esc(CONFIG.EVENT_SHORT)} — Event Setup</h1>
+      <div class="sub" style="margin-bottom:0">Event configuration, currencies, structure, room types, prices, translations and data protection.</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <a href="/?admin=1" style="font-size:0.8rem;color:var(--accent2);font-family:var(--mono);text-decoration:none">&larr; Booking admin</a><br>
+      <button onclick="fetch('/api/admin/logout',{method:'POST'}).then(function(){location.reload()})" style="margin-top:0.4rem;background:none;border:none;font-size:0.72rem;color:var(--muted);cursor:pointer;font-family:var(--mono)" title="Log out">🔒 Log out</button>
+    </div>
+  </div>
+  <div class="sub"></div>
+
+  <div class="settings-panel">
+    <h3 style="font-size:0.85rem;font-family:var(--mono);color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.9rem">💶 Pricing</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.6rem;margin-bottom:1rem" id="pricing-grid">
+      <div class="setting-item">
+        <div class="setting-label">Full board meal package (${currency.symbol(currency.native())}/person)</div>
+        <input type="number" class="setting-input" id="s-fullboard-price" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Camper van spot (${currency.symbol(currency.native())}/night)</div>
+        <input type="number" class="setting-input" id="s-camper-price" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Tent spot, whole event (${currency.symbol(currency.native())})</div>
+        <input type="number" class="setting-input" id="s-tent-price" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Single bed, organizer-assigned (${currency.symbol(currency.native())})</div>
+        <input type="number" class="setting-input" id="s-singlebed-price" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Single bed slots available
+          <div class="hint">How many single bed bookings to offer (0 = disabled)</div>
+        </div>
+        <input type="number" class="setting-input" id="s-singlebed-slots" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Meeting fee — full event (${currency.symbol(currency.native())})</div>
+        <input type="number" class="setting-input" id="s-meeting-fee-weekend" min="0" style="width:90px">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Meeting fee — single day (${currency.symbol(currency.native())})</div>
+        <input type="number" class="setting-input" id="s-meeting-fee-day" min="0" style="width:90px">
+      </div>
+    </div>
+    <div id="room-prices-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.6rem;margin-bottom:1rem"></div>
+    <div style="display:flex;align-items:center">
+      <button class="btn-settings-save" onclick="savePricing()">Save pricing</button>
+      <span class="settings-msg" id="pricing-msg"></span>
+    </div>
+
+    <hr class="divider" style="margin-top:1.5rem">
+    <h3 style="font-size:0.85rem;font-family:var(--mono);color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.9rem">🏨 Room Inventory</h3>
+    <div id="room-counts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.6rem;margin-bottom:0.6rem"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.6rem;margin-bottom:1rem">
+      <div class="setting-item">
+        <div class="setting-label">Camper van spots</div>
+        <input type="number" class="setting-input" id="rc-camper" min="0" max="99" style="width:70px;text-align:center">
+      </div>
+      <div class="setting-item">
+        <div class="setting-label">Tent spots</div>
+        <input type="number" class="setting-input" id="rc-tent" min="0" max="99" style="width:70px;text-align:center">
+      </div>
+    </div>
+    <div style="display:flex;align-items:center">
+      <button class="btn-settings-save" onclick="saveRoomCounts()">Save inventory</button>
+      <span class="settings-msg" id="room-counts-msg"></span>
+    </div>
+  </div>
+
+  <div style="margin:1rem 0 1.5rem 0">
+    <button class="export-btn" style="float:none;margin:0" id="recalc-btn" onclick="recalcAllPrices()" title="Recalculate prices for all bookings">🔄 Recalculate prices</button>
+    <span style="font-size:0.75rem;color:var(--muted);font-family:var(--mono);margin-left:0.5rem">Use after changing prices: recalculates every active booking.</span>
+  </div>
+</div>`;
+}
+
 function getAdminPanelHtml() {
   return `
 <div id="admin-panel">
@@ -1284,7 +1366,8 @@ function getAdminPanelHtml() {
       <button id="header-refresh-btn" class="export-btn" style="float:none;margin:0 0 0.4rem 0" onclick="loadAdmin()">↺ Refresh</button>
       <div style="font-size:0.75rem;color:var(--muted);font-family:var(--mono)">This page does not auto-refresh</div>
       <div id="header-refresh-ts" style="font-size:0.75rem;color:var(--muted);font-family:var(--mono)"></div>
-      <button onclick="fetch('/api/admin/logout',{method:'POST'}).then(function(){location.reload()})" style="margin-top:0.4rem;background:none;border:none;font-size:0.72rem;color:var(--muted);cursor:pointer;font-family:var(--mono)" title="Kirjaudu ulos">🔒 Kirjaudu ulos</button>
+      <a href="/?setup=1" style="font-size:0.8rem;color:var(--accent2);font-family:var(--mono);text-decoration:none">&#9881; Event setup &rarr;</a><br>
+      <button onclick="fetch('/api/admin/logout',{method:'POST'}).then(function(){location.reload()})" style="margin-top:0.4rem;background:none;border:none;font-size:0.72rem;color:var(--muted);cursor:pointer;font-family:var(--mono)" title="Log out">🔒 Log out</button>
     </div>
   </div>
   <div class="sub"></div>
@@ -1382,71 +1465,11 @@ function getAdminPanelHtml() {
       <button class="btn-settings-save" onclick="saveSettings()">Save settings</button>
       <span class="settings-msg" id="settings-msg"></span>
     </div>
-
-    <hr class="divider" style="margin-top:1.5rem">
-    <h3 style="font-size:0.85rem;font-family:var(--mono);color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.9rem">💶 Pricing</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.6rem;margin-bottom:1rem" id="pricing-grid">
-      <div class="setting-item">
-        <div class="setting-label">Full board meal package (${currency.symbol(currency.native())}/person)</div>
-        <input type="number" class="setting-input" id="s-fullboard-price" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Camper van spot (${currency.symbol(currency.native())}/night)</div>
-        <input type="number" class="setting-input" id="s-camper-price" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Tent spot, whole event (${currency.symbol(currency.native())})</div>
-        <input type="number" class="setting-input" id="s-tent-price" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Single bed, organizer-assigned (${currency.symbol(currency.native())})</div>
-        <input type="number" class="setting-input" id="s-singlebed-price" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Single bed slots available
-          <div class="hint">How many single bed bookings to offer (0 = disabled)</div>
-        </div>
-        <input type="number" class="setting-input" id="s-singlebed-slots" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Meeting fee — full event (${currency.symbol(currency.native())})</div>
-        <input type="number" class="setting-input" id="s-meeting-fee-weekend" min="0" style="width:90px">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Meeting fee — single day (${currency.symbol(currency.native())})</div>
-        <input type="number" class="setting-input" id="s-meeting-fee-day" min="0" style="width:90px">
-      </div>
-    </div>
-    </div>
-    <div id="room-prices-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.6rem;margin-bottom:1rem"></div>
-    <div style="display:flex;align-items:center">
-      <button class="btn-settings-save" onclick="savePricing()">Save pricing</button>
-      <span class="settings-msg" id="pricing-msg"></span>
-    </div>
-
-    <hr class="divider" style="margin-top:1.5rem">
-    <h3 style="font-size:0.85rem;font-family:var(--mono);color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.9rem">🏨 Room Inventory</h3>
-    <div id="room-counts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.6rem;margin-bottom:0.6rem"></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.6rem;margin-bottom:1rem">
-      <div class="setting-item">
-        <div class="setting-label">Camper van spots</div>
-        <input type="number" class="setting-input" id="rc-camper" min="0" max="99" style="width:70px;text-align:center">
-      </div>
-      <div class="setting-item">
-        <div class="setting-label">Tent spots</div>
-        <input type="number" class="setting-input" id="rc-tent" min="0" max="99" style="width:70px;text-align:center">
-      </div>
-    </div>
-    <div style="display:flex;align-items:center">
-      <button class="btn-settings-save" onclick="saveRoomCounts()">Save inventory</button>
-      <span class="settings-msg" id="room-counts-msg"></span>
-    </div>
   </div>
 
   <div style="margin-top:1.5rem;display:flex;gap:0.5rem;margin-bottom:1rem;align-items:center">
     <button id="table-refresh-btn" class="export-btn" style="float:none;margin:0" onclick="loadAdmin()">↺ Refresh</button>
     <button class="export-btn" style="float:none;margin:0" onclick="exportCSV()">⬇ Export CSV</button>
-    <button class="export-btn" style="float:none;margin:0" id="recalc-btn" onclick="recalcAllPrices()" title="Recalculate prices for all bookings">🔄 Recalculate prices</button>
     <button class="export-btn" style="float:none;margin:0" id="sort-reset-btn" onclick="adminResetSort()" title="Return to default grouped view">✕ Clear sort</button>
     <span id="table-refresh-ts" style="font-size:0.75rem;color:var(--muted);font-family:var(--mono);margin-left:0.5rem"></span>
   </div>
@@ -1638,7 +1661,9 @@ function getAdminPanelHtml() {
 </div>`;
 }
 
-function buildAdminPage(settings) {
+function buildAdminPage(settings, mode) {
+  mode = mode === 'setup' ? 'setup' : 'admin';
+  const heading = mode === 'setup' ? 'Setup' : 'Admin';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1652,7 +1677,7 @@ function buildAdminPage(settings) {
 <script src="/admin-translations.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — ${esc(CONFIG.EVENT_SHORT)}</title>
+<title>${heading} — ${esc(CONFIG.EVENT_SHORT)}</title>
 <style>
   :root {
     --bg:#0d1117;--surface:#161b22;--border:#30363d;
@@ -1756,7 +1781,7 @@ function buildAdminPage(settings) {
 <body>
 
 <div class="login-box" id="login-box">
-  <h2>🔒 Admin — ${esc(CONFIG.EVENT_SHORT)}</h2>
+  <h2>🔒 ${heading} — ${esc(CONFIG.EVENT_SHORT)}</h2>
   <input type="password" id="admin-pw" placeholder="Password">
   <button class="btn" id="login-btn">Login</button>
   <div style="color:var(--danger);font-size:0.8rem;margin-top:0.75rem" id="pw-err"></div>
@@ -1765,6 +1790,7 @@ function buildAdminPage(settings) {
 
 <script>
 function M(n) { var C = window.CUR || { native: 'EUR', digits: 2 }; n = Number(n) || 0; var s = C.digits === 0 ? String(Math.round(n)) : (Math.round(n * 100) % 100 === 0 ? String(Math.round(n)) : n.toFixed(2)); return C.native === 'EUR' ? '\u20AC' + s : s + '\u00a0' + C.native; }
+var PAGE_MODE = '${mode}';
 let adminPw = '';
 var currentAdminData = null;
 let allRows = [];
@@ -2090,29 +2116,34 @@ function doLogin() {
           .withSuccessHandler(function(html) {
             if (!html) { document.getElementById('pw-err').textContent = 'Panel load failed'; return; }
             document.body.innerHTML = html;
-            loadAdmin();
-            if (window.initEventSetup) window.initEventSetup();
-            if (window.initCurrencies) window.initCurrencies();
-            if (window.initStructure) window.initStructure();
-            if (window.initRoomCatalog) window.initRoomCatalog();
-            if (window.initPrivacy) window.initPrivacy();
-            if (window.initTranslations) window.initTranslations();
+            if (PAGE_MODE === 'setup') {
+              loadSettings();
+              if (window.initEventSetup) window.initEventSetup();
+              if (window.initCurrencies) window.initCurrencies();
+              if (window.initStructure) window.initStructure();
+              if (window.initRoomCatalog) window.initRoomCatalog();
+              if (window.initPrivacy) window.initPrivacy();
+              if (window.initTranslations) window.initTranslations();
+            } else {
+              loadAdmin();
+            }
           })
           .withFailureHandler(function(err) {
             document.getElementById('pw-err').textContent = 'Error: ' + err.message;
           })
-          .getAdminPanelHtml(pw);
+          .getAdminPanelHtml(pw, PAGE_MODE);
       } else {
-        document.getElementById('pw-err').textContent = 'Wrong password';
+        document.getElementById('pw-err').textContent = PAGE_MODE === 'setup' ? 'Wrong password (the setup password is required here)' : 'Wrong password';
       }
     })
     .withFailureHandler(function(err) {
       document.getElementById('pw-err').textContent = 'Error: ' + err.message;
     })
-    .checkAdminPassword(pw);
+    .checkAdminPassword(pw, PAGE_MODE);
 }
 
 function loadAdmin() {
+  if (PAGE_MODE === 'setup') return;
   // Set both refresh buttons to loading state
   ['header-refresh-btn','table-refresh-btn'].forEach(function(id) {
     var btn = document.getElementById(id);
@@ -2579,37 +2610,38 @@ function saveEdit() {
     .updateBooking(adminPw, ref, fields, document.getElementById('edit-send-email').checked);
 }
 
+function gid(id) { return document.getElementById(id) || { style: {}, dataset: {} }; }
 function loadSettings() {
   rpc.run
     .withSuccessHandler(function(result) {
       if (!result || !result.success) return;
       const s = result.settings;
-      document.getElementById('s-reg-open').checked     = s.REGISTRATION_OPEN;
-      document.getElementById('s-reg-closes').value     = s.REGISTRATION_CLOSES || '';
+      gid('s-reg-open').checked     = s.REGISTRATION_OPEN;
+      gid('s-reg-closes').value     = s.REGISTRATION_CLOSES || '';
       // Show warning if deadline has passed
-      checkRegDeadlineWarning();
-      document.getElementById('s-solo-double').checked = s.ALLOW_SOLO_DOUBLE;
-      document.getElementById('s-single-bed').checked  = s.ALLOW_SINGLE_BED_BOOKING;
-      document.getElementById('s-tent-enabled').checked = s.TENT_ENABLED !== false;
-      document.getElementById('s-announcement').value    = s.ANNOUNCEMENT    || '';
-      document.getElementById('s-camper-info').value      = s.CAMPER_INFO      || '';
-      document.getElementById('s-tent-info').value        = s.TENT_INFO        || '';
-      document.getElementById('s-closed-message').value   = s.CLOSED_MESSAGE   || '';
-      document.getElementById('s-bypass-token').value     = s.BYPASS_TOKEN     || '';
-      updateBypassLinkDisplay();
-      document.getElementById('s-price-disclaimer').value = s.PRICE_DISCLAIMER || '';
+      if (document.getElementById('s-reg-open')) checkRegDeadlineWarning();
+      gid('s-solo-double').checked = s.ALLOW_SOLO_DOUBLE;
+      gid('s-single-bed').checked  = s.ALLOW_SINGLE_BED_BOOKING;
+      gid('s-tent-enabled').checked = s.TENT_ENABLED !== false;
+      gid('s-announcement').value    = s.ANNOUNCEMENT    || '';
+      gid('s-camper-info').value      = s.CAMPER_INFO      || '';
+      gid('s-tent-info').value        = s.TENT_INFO        || '';
+      gid('s-closed-message').value   = s.CLOSED_MESSAGE   || '';
+      gid('s-bypass-token').value     = s.BYPASS_TOKEN     || '';
+      if (document.getElementById('s-bypass-token')) updateBypassLinkDisplay();
+      gid('s-price-disclaimer').value = s.PRICE_DISCLAIMER || '';
       // Pricing fields
-      document.getElementById('s-fullboard-price').value = s.FULL_BOARD_PRICE || '';
-      document.getElementById('s-camper-price').value    = s.CAMPER_VAN_PRICE_PER_NIGHT || '';
-      document.getElementById('s-tent-price').value      = s.TENT_PRICE_WEEKEND || '';
-      document.getElementById('s-singlebed-price').value = s.SINGLE_BED_PRICE || '';
-      document.getElementById('s-singlebed-slots').value = s.SINGLE_BED_SLOTS !== undefined ? s.SINGLE_BED_SLOTS : 0;
-      document.getElementById('s-meeting-fee-weekend').value = s.MEETING_FEE_WEEKEND || '';
-      document.getElementById('s-meeting-fee-day').value = s.MEETING_FEE_DAY || '';
+      gid('s-fullboard-price').value = s.FULL_BOARD_PRICE || '';
+      gid('s-camper-price').value    = s.CAMPER_VAN_PRICE_PER_NIGHT || '';
+      gid('s-tent-price').value      = s.TENT_PRICE_WEEKEND || '';
+      gid('s-singlebed-price').value = s.SINGLE_BED_PRICE || '';
+      gid('s-singlebed-slots').value = s.SINGLE_BED_SLOTS !== undefined ? s.SINGLE_BED_SLOTS : 0;
+      gid('s-meeting-fee-weekend').value = s.MEETING_FEE_WEEKEND || '';
+      gid('s-meeting-fee-day').value = s.MEETING_FEE_DAY || '';
       renderRoomPricesGrid(s.ROOM_PRICES || {});
       renderRoomCountsGrid(s.ROOM_COUNTS || {});
-      var camperEl = document.getElementById('rc-camper');
-      var tentEl = document.getElementById('rc-tent');
+      var camperEl = gid('rc-camper');
+      var tentEl = gid('rc-tent');
       if (camperEl) camperEl.value = s.CAMPER_VAN_SPOTS !== undefined ? s.CAMPER_VAN_SPOTS : '';
       if (tentEl)   tentEl.value   = s.TENT_SPOTS       !== undefined ? s.TENT_SPOTS       : '';
     })
@@ -2679,6 +2711,7 @@ function roomDefs() {
 
 function renderRoomCountsGrid(counts) {
   var grid = document.getElementById('room-counts-grid');
+  if (!grid) return;
   grid.innerHTML = '';
   roomDefs().forEach(function(r) {
     var val = counts[r.id] !== undefined ? counts[r.id] : r.default;
@@ -2782,4 +2815,4 @@ function exportCSV() {
 </html>`;
 }
 
-module.exports = { buildBookingPage, buildPublicPage, buildAdminPage, getAdminPanelHtml };
+module.exports = { buildBookingPage, buildPublicPage, buildAdminPage, getAdminPanelHtml, getSetupPanelHtml };

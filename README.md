@@ -1,12 +1,13 @@
 # Event booking system
 
 A self-hosted booking system for small and mid-sized events with accommodation: rooms, camper vans, tents, single beds and
-day visitors. It runs as a containerized **Node.js + PostgreSQL** app and is configured for your own event from the admin panel
+day visitors. It runs as a containerized **Node.js + PostgreSQL** app and is configured for your own event from the setup page
 (name, organizer, dates, contact, logos, accent color).
 
 Features: room / camper / tent / single-bed / day-visitor bookings, joining an existing room with a booking reference,
 live availability, price calculation with admin-editable prices, confirmation and organizer emails, public
-"Who's coming?" list, admin panel (event setup, settings, pricing, room inventory, editable bookings table, CSV export), and a
+"Who's coming?" list, a setup page (event details, currencies, structure, room types, prices, translations) and a booking admin panel
+(registration settings, editable bookings table, CSV export), and a
 report & check-in tool (hotel list, check-in desk, summary, printable slips).
 
 ## Background
@@ -16,17 +17,17 @@ kept event-neutral so it can be used for any event.
 
 ## First-time event setup
 
-1. Start the app (see below) and open `/?admin=1`, then log in with `ADMIN_PASSWORD`.
+1. Start the app (see below) and open `/?setup=1`, then log in with `SETUP_PASSWORD`.
 2. The **Event setup** card at the top opens automatically on a fresh install. Fill in event name, organizer, location, dates,
    check-in/out times, contact email, logos and accent color, then press **Save event setup**.
 3. Until this is saved, visitors only see a "booking is not open yet" page.
-4. Then set registration dates, prices and room inventory further down the admin panel.
+4. Then set prices and room inventory further down the setup page, and open registration in the booking admin (`/?admin=1`, `ADMIN_PASSWORD`).
 5. Optional: choose the **native currency** (default EUR) and the languages in **Event setup**. Enter all prices in the native
    currency. Extra currencies for an approximate conversion and their exchange rates are set in the **Currencies** card
    (see [docs/CURRENCIES.md](docs/CURRENCIES.md)); translations are edited in the **Translations** card (see
    [docs/LANGUAGES.md](docs/LANGUAGES.md)).
 
-Room types (id, description, persons per room, count, price) are defined in the **Room types** card of the admin panel. On first start they are seeded from the defaults in `src/config.js`. The days of the event, optional extra nights and the meal package are defined in the **Event structure** card (installs that already hold bookings keep the original Fri/Sat + Thursday shape automatically). The booking types (room, camper, tent, single bed, day visitor) are fixed.
+Room types (id, description, persons per room, count, price) are defined in the **Room types** card of the setup page. On first start they are seeded from the defaults in `src/config.js`. The days of the event, optional extra nights and the meal package are defined in the **Event structure** card. The booking types (room, camper, tent, single bed, day visitor) are fixed.
 
 ## Demo data and screenshots
 
@@ -46,7 +47,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Open http://localhost:3000 (booking page), `/?public=1` (Who's coming), `/?admin=1` (admin panel) and `/report`
+Open http://localhost:3000 (booking page), `/?public=1` (Who's coming), `/?admin=1` (booking admin), `/?setup=1` (event setup) and `/report`
 (report & check-in tool; uses the same admin password). Data lives in the `pgdata` Docker volume.
 
 ## Making it reachable from the network
@@ -80,7 +81,8 @@ knowledge. Change all of them before exposing the app to the internet:**
 
 | Variable | What it protects |
 | --- | --- |
-| `ADMIN_PASSWORD` | Admin panel and the report & check-in tool |
+| `ADMIN_PASSWORD` | Booking admin (`/?admin=1`) and the report & check-in tool. For everyone who handles bookings; it cannot change the event setup |
+| `SETUP_PASSWORD` | Event setup (`/?setup=1`): event details, prices, room types, translations, event shutdown. Also works in the booking admin. If unset, `ADMIN_PASSWORD` is used for both (single-password mode) |
 | `SESSION_SECRET` | Signs admin session cookies (`openssl rand -hex 32`) |
 | `POSTGRES_PASSWORD` | Database password (the data volume keeps the old one - see below) |
 | `SMTP_PASS` | Mail server login |
@@ -114,7 +116,7 @@ To brand the pages for another event, edit `src/config.js` and the logo/links in
 npm install
 # needs a PostgreSQL; schema is applied automatically on start
 DATABASE_URL=postgres://user:pass@localhost:5432/vushf ADMIN_PASSWORD=secret SESSION_SECRET=x node src/server.js
-BASE_URL=http://localhost:3000 ADMIN_PASSWORD=secret node tests/smoke.js   # creates TEST* bookings!
+BASE_URL=http://localhost:3000 ADMIN_PASSWORD=secret SETUP_PASSWORD=other node tests/smoke.js   # creates TEST* bookings!
 npm run test:unit        # currency unit tests, no database needed
 npm run check-locales    # validates the translation files in src/locales/
 ```

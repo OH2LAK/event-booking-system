@@ -1,22 +1,29 @@
 # Admin guide
 
-For event organizers. The admin panel is at `<site>/?admin=1`; the report and check-in tool is at `<site>/report`. Both use
-the same password (`ADMIN_PASSWORD` in `.env`).
+For event organizers. There are two areas with their own passwords (both set in `.env`):
+
+| Area | Address | Password | Who |
+|---|---|---|---|
+| Booking admin | `<site>/?admin=1` | `ADMIN_PASSWORD` | Everyone who handles bookings: registration settings, bookings table, edits, CSV. The report and check-in tool at `<site>/report` uses the same password. |
+| Event setup | `<site>/?setup=1` | `SETUP_PASSWORD` | One or two people who configure the event: event details, currencies, structure, room types, prices, room inventory, translations, data protection and event shutdown. |
+
+The admin password cannot change the event setup, so it can be given to the whole team. The setup password also opens the
+booking admin. If `SETUP_PASSWORD` is not set, `ADMIN_PASSWORD` opens both (single-password mode).
 
 ## 1. Logging in
 
-1. Open `<site>/?admin=1` and enter the admin password.
+1. Open `<site>/?admin=1` and enter the admin password (for setup tasks use `<site>/?setup=1` and the setup password; the booking admin has a link to it).
 2. The session lasts 12 hours. The browser keeps a session cookie, not the password. After reloading the page you log in
-   again. **Kirjaudu ulos** (lock button, top right) ends the session.
+   again. **Log out** (lock button, top right) ends the session.
 3. After 10 wrong attempts from the same address, logins are blocked for 15 minutes.
 4. A red banner at the top of the panel means a default `change-me-...` value is still in `.env`. Change it (see
    section 8) before the site is public.
 
 The panel does not refresh itself. Use **Refresh** to see bookings made by others.
 
-## 1b. Event setup (first thing to do)
+## 1b. Event setup (setup page, first thing to do)
 
-The **Event setup** card at the top of the admin panel holds everything that identifies your event: name, short name,
+The **Event setup** card at the top of the setup page (`/?setup=1`) holds everything that identifies your event: name, short name,
 organizer, location, dates text, check-in/out texts, contact email and sender name,
 logo URLs, accent color and home link. The values are stored in the database (`event_config` table) and used on the booking
 page, emails, report tool and CSV file names.
@@ -58,7 +65,7 @@ Change the values and press **Save settings**. Changes take effect immediately.
 Join links (`<site>/?join=<booking ref>`) always work, also when registration is closed, so roommates can still join
 an existing booking.
 
-## 4. Pricing
+## 4. Pricing (setup page)
 
 Edit and press **Save pricing**: full board per person, camper van per night (2 nights are charged), tent (weekend),
 single bed price and number of single-bed slots (0 = off), meeting fee for the full weekend and for a single day, and the
@@ -71,7 +78,7 @@ this action. Editing a single booking recalculates only that booking.
 How prices are built: room price divided by the room's persons per guest (the whole price for a solo room), plus the
 meeting fee, plus the meal package if chosen. Each extra night costs the room price divided by the nights included in the room price, divided the same way.
 
-## 4b. Currencies
+## 4b. Currencies (setup page)
 
 The event has one **native currency** (**Event setup -> Currency**, default EUR). Enter all prices in it; it is what guests
 pay and what appears in emails, the report and the CSV export. Existing prices are **not** converted when you change it.
@@ -83,7 +90,7 @@ currency, and the guest's confirmation email repeats the approximate amount with
 European Central Bank's daily reference rates. Rates you typed by hand and marked **Keep (manual)** are not overwritten
 by the fetch. A currency without a rate is not offered to guests. See [CURRENCIES.md](CURRENCIES.md).
 
-## 5b. Event structure
+## 5b. Event structure (setup page)
 
 The **Event structure** card defines the shape of your event:
 
@@ -103,7 +110,7 @@ Days and extra nights that already have bookings cannot be removed. Press **Save
 
 Individually priced meals are not supported; use the meal package.
 
-## 5a. Room types
+## 5a. Room types (setup page)
 
 The **Room types** card (top of the panel, below Event setup) defines the accommodation you offer. Each row has an **Id**
 (short code such as `2S`; fixed after saving), an English description, an optional Finnish description (used in the report
@@ -113,7 +120,7 @@ the cross to delete, then press **Save room types**; the page reloads.
 Rules: a room type that already has bookings cannot be deleted (set its count to 0) and its capacity cannot be changed.
 Single-person types drive the "single bed" rule and two-person types can allow solo use.
 
-## 5. Room inventory
+## 5. Room inventory (setup page)
 
 Set how many rooms of each type exist, plus the number of camper van and tent spots, then press **Save inventory**.
 Lowering a number below what is already booked does not cancel anything; it only stops new bookings.
@@ -162,7 +169,7 @@ left, or when the room's current joiners would not fit the new type. Tick **Send
 email the old/new accommodation, the price difference and the new breakdown (organizers are in BCC). The price is
 recalculated.
 
-## 6b. Languages and translations
+## 6b. Languages and translations (setup page)
 
 Enable languages in **Event setup -> Languages** and edit texts in the **Translations** card (below the privacy card).
 Guests pick their language on the booking pages and get emails in it. See [LANGUAGES.md](LANGUAGES.md). Remember to
@@ -216,7 +223,7 @@ become invalid when `SESSION_SECRET` changes.
 Logs: `docker compose logs -f app` (Docker) or the terminal running Node. For the database structure, backups and
 queries see [DATABASE.md](DATABASE.md).
 
-## 9. Data protection and event shutdown
+## 9. Data protection and event shutdown (setup page)
 
 The **Data protection and event shutdown** card (top of the panel) shows the retention deadline (last day of the event plus the
 retention period, 30 days by default), how much personal data is stored, and the shutdown tool. A banner at the very top of the

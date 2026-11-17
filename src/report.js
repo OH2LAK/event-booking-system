@@ -109,7 +109,7 @@ function nav_(active) {
     + '<a href="' + u + '&fmt=csv" class="btn" target="_top" title="CSV — avautuu Excelissä">⬇ CSV</a>'
     + '<button class="btn" onclick="printPdf()" title="Tulosta / Tallenna PDF:nä">🖨 PDF</button>'
     + '<span class="ts">' + fmtNow_('dd.MM.yyyy HH:mm') + '</span>'
-    + '<button class="btn" onclick="fetch(\'/api/admin/logout\',{method:\'POST\'}).then(function(){window.top.location=\'/report\'})" title="Kirjaudu ulos" style="color:#9ca3af">🔒</button>'
+    + '<button class="btn" onclick="fetch(\'/api/admin/logout\',{method:\'POST\'}).then(function(){window.top.location=\'/report\'})" title="Log out" style="color:#9ca3af">🔒</button>'
     + '</div>';
 }
 

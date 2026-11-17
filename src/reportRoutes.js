@@ -19,14 +19,14 @@ input{width:100%;padding:.55rem;border:1px solid #d1d5db;border-radius:4px;box-s
 button{width:100%;padding:.55rem;border:0;border-radius:4px;background:#0f766e;color:#fff;font-weight:600;cursor:pointer}
 #err{color:#b91c1c;font-size:.85rem;min-height:1.2em;margin-top:.5rem}</style></head><body>
 <div class="box"><h1>${String(CONFIG.EVENT_NAME).replace(/[<>&"]/g, '')}<br>Report &amp; Check-in</h1>
-<input type="password" id="pw" placeholder="Salasana" autofocus>
-<button id="go">Kirjaudu</button><div id="err"></div></div>
+<input type="password" id="pw" placeholder="Password" autofocus>
+<button id="go">Log in</button><div id="err"></div></div>
 <script>
 var view=${JSON.stringify(view)};
 function go(){var pw=document.getElementById('pw').value;if(!pw){return;}
 fetch('/api/rpc/checkAdminPassword',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({args:[pw]})})
-.then(function(r){return r.json();}).then(function(d){if(d.result){location.href='/report?view='+encodeURIComponent(view);}else{document.getElementById('err').textContent=d.error||'Väärä salasana';}})
-.catch(function(){document.getElementById('err').textContent='Virhe';});}
+.then(function(r){return r.json();}).then(function(d){if(d.result){location.href='/report?view='+encodeURIComponent(view);}else{document.getElementById('err').textContent=d.error||'Wrong password';}})
+.catch(function(){document.getElementById('err').textContent='Error';});}
 document.getElementById('go').addEventListener('click',go);
 document.getElementById('pw').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
 </script></body></html>`;

@@ -46,13 +46,14 @@ app.get('/', async (req, res, next) => {
     const settings = await getSettings();
     const lang = i18n.pickLang(req);
     let html;
-    if (req.query.admin !== '1' && !eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
-    if (req.query.admin === '1') { res.set('X-Frame-Options', 'DENY'); html = pages.buildAdminPage(settings); }
+    const staff = req.query.admin === '1' || req.query.setup === '1';
+    if (!staff && !eventConfig.isConfigured()) return res.type('html').send(notConfiguredPage());
+    if (staff) { res.set('X-Frame-Options', 'DENY'); html = pages.buildAdminPage(settings, req.query.setup === '1' ? 'setup' : 'admin'); }
     else if (req.query.public === '1') html = pages.buildPublicPage(lang, i18n.switcher(lang, req));
     else html = pages.buildBookingPage(String(req.query.join || ''), String(req.query.bypass || ''), settings, lang, i18n.switcher(lang, req));
     html = html.replace(/--accent:\s*#b45309/g, '--accent:' + CONFIG.ACCENT_COLOR);
     // Hidden easter egg: optional pIqaD script toggle for Klingon (needs public/fonts/piqad.woff2)
-    if (lang === 'tlh' && req.query.admin !== '1') html = html.replace('</body>', '<script src="/piqad.js"></script></body>');
+    if (lang === 'tlh' && !staff) html = html.replace('</body>', '<script src="/piqad.js"></script></body>');
     res.type('html').send(html);
   } catch (e) { next(e); }
 });
@@ -74,6 +75,13 @@ const PUBLIC = {
   submitBooking: data => service.submitBooking(data),
 };
 // Admin methods: a leading unused first argument is ignored; the session cookie is the credential.
+// Methods that need the setup role (they change how the event is configured or can destroy data).
+// Everything else in ADMIN is available to both roles.
+const SETUP_ONLY = new Set(['getEventConfig', 'saveEventConfig', 'getCurrencies', 'saveCurrencyRates', 'fetchCurrencyRates',
+  'saveRoomCatalog', 'saveStructure', 'getTranslations', 'saveTranslations', 'getShutdownPreview', 'shutdownEvent', 'recalcAllPrices']);
+// Registration settings that the admin role may change; every other setting (prices, inventory) needs the setup role.
+const ADMIN_SETTING_KEYS = new Set(['REGISTRATION_OPEN', 'REGISTRATION_CLOSES', 'ALLOW_SOLO_DOUBLE', 'ALLOW_SINGLE_BED_BOOKING', 'TENT_ENABLED',
+  'ANNOUNCEMENT', 'CLOSED_MESSAGE', 'BYPASS_TOKEN', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER']);
 const ADMIN = {
   getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
   saveEventConfig: values => eventConfig.save(values),
@@ -90,14 +98,20 @@ const ADMIN = {
   saveTranslations: (lang, map) => i18n.saveTranslations(String(lang || ''), map),
   getShutdownPreview: () => gdpr.shutdownPreview(),
   shutdownEvent: opts => gdpr.shutdownErase(opts),
-  getAdminPanelHtml: () => {
-    let html = '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getAdminPanelHtml();
+  getAdminPanelHtml: (_pw, mode) => {
+    const setup = mode === 'setup';
+    let html = setup
+      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
+      : pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
       const late = rs.state === 'overdue';
       html = '<div style="background:' + (late ? '#b91c1c' : '#b45309') + ';color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
         + (late ? 'Data retention deadline passed on ' + rs.deleteBy + '.' : 'Data retention deadline in ' + rs.daysLeft + ' day(s): ' + rs.deleteBy + '.')
-        + ' Personal data must be erased by then: use "Data protection and event shutdown" below (or set a retention hold in Event setup if a matter is still open).</div>' + html;
+        + (setup
+          ? ' Personal data must be erased by then: use "Data protection and event shutdown" below (or set a retention hold in Event setup if a matter is still open).'
+          : ' Personal data must be erased by then: ask the event setup administrator to use "Data protection and event shutdown" in Setup.')
+        + '</div>' + html;
     }
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
@@ -121,14 +135,22 @@ app.post('/api/rpc/:method', async (req, res) => {
   try {
     if (method === 'checkAdminPassword') {
       if (auth.throttled(req.ip)) return res.status(429).json({ error: 'Too many attempts, try again later' });
-      const ok = auth.checkPassword(args[0]);
-      if (ok) { auth.clearFailures(req.ip); res.set('Set-Cookie', auth.makeCookie(secureCookies)); }
+      // Second argument 'setup' means the setup page: only the setup password is accepted there.
+      let role = auth.checkPassword(args[0]);
+      if (args[1] === 'setup' && role !== 'setup') role = null;
+      if (role) { auth.clearFailures(req.ip); res.set('Set-Cookie', auth.makeCookie(role, secureCookies)); }
       else auth.recordFailure(req.ip);
-      return res.json({ result: ok });
+      return res.json({ result: !!role });
     }
     if (Object.prototype.hasOwnProperty.call(PUBLIC, method)) return res.json({ result: await PUBLIC[method](...args) });
     if (Object.prototype.hasOwnProperty.call(ADMIN, method)) {
       if (!auth.isAdmin(req)) return res.status(401).json({ error: 'Not logged in' });
+      const setupOnly = SETUP_ONLY.has(method) || (method === 'getAdminPanelHtml' && args[1] === 'setup');
+      if (setupOnly && !auth.isSetup(req)) return res.status(403).json({ error: 'The setup password is required for this' });
+      if (method === 'saveAdminSettings' && !auth.isSetup(req)) {
+        const denied = Object.keys(args[1] || {}).filter(k => !ADMIN_SETTING_KEYS.has(k));
+        if (denied.length) return res.json({ result: { success: false, error: 'The setup password is required to change: ' + denied.join(', ') } });
+      }
       return res.json({ result: await ADMIN[method](...args) });
     }
     return res.status(404).json({ error: 'Unknown method' });

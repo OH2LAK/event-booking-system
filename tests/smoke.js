@@ -1,9 +1,11 @@
 'use strict';
 // End-to-end smoke test against a running instance.
-//   BASE_URL=http://localhost:3000 ADMIN_PASSWORD=... node tests/smoke.js
+//   BASE_URL=http://localhost:3000 ADMIN_PASSWORD=... [SETUP_PASSWORD=...] node tests/smoke.js
+// With SETUP_PASSWORD set (and different from ADMIN_PASSWORD) the two roles are tested as well.
 // WARNING: creates test bookings (callsigns starting with TEST) in the target database.
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
-const PW = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PW = process.env.ADMIN_PASSWORD || '';
+const PW = process.env.SETUP_PASSWORD || ADMIN_PW; // setup role (the same password in single-password mode)
 let cookie = '';
 let failures = 0;
 
@@ -23,7 +25,38 @@ async function rpc(method, ...args) {
 const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', country: 'FI', privacyAck: true, ...o });
 
 (async () => {
-  check('login for setup', (await rpc('checkAdminPassword', PW)).body.result === true, null);
+  if (PW !== ADMIN_PW) {
+    // --- roles: the admin password must not be able to change the event setup ---
+    cookie = '';
+    check('setup page rejects the admin password', (await rpc('checkAdminPassword', ADMIN_PW, 'setup')).body.result === false, null);
+    check('admin login works', (await rpc('checkAdminPassword', ADMIN_PW, 'admin')).body.result === true, null);
+    let r = await rpc('getEventConfig');
+    check('admin role cannot read event config', r.status === 403, r);
+    r = await rpc('saveEventConfig', { EVENT_NAME: 'Hacked' });
+    check('admin role cannot save event config', r.status === 403, r);
+    r = await rpc('saveStructure', { days: [{ label: 'X', short: 'X' }], coreNights: 1, extraNights: [], package: {} });
+    check('admin role cannot save structure', r.status === 403, r);
+    r = await rpc('saveRoomCatalog', []);
+    check('admin role cannot save room types', r.status === 403, r);
+    r = await rpc('shutdownEvent', {});
+    check('admin role cannot shut the event down', r.status === 403, r);
+    r = await rpc('recalcAllPrices');
+    check('admin role cannot recalculate prices', r.status === 403, r);
+    r = await rpc('getAdminPanelHtml', '', 'setup');
+    check('admin role cannot load the setup panel', r.status === 403, r);
+    r = await rpc('saveAdminSettings', '', { FULL_BOARD_PRICE: '1' });
+    check('admin role cannot change prices', r.status === 200 && r.body.result && r.body.result.success === false, r);
+    r = await rpc('saveAdminSettings', '', { ROOM_COUNTS: { x: 1 } });
+    check('admin role cannot change room inventory', r.body.result && r.body.result.success === false, r);
+    r = await rpc('saveAdminSettings', '', { ANNOUNCEMENT: 'hello' });
+    check('admin role can change registration settings', r.body.result && r.body.result.success === true, r);
+    r = await rpc('getAdminData');
+    check('admin role can read bookings', r.status === 200 && r.body.result && r.body.result.success !== false, r.status);
+    r = await rpc('getAdminPanelHtml', '', 'admin');
+    check('admin role can load the admin panel', r.status === 200 && /Booking Admin/.test(r.body.result || ''), r.status);
+    cookie = '';
+  }
+  check('login for setup', (await rpc('checkAdminPassword', PW, 'setup')).body.result === true, null);
   const ec = (await rpc('getEventConfig')).body.result;
   check('event config fields served', ec.success && ec.fields.length > 10, ec);
   let sv = (await rpc('saveEventConfig', { EVENT_NAME: '', EVENT_SHORT: 'X', ORGANIZER: 'Y' })).body.result;
@@ -58,8 +91,8 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     check(`inline scripts of ${p} parse`, ok && n > 0, n);
   }
   {
-    const panel = (await rpc('getAdminPanelHtml', '')).body.result;
-    check('admin panel has the setup containers', ['event-setup', 'event-structure', 'room-catalog'].every(id => panel.includes('id="' + id + '"')), panel.slice(0, 200));
+    const panel = (await rpc('getAdminPanelHtml', '', 'setup')).body.result;
+    check('setup panel has the setup containers', ['event-setup', 'event-structure', 'room-catalog'].every(id => panel.includes('id="' + id + '"')), panel.slice(0, 200));
   }
   const av = (await rpc('getAvailability')).body.result;
   check('availability has no admin password', !JSON.stringify(av).toLowerCase().includes('password'), null);
@@ -98,7 +131,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   cookie = '';
   check('admin API without login -> 401', (await rpc('getAdminData')).status === 401, null);
   check('wrong password rejected', (await rpc('checkAdminPassword', 'definitely-wrong')).body.result === false, null);
-  check('correct password accepted', (await rpc('checkAdminPassword', PW)).body.result === true, null);
+  check('correct password accepted', (await rpc('checkAdminPassword', PW, 'setup')).body.result === true, null);
   const ad = (await rpc('getAdminData', '')).body.result;
   check('admin data lists bookings', ad.success && ad.rows.length >= 4 && ad.headers.includes('BookingRef'), ad.rows && ad.rows.length);
   r = (await rpc('updateBooking', '', ref, { RoomNumber: '101', OrgComment: 'smoke test' }, false)).body.result;
@@ -170,7 +203,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
 
   // report & check-in tool
   const noAuth = await fetch(BASE + '/report?view=summary');
-  check('report without login shows login page', (await noAuth.text()).includes('Kirjaudu'), noAuth.status);
+  check('report without login shows login page', (await noAuth.text()).includes('Log in'), noAuth.status);
   for (const v of ['hotel', 'checkin', 'summary']) {
     const r2 = await fetch(`${BASE}/report?view=${v}`, { headers: { cookie } });
     const t = await r2.text();

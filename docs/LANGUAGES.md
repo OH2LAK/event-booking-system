@@ -13,7 +13,7 @@ Before a real event, have the privacy notice and the emails checked in each lang
 
 ## Turn it on
 
-1. Open the admin panel, **Event setup**, group **Languages**.
+1. Open the setup page (`/?setup=1`), **Event setup**, group **Languages**.
 2. **Enabled languages**: comma-separated codes, for example `en,fi,sv` or `en,fi,sv,no,da,is,et,lv,lt,pl,de` for all. **Default language**: one of the enabled codes.
 3. Save. When more than one language is enabled, a language switcher appears at the top of the booking pages,
    the public list and the privacy notice. With only one language enabled nothing changes for guests.
@@ -35,7 +35,7 @@ Links such as `https://booking.example.org/?lang=fi` can be shared or printed.
 Not translated: the admin panel and the `/report` tool (organizers), and emails sent to the organizer. They stay in English
 (the report keeps its Finnish/English hotel labels).
 
-## Translations card (admin panel)
+## Translations card (setup page)
 
 * **Language** selects what you edit. Languages that are not enabled are marked.
 * **Event content** lists everything you typed in Event setup, Event structure and Room types, with the original text above
