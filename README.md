@@ -68,6 +68,13 @@ http://localhost:3000/?setup=1 (event setup). The passwords are in `.env`, and t
 skip the last command and fill in the event details on the setup page. Before putting it on the internet, read
 [Change the default passwords](#change-the-default-passwords) and [Making it reachable from the network](#making-it-reachable-from-the-network).
 
+## Live demo and website
+
+A public sandbox runs at https://demo.hamradio-events.com and the project website is at https://hamradio-events.com.
+Visitors can book, change prices or delete the whole event: the demo rebuilds itself every night and after a quiet period.
+The code for both is in this repository: `DEMO_MODE=1` ([demo/](demo/README.md), `src/demo.js`) and the static website
+([site/](site/README.md)).
+
 ## How it fits together
 
 | Part | Address | For | Password |

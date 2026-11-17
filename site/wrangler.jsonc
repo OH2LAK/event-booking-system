@@ -1,0 +1,12 @@
+{
+  // The project website: static files served by a Cloudflare Worker (assets only, no code).
+  "name": "hamradio-events-site",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public"
+  },
+  "routes": [
+    { "pattern": "hamradio-events.com", "custom_domain": true },
+    { "pattern": "www.hamradio-events.com", "custom_domain": true }
+  ]
+}

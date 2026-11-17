@@ -1,0 +1,51 @@
+# Public demo: the app in demo mode, a throwaway database and a Cloudflare Tunnel in front.
+# Start from this folder:  cp .env.example .env  (edit it)  &&  docker compose up -d --build
+# Nothing is published on the host except 127.0.0.1:3000 (for a local check). Visitors reach it through the tunnel only.
+name: ebs-demo
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    tmpfs:
+      - /var/lib/postgresql/data      # nothing worth keeping: the demo data is rebuilt on every start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: ..
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://demo:${POSTGRES_PASSWORD}@db:5432/demo
+      DEMO_MODE: "1"
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SETUP_PASSWORD: ${SETUP_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      PUBLIC_URL: ${PUBLIC_URL}
+      SMTP_HOST: ""                   # the demo never sends email
+      TZ: ${TZ:-Europe/Helsinki}      # the nightly reset uses this time zone
+      DEMO_RESET_HOUR: ${DEMO_RESET_HOUR:-3}
+      DEMO_IDLE_MINUTES: ${DEMO_IDLE_MINUTES:-30}
+      DEMO_MAX_DIRTY_HOURS: ${DEMO_MAX_DIRTY_HOURS:-6}
+      DEMO_MAX_BOOKINGS: ${DEMO_MAX_BOOKINGS:-200}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - app

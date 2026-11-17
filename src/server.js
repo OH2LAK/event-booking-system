@@ -15,6 +15,7 @@ const gdpr = require('./gdpr');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
 const currency = require('./currency');
+const demo = require('./demo');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
   res.set('Referrer-Policy', 'same-origin');
   next();
 });
+app.use(demo.middleware);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 // Everything below serves personal data or admin functions: never cache it in browsers or shared proxies
 app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
@@ -72,7 +74,10 @@ app.use(reportRoutes);
 const PUBLIC = {
   getAvailability: () => service.getAvailability(),
   getPublicGuestList: () => service.getPublicGuestList(),
-  submitBooking: data => service.submitBooking(data),
+  submitBooking: async data => {
+    const full = await demo.bookingCapError();
+    return full ? { success: false, error: full } : service.submitBooking(data);
+  },
 };
 // Admin methods: a leading unused first argument is ignored; the session cookie is the credential.
 // Methods that need the setup role (they change how the event is configured or can destroy data).
@@ -113,6 +118,7 @@ const ADMIN = {
           : ' Personal data must be erased by then: ask the event setup administrator to use "Data protection and event shutdown" in Setup.')
         + '</div>' + html;
     }
+    if (demo.enabled) html = demo.bannerHtml() + html;
     const warn = auth.usingDefaults();
     if (!warn.length) return html;
     const banner = '<div style="background:#b91c1c;color:#fff;padding:0.75rem 1rem;font-weight:600;font-family:sans-serif">'
@@ -179,6 +185,7 @@ async function main() {
   await currency.load();
   await rooms.load();
   await structure.load();
+  await demo.start();
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')

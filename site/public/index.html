@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event booking for ham radio meetings | hamradio-events.com</title>
+<meta name="description" content="Open-source registration and accommodation booking for ham radio meetings and other events: rooms, camper vans, tents and day visitors, automatic prices, 11 languages and built-in data protection. Self-hosted. Try the live demo.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Event booking for ham radio meetings">
+<meta property="og:description" content="Rooms, camper vans, tents and day visitors, automatic prices, 11 languages, built-in data protection. Open source and self-hosted. Try the live demo.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://hamradio-events.com/">
+<meta property="og:image" content="https://hamradio-events.com/img/guest/booking-form.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--muted:#9aa4af;--accent:#f0a500;--teal:#2dd4bf;--blue:#58a6ff}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--blue)}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:1100px;margin:0 auto;padding:0 1.25rem}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header.nav{position:sticky;top:0;z-index:10;background:rgba(13,17,23,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+header.nav .wrap{display:flex;align-items:center;gap:1.25rem;height:56px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;letter-spacing:.02em}
+.brand span{color:var(--accent)}
+nav{margin-left:auto;display:flex;gap:1.1rem;font-size:.92rem;flex-wrap:wrap}
+nav a{color:var(--muted);text-decoration:none}
+nav a:hover{color:var(--text)}
+.btn{display:inline-block;padding:.7rem 1.3rem;border-radius:6px;font-weight:600;text-decoration:none;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:#1a1300}
+.btn.primary:hover{background:#ffb81f}
+.btn.ghost{border-color:var(--border);color:var(--text)}
+.btn.ghost:hover{border-color:var(--muted)}
+.hero{padding:4.5rem 0 3rem;background:radial-gradient(1000px 400px at 75% -10%,rgba(45,212,191,.14),transparent),radial-gradient(800px 360px at 10% 0,rgba(240,165,0,.10),transparent)}
+.hero .grid{display:grid;grid-template-columns:1.05fr 1fr;gap:2.5rem;align-items:center}
+.eyebrow{color:var(--teal);font:600 .8rem/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;margin-bottom:1rem}
+h1{font-size:clamp(2rem,4.6vw,3.1rem);line-height:1.1;margin-bottom:1.1rem}
+h1 em{font-style:normal;color:var(--accent)}
+.lead{font-size:1.15rem;color:#c3ccd5;margin-bottom:1.6rem;max-width:34em}
+.cta{display:flex;gap:.8rem;flex-wrap:wrap;margin-bottom:1rem}
+.note{font-size:.85rem;color:var(--muted)}
+.shot{border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.45);background:var(--surface)}
+section{padding:3.5rem 0}
+section h2{font-size:1.8rem;line-height:1.2;margin-bottom:.6rem}
+section .sub{color:var(--muted);max-width:42em;margin-bottom:2rem}
+.band{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.25rem}
+.band .card{background:var(--bg)}
+.card h3{font-size:1.02rem;margin-bottom:.4rem}
+.card p{color:#b4bec8;font-size:.95rem}
+.card .ic{font-size:1.5rem;margin-bottom:.4rem}
+.shots{columns:2 420px;column-gap:1.6rem}
+figure{break-inside:avoid;margin-bottom:1.8rem}
+figure a{display:block}
+figure .shot{margin-bottom:.6rem}
+figcaption{font-size:.92rem;color:#b4bec8}
+figcaption strong{display:block;color:var(--text);font-size:1rem;margin-bottom:.15rem}
+.cols3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1.2rem}
+.cols3 .card h3 span{color:var(--teal);font:600 .75rem ui-monospace,Menlo,monospace;display:block;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem}
+.demo{display:grid;grid-template-columns:1.2fr 1fr;gap:2rem;align-items:center}
+.cred{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1.2rem 1.3rem;font-size:.95rem}
+.cred table{width:100%;border-collapse:collapse;margin-top:.4rem}
+.cred td{padding:.35rem 0;border-top:1px solid var(--border);vertical-align:top}
+.cred td:first-child{color:var(--muted);padding-right:1rem;white-space:nowrap}
+pre{background:#010409;border:1px solid var(--border);border-radius:8px;padding:1rem 1.1rem;overflow:auto;font-size:.88rem;line-height:1.55;color:#c9d1d9}
+ul.tick{list-style:none;margin:.5rem 0 1.2rem}
+ul.tick li{padding-left:1.5rem;position:relative;margin:.35rem 0;color:#c3ccd5}
+ul.tick li::before{content:"\2713";position:absolute;left:0;color:var(--teal);font-weight:700}
+footer{border-top:1px solid var(--border);padding:2rem 0;color:var(--muted);font-size:.9rem}
+footer .wrap{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:space-between}
+footer a{color:var(--muted)}
+@media(max-width:820px){.hero .grid,.demo{grid-template-columns:1fr}.hero{padding-top:2.5rem}nav{display:none}}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="/">hamradio<span>-events</span>.com</a>
+  <nav aria-label="Main">
+    <a href="#features">Features</a><a href="#screens">Screenshots</a><a href="#how">How it works</a><a href="#demo">Live demo</a><a href="#get">Get it</a>
+    <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a>
+  </nav>
+</div></header>
+
+<main>
+<div class="hero"><div class="wrap grid">
+  <div>
+    <div class="eyebrow">Open source &middot; self-hosted</div>
+    <h1>Run your ham radio meeting <em>without the spreadsheet</em></h1>
+    <p class="lead">Registration and accommodation booking for radio amateur gatherings and any event with rooms, camper vans and tents. Guests book, see live availability and get a priced confirmation. You run it all from a browser.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://demo.hamradio-events.com">Try the live demo</a>
+      <a class="btn ghost" href="https://github.com/OH2LAK/event-booking-system">View on GitHub</a>
+    </div>
+    <p class="note">The demo is a sandbox. Break it, it resets itself every night.</p>
+  </div>
+  <div class="shot"><img src="/img/guest/booking-form.png" alt="The guest booking form with live room availability" width="943" height="1025"></div>
+</div></div>
+
+<section class="band" id="why"><div class="wrap">
+  <h2>Why organisers like it</h2>
+  <p class="sub">A hotel weekend with 60 radio amateurs has the same hard parts every time. They are solved here.</p>
+  <div class="cards">
+    <div class="card"><div class="ic">🏨</div><h3>Accommodation done properly</h3><p>Rooms of any size, people joining an existing room with a booking reference, camper vans, tents, single beds and day visitors. Availability updates as people book.</p></div>
+    <div class="card"><div class="ic">🧮</div><h3>Prices calculate themselves</h3><p>Room, extra nights, meal package and meeting fee add up to a total that guests see before they book and that is kept in the confirmation.</p></div>
+    <div class="card"><div class="ic">🌍</div><h3>11 languages, your currency</h3><p>Guests switch language with one click. Prices are in your currency and guests can see an approximate amount in theirs.</p></div>
+    <div class="card"><div class="ic">📋</div><h3>Ready for the venue</h3><p>Hotel list, check-in desk and printable slips come from the same data as the registration. No re-typing on arrival day.</p></div>
+    <div class="card"><div class="ic">🛡️</div><h3>Privacy built in</h3><p>Consent at booking, an opt-in public guest list, per-person export and erasure, retention reminders and a verified "erase everything" for after the event.</p></div>
+    <div class="card"><div class="ic">🔑</div><h3>You own it</h3><p>Your server and your data. Three runtime dependencies, no trackers or analytics, no build step. One Docker command starts it.</p></div>
+  </div>
+</div></section>
+
+<section id="features"><div class="wrap">
+  <h2>What is in the box</h2>
+  <p class="sub">Everything below is configured in the browser. No code changes are needed to run your own event.</p>
+  <div class="cards">
+    <div class="card"><h3>Booking types</h3><p>Rooms, camper van spots, tent spots, organizer-assigned single beds and day visitors who pick their days. Optional solo use of a double room.</p></div>
+    <div class="card"><h3>Event structure</h3><p>Event days, optional extra nights such as a Thursday night, rooms booked for the whole event or per night, and an optional meal package.</p></div>
+    <div class="card"><h3>Registration control</h3><p>Open and close by hand or by date, an announcement banner, a closed message, and a secret bypass link for late registrants.</p></div>
+    <div class="card"><h3>Emails</h3><p>Confirmation to the guest, notification to the organizer, and updates when a booking or its accommodation changes.</p></div>
+    <div class="card"><h3>Booking admin</h3><p>Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference worked out, CSV export. One password for the whole team.</p></div>
+    <div class="card"><h3>Event setup</h3><p>Details, branding, structure, room types, prices, currencies and translations. A separate password keeps a helper from breaking the event.</p></div>
+    <div class="card"><h3>Currencies</h3><p>One native currency for payment plus display currencies with approximate conversion. Rates by hand or from the European Central Bank.</p></div>
+    <div class="card"><h3>Translations</h3><p>English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish and German. Plain JSON files, easy to improve on GitHub.</p></div>
+    <div class="card"><h3>Who is coming</h3><p>An opt-in public page with callsign, first name and the kind of stay, only for guests who agreed.</p></div>
+  </div>
+</div></section>
+
+<section class="band" id="screens"><div class="wrap">
+  <h2>See it</h2>
+  <p class="sub">Real screens from the demo event. Click a picture for the full size.</p>
+  <div class="shots">
+    <figure><a href="/img/guest/whos-coming.png"><div class="shot"><img loading="lazy" src="/img/guest/whos-coming.png" alt="The public Who's coming page" width="868" height="807"></div></a><figcaption><strong>Who's coming?</strong>Opt-in public participant list.</figcaption></figure>
+    <figure><a href="/img/admin/dashboard.png"><div class="shot"><img loading="lazy" src="/img/admin/dashboard.png" alt="Booking admin dashboard with live figures" width="1699" height="419"></div></a><figcaption><strong>Dashboard</strong>Bookings, rooms, camper and tent spots, meal packages and estimated revenue at a glance.</figcaption></figure>
+    <figure><a href="/img/admin/bookings-table.png"><div class="shot"><img loading="lazy" src="/img/admin/bookings-table.png" alt="Bookings table with edit buttons" width="1701" height="893"></div></a><figcaption><strong>Bookings table</strong>Edit, change accommodation, sort and export. Cancelled and checked-in rows stay visible.</figcaption></figure>
+    <figure><a href="/img/setup/event-details.png"><div class="shot"><img loading="lazy" src="/img/setup/event-details.png" alt="Event setup form" width="1701" height="1149"></div></a><figcaption><strong>Event setup</strong>Names, dates, languages, currency, privacy and branding in one form.</figcaption></figure>
+    <figure><a href="/img/setup/pricing.png"><div class="shot"><img loading="lazy" src="/img/setup/pricing.png" alt="Pricing and room inventory" width="1701" height="1011"></div></a><figcaption><strong>Pricing and inventory</strong>Every price and room count, changed live.</figcaption></figure>
+    <figure><a href="/img/setup/currencies.png"><div class="shot"><img loading="lazy" src="/img/setup/currencies.png" alt="Currencies card with exchange rates" width="1701" height="473"></div></a><figcaption><strong>Currencies</strong>Display currencies with rates from the ECB or by hand.</figcaption></figure>
+    <figure><a href="/img/setup/event-structure.png"><div class="shot"><img loading="lazy" src="/img/setup/event-structure.png" alt="Event structure card" width="1701" height="769"></div></a><figcaption><strong>Event structure</strong>Days, extra nights and the meal package.</figcaption></figure>
+    <figure><a href="/img/setup/data-protection.png"><div class="shot"><img loading="lazy" src="/img/setup/data-protection.png" alt="Data protection and event shutdown" width="1701" height="477"></div></a><figcaption><strong>Data protection</strong>Retention deadline and a verified event shutdown.</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>Three parts, three audiences</h2>
+  <p class="sub">The people who handle bookings do not need to be able to change the event, so they get their own area and password.</p>
+  <div class="cols3">
+    <div class="card"><h3><span>Guests</span>Booking pages</h3><p>The booking form, live availability, joining an existing room, day-visitor passes and the Who's coming list. No account needed.</p></div>
+    <div class="card"><h3><span>Registration team</span>Booking admin</h3><p>Open and close registration, handle bookings, fix mistakes, export lists, and use the report and check-in tool at the venue.</p></div>
+    <div class="card"><h3><span>Organizer</span>Event setup</h3><p>Describe the event once: rooms, prices, days, languages, currency, branding and data protection. Shut the event down and erase the data when it is over.</p></div>
+  </div>
+</div></section>
+
+<section class="band" id="demo"><div class="wrap demo">
+  <div>
+    <h2>Try it. Break it.</h2>
+    <p class="sub" style="margin-bottom:1rem">The live demo is a fictional event with ten fake bookings. Book a room, open the admin, change the prices, delete the whole event. It rebuilds itself every night and after a quiet period.</p>
+    <ul class="tick">
+      <li>Fictional data only, please. Real names are not needed.</li>
+      <li>No email is sent.</li>
+      <li>The passwords are public on purpose.</li>
+    </ul>
+    <div class="cta"><a class="btn primary" href="https://demo.hamradio-events.com">Open the demo</a></div>
+  </div>
+  <div class="cred">
+    <strong>Demo addresses and passwords</strong>
+    <table>
+      <tr><td>Guest pages</td><td><a href="https://demo.hamradio-events.com/">demo.hamradio-events.com</a></td></tr>
+      <tr><td>Booking admin</td><td><a href="https://demo.hamradio-events.com/?admin=1">/?admin=1</a><br>password <code>demo-admin</code></td></tr>
+      <tr><td>Event setup</td><td><a href="https://demo.hamradio-events.com/?setup=1">/?setup=1</a><br>password <code>demo-setup</code></td></tr>
+    </table>
+  </div>
+</div></section>
+
+<section id="get"><div class="wrap">
+  <h2>Run your own event</h2>
+  <p class="sub">You need a server with Docker. Then:</p>
+<pre><code>git clone https://github.com/OH2LAK/event-booking-system.git
+cd event-booking-system
+cp .env.example .env          # set your passwords
+docker compose up --build -d</code></pre>
+  <p class="sub" style="margin-top:1.2rem">Open <code>/?setup=1</code>, describe your event, and share the booking page. The <a href="https://github.com/OH2LAK/event-booking-system#readme">README</a> covers installation, HTTPS and passwords, and the <a href="https://github.com/OH2LAK/event-booking-system/tree/main/docs">guides</a> cover the admin, languages, currencies and data protection.</p>
+  <div class="cta"><a class="btn primary" href="https://github.com/OH2LAK/event-booking-system">Get the code on GitHub</a><a class="btn ghost" href="https://github.com/OH2LAK/event-booking-system/blob/main/docs/ADMIN-GUIDE.md">Read the admin guide</a></div>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+  <div>Open source event booking, built by a radio amateur (OH2LAK) for the events he organises.</div>
+  <div>This site sets no cookies and uses no analytics. <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a></div>
+</div></footer>
+</body>
+</html>
