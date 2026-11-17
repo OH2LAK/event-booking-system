@@ -1,28 +1,83 @@
 # Event booking system
 
-A self-hosted booking system for small and mid-sized events with accommodation: rooms, camper vans, tents, single beds and
-day visitors. It runs as a containerized **Node.js + PostgreSQL** app and is configured for your own event from the setup page
-(name, organizer, dates, contact, logos, accent color).
+**Registration and accommodation booking for events, on your own server.** Guests book a room, a camper van spot, a tent
+or a day pass, see live availability and get a priced confirmation by email. Organizers run everything from a browser:
+no spreadsheets, no code, no third-party service.
 
-Features: room / camper / tent / single-bed / day-visitor bookings, joining an existing room with a booking reference,
-live availability, price calculation with admin-editable prices, confirmation and organizer emails, public
-"Who's coming?" list, a setup page (event details, currencies, structure, room types, prices, translations) and a booking admin panel
-(registration settings, editable bookings table, CSV export), and a
-report & check-in tool (hotel list, check-in desk, summary, printable slips).
+![Booking form](docs/screenshots/guest/booking-form.png)
 
-## Background
+Built for club weekends, conferences, camps, retreats and meetups: anything where people sign up, stay somewhere and pay a
+fee. One Docker command starts it, and the whole event (name, dates, rooms, prices, languages, branding) is set up in a
+web page.
 
-The first version of this system ran on the Google Apps Script platform. This is a rewrite in Node.js + PostgreSQL,
-kept event-neutral so it can be used for any event.
+## Why you might want it
+
+- **Accommodation is the hard part, and it is solved.** Rooms of different sizes, people joining an existing room with a
+  booking reference, camper vans, tents, single beds and day visitors, with availability that updates as people book.
+- **Prices calculate themselves.** Room price, extra nights, meal package and meeting fee add up to a total that is shown
+  before booking, written into the confirmation email and kept in the booking.
+- **It speaks your guests' language.** 11 languages are built in and guests switch with one click. The currency is yours
+  too, and guests can see an approximate price in theirs.
+- **Day-of-event tools are included.** A hotel list for the venue, a check-in desk and printable slips, so the event runs
+  from the same data as the registration.
+- **Privacy is built in rather than bolted on.** Consent at booking, an opt-in public guest list, per-person export and
+  erasure, retention reminders and a verified "erase everything" button for after the event.
+- **You own it.** Your server, your database, your data. Three runtime dependencies (Express, PostgreSQL driver,
+  Nodemailer), no build step, no CDNs, trackers or analytics.
+
+## Features
+
+| | |
+|---|---|
+| **Booking types** | Rooms (any sizes you define), camper van spots, tent spots, organizer-assigned single beds, day visitors who pick their days. Join an existing booking with its reference. Optional solo use of a double room. |
+| **Event structure** | Event days, optional extra nights ("Thursday night"), rooms booked for the whole event or per night, optional meal package. All defined in the browser. |
+| **Pricing** | Per room type, camper van per night, tent, single bed, meal package and meeting fee (full event or single day). Totals and breakdown are stored with each booking. |
+| **Currencies** | One native currency for all payments, plus optional display currencies with approximate conversion. Exchange rates entered by hand or fetched from the European Central Bank. |
+| **Languages** | English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish and German. Translations are plain JSON files, easy to improve on GitHub, and event texts can be translated in the browser. |
+| **Emails** | Booking confirmation to the guest and a notification to the organizer, plus updates when a booking or its accommodation changes. Optional: without SMTP, messages are only logged. |
+| **Registration control** | Open and close manually or by date, announcement banner, closed message, and a secret bypass link for late registrants. |
+| **Booking admin** | Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference calculated, CSV export. Its own password for the whole registration team. |
+| **Event setup** | Event details, branding, structure, room types, prices, currencies and translations, kept apart from the booking admin with a separate password so a helper cannot break the event. |
+| **Report and check-in** | Hotel list, check-in desk, summary and printable slips for use at the venue. |
+| **Public guest list** | An opt-in "Who's coming?" page showing callsign, first name and the kind of stay, only for guests who agreed. |
+| **Data protection** | Generated privacy notice, consent checkbox, per-person data export and erasure, retention deadline with warnings, and an event shutdown that erases all personal data and verifies the result. |
 
 ## Screenshots
 
 Booking form for guests, booking admin for the registration team and event setup for the organizer (full tour with
 descriptions: [docs/screenshots](docs/screenshots/README.md)).
 
-| Guest booking form | Booking admin | Event setup |
+| Who's coming? | Booking admin | Event setup |
 |---|---|---|
-| [![Booking form](docs/screenshots/guest/booking-form.png)](docs/screenshots/README.md#1-guest-pages) | [![Booking admin](docs/screenshots/admin/bookings-table.png)](docs/screenshots/README.md#bookings-table) | [![Event setup](docs/screenshots/setup/pricing.png)](docs/screenshots/README.md#pricing-and-room-inventory) |
+| [![Who's coming](docs/screenshots/guest/whos-coming.png)](docs/screenshots/README.md#whos-coming-public1) | [![Booking admin](docs/screenshots/admin/bookings-table.png)](docs/screenshots/README.md#bookings-table) | [![Event setup](docs/screenshots/setup/pricing.png)](docs/screenshots/README.md#pricing-and-room-inventory) |
+
+## Try it in five minutes
+
+You need Docker. Everything below is fictional demo data.
+
+```bash
+git clone https://github.com/OH2LAK/event-booking-system.git
+cd event-booking-system
+cp .env.example .env            # the passwords in it are placeholders, fine for a local try-out
+docker compose up --build -d
+docker compose exec app npm run seed-demo
+```
+
+Then open http://localhost:3000 (what guests see), http://localhost:3000/?admin=1 (booking admin) and
+http://localhost:3000/?setup=1 (event setup). The passwords are in `.env`, and the data lives in the `pgdata` Docker volume. To start your own event instead of the demo,
+skip the last command and fill in the event details on the setup page. Before putting it on the internet, read
+[Change the default passwords](#change-the-default-passwords) and [Making it reachable from the network](#making-it-reachable-from-the-network).
+
+## How it fits together
+
+| Part | Address | For | Password |
+|---|---|---|---|
+| Guest pages | `/`, `/?public=1` | Participants | none |
+| Booking admin | `/?admin=1` | Everyone who handles bookings | `ADMIN_PASSWORD` |
+| Event setup | `/?setup=1` | The one or two people who configure the event | `SETUP_PASSWORD` |
+| Report and check-in | `/report` | The team at the venue | `ADMIN_PASSWORD` |
+
+Node.js 22, Express and PostgreSQL, started with Docker Compose. Settings live in `.env`, event data in the database.
 
 ## First-time event setup
 
@@ -40,24 +95,13 @@ Room types (id, description, persons per room, count, price) are defined in the 
 
 ## Demo data and screenshots
 
-To get a fictional event with fake bookings (for documentation screenshots or trying things out) on an **empty** database:
+To get a fictional event with fake bookings (for documentation screenshots or trying things out) on an **empty** database, also without Docker:
 
 ```bash
 npm run seed-demo        # needs DATABASE_URL; refuses to run on a non-empty database without --force
 ```
 
 See `docs/SCREENSHOTS.md` for the list of screens to capture.
-
-## Quick start (Docker)
-
-```bash
-cp .env.example .env
-# edit .env - see "Change the default passwords" below
-docker compose up --build -d
-```
-
-Open http://localhost:3000 (booking page), `/?public=1` (Who's coming), `/?admin=1` (booking admin), `/?setup=1` (event setup) and `/report`
-(report & check-in tool; uses the same admin password). Data lives in the `pgdata` Docker volume.
 
 ## Making it reachable from the network
 
@@ -112,12 +156,12 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 
 ## Configuration
 
-All settings are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join links in emails. Leave `SMTP_HOST`
-empty to disable email (messages are then only logged to the console). Event data (dates, rooms, base prices) is in
-`src/config.js`; prices, room counts, registration open/close, announcement, etc. are edited live in the setup page and the booking admin
-and stored in the database.
+Server settings (passwords, database, SMTP, `PUBLIC_URL`) are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join
+links in emails. Leave `SMTP_HOST` empty to disable email (messages are then only logged to the console).
 
-To brand the pages for another event, edit `src/config.js` and the logo/links in `src/pages.js`.
+Everything about the event itself is edited in the browser and stored in the database: event details and branding
+(logos, accent colour) in **Event setup**, and prices, room counts, registration open/close and announcements on the setup
+page and in the booking admin. `src/config.js` only holds the defaults used on the first start.
 
 ## Development and tests
 
@@ -145,3 +189,8 @@ deadline (by default 30 days after the event) approaches, and the setup page has
 verifies it. See [docs/GDPR.md](docs/GDPR.md) for what the software covers and what you must still do as data controller.
 
 Do not commit exports or database dumps; `.gitignore` excludes `.xlsx`, `.csv` and `.env`.
+
+## Background
+
+The first version of this system ran on the Google Apps Script platform. This is a rewrite in Node.js + PostgreSQL,
+kept event-neutral so it can be used for any event.
