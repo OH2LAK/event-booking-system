@@ -13,8 +13,8 @@
     var groups = {};
     data.fields.forEach(function (f) { (groups[f.group] = groups[f.group] || []).push(f); });
     var open = data.configured ? '' : ' open';
-    var html = '<details' + open + ' style="background:var(--surface,#fff);border:1.5px solid ' + (data.configured ? 'var(--border,#d0d7de)' : '#b91c1c') + ';border-radius:6px;padding:0.75rem 1rem;margin:1rem 0">'
-      + '<summary style="cursor:pointer;font-weight:700;font-size:1rem">🎪 Event setup' + (data.configured ? '' : ' <span style="color:#b91c1c">— required before the booking page opens</span>') + '</summary>';
+    var html = '<details' + open + ' style="background:var(--surface,#fff);border:1.5px solid ' + (data.configured ? 'var(--border,#d0d7de)' : '#f85149') + ';border-radius:6px;padding:0.75rem 1rem;margin:1rem 0">'
+      + '<summary style="cursor:pointer;font-weight:700;font-size:1rem">🎪 Event setup' + (data.configured ? '' : ' <span style="color:#f85149">— required before the booking page opens</span>') + '</summary>';
     if (!data.configured) {
       html += '<p style="margin:0.75rem 0;color:var(--muted,#57606a);font-size:0.9rem">Welcome! Fill in the details of your event and press <strong>Save event setup</strong>. '
         + 'Until then visitors see a "booking is not open yet" page. You can change everything later. Rooms, prices and registration dates are set further down this panel.</p>';
@@ -47,10 +47,10 @@
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
     rpc.run
       .withSuccessHandler(function (r) {
-        if (r && r.success) { msg.style.color = '#15803d'; msg.textContent = '✓ Saved. Reload the booking page to see the changes.'; }
-        else { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Save failed'; }
+        if (r && r.success) { msg.style.color = '#3fb950'; msg.textContent = '✓ Saved. Reload the booking page to see the changes.'; }
+        else { msg.style.color = '#f85149'; msg.textContent = (r && r.error) || 'Save failed'; }
       })
-      .withFailureHandler(function (e) { msg.style.color = '#b91c1c'; msg.textContent = 'Error: ' + e.message; })
+      .withFailureHandler(function (e) { msg.style.color = '#f85149'; msg.textContent = 'Error: ' + e.message; })
       .saveEventConfig(values);
   }
 

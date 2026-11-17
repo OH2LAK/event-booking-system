@@ -87,7 +87,7 @@ knowledge. Change all of them before exposing the app to the internet:**
 | `POSTGRES_PASSWORD` | Database password (the data volume keeps the old one - see below) |
 | `SMTP_PASS` | Mail server login |
 
-While any default is still in use the app prints a warning at startup and shows a red banner in the admin panel.
+While any default is still in use the app prints a warning at startup and shows a red banner in both the admin and setup pages.
 
 Note: PostgreSQL only reads `POSTGRES_PASSWORD` when the data volume is first created. If you change it afterwards,
 either remove the volume (`docker compose down -v`, **deletes data**) or change it inside the database with
@@ -95,7 +95,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 
 ## Documentation
 
-- [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (admin panel, report and check-in tool)
+- [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (booking admin, event setup, report and check-in tool)
 - [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
 - [docs/GDPR.md](docs/GDPR.md) - data protection: what the software does, what the organizer must do, handling requests, event shutdown
 - [docs/CURRENCIES.md](docs/CURRENCIES.md) - native currency, extra display currencies and exchange rates (manual or ECB)
@@ -105,7 +105,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 
 All settings are in `.env` (see `.env.example`). `PUBLIC_URL` is used for join links in emails. Leave `SMTP_HOST`
 empty to disable email (messages are then only logged to the console). Event data (dates, rooms, base prices) is in
-`src/config.js`; prices, room counts, registration open/close, announcement, etc. are edited live in the admin panel
+`src/config.js`; prices, room counts, registration open/close, announcement, etc. are edited live in the setup page and the booking admin
 and stored in the database.
 
 To brand the pages for another event, edit `src/config.js` and the logo/links in `src/pages.js`.
@@ -132,7 +132,7 @@ pages), `src/report.js` + `src/reportRoutes.js` (report & check-in), `public/rpc
 The database contains personal data (names, emails, phone numbers, dietary requirements). The booking form shows a
 privacy notice and requires confirmation; the full notice is generated from Event setup and served at `/privacy`.
 The public participant list is opt-in. The admin panel can export or erase one person's data, warns when the retention
-deadline (by default 30 days after the event) approaches, and has an Event shutdown tool that erases everything and
+deadline (by default 30 days after the event) approaches, and the setup page has an Event shutdown tool that erases everything and
 verifies it. See [docs/GDPR.md](docs/GDPR.md) for what the software covers and what you must still do as data controller.
 
 Do not commit exports or database dumps; `.gitignore` excludes `.xlsx`, `.csv` and `.env`.

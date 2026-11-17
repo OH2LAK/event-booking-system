@@ -16,7 +16,7 @@
   function load(lang) {
     var m = el('tr-msg'); if (m) { m.style.color = 'var(--muted,#57606a)'; m.textContent = 'Loading...'; }
     run('getTranslations', [lang || LANG || ''], function (d) {
-      if (!d || !d.success) { if (m) { m.style.color = '#b91c1c'; m.textContent = (d && d.error) || 'Failed'; } return; }
+      if (!d || !d.success) { if (m) { m.style.color = '#f85149'; m.textContent = (d && d.error) || 'Failed'; } return; }
       DATA = d; LANG = d.lang; render();
     });
   }
@@ -93,13 +93,13 @@
       if (en[k] !== undefined && KEPT[k].trim() && ph(en[k]) !== ph(KEPT[k])) bad.push(k);
       map[k] = KEPT[k]; n++;
     });
-    if (bad.length) { msg.style.color = '#b91c1c'; msg.textContent = 'The {placeholders} differ from the English text in: ' + bad.slice(0, 5).join(', ') + (bad.length > 5 ? ' ...' : ''); return; }
+    if (bad.length) { msg.style.color = '#f85149'; msg.textContent = 'The {placeholders} differ from the English text in: ' + bad.slice(0, 5).join(', ') + (bad.length > 5 ? ' ...' : ''); return; }
     if (!n) { msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Nothing changed.'; return; }
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
     run('saveTranslations', [LANG, map], function (r) {
-      if (!r || !r.success) { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Failed'; return; }
+      if (!r || !r.success) { msg.style.color = '#f85149'; msg.textContent = (r && r.error) || 'Failed'; return; }
       KEPT = {}; host.dataset.open = '1'; load(LANG);
-      setTimeout(function () { var m = el('tr-msg'); if (m) { m.style.color = '#15803d'; m.textContent = '✓ Saved (' + n + ' text(s)). Reload a booking page to see them.'; } }, 400);
+      setTimeout(function () { var m = el('tr-msg'); if (m) { m.style.color = '#3fb950'; m.textContent = '✓ Saved (' + n + ' text(s)). Reload a booking page to see them.'; } }, 400);
     });
   }
 

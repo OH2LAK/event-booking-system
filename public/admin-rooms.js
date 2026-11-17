@@ -60,10 +60,10 @@
     msg.style.color = 'var(--muted,#57606a)'; msg.textContent = 'Saving...';
     rpc.run
       .withSuccessHandler(function (r) {
-        if (r && r.success) { msg.style.color = '#15803d'; msg.textContent = '✓ Saved. Reloading...'; setTimeout(function () { location.reload(); }, 600); }
-        else { msg.style.color = '#b91c1c'; msg.textContent = (r && r.error) || 'Save failed'; }
+        if (r && r.success) { msg.style.color = '#3fb950'; msg.textContent = '✓ Saved. Reloading...'; setTimeout(function () { location.reload(); }, 600); }
+        else { msg.style.color = '#f85149'; msg.textContent = (r && r.error) || 'Save failed'; }
       })
-      .withFailureHandler(function (e) { msg.style.color = '#b91c1c'; msg.textContent = 'Error: ' + e.message; })
+      .withFailureHandler(function (e) { msg.style.color = '#f85149'; msg.textContent = 'Error: ' + e.message; })
       .saveRoomCatalog(readForm());
   }
 

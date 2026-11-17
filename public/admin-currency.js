@@ -37,7 +37,7 @@
     if (f) f.addEventListener('click', fetchRates);
     if (s) s.addEventListener('click', save);
   }
-  function msg(text, ok) { var m = document.getElementById('cur-msg'); if (m) { m.style.color = ok ? '#15803d' : '#b91c1c'; m.textContent = text; } }
+  function msg(text, ok) { var m = document.getElementById('cur-msg'); if (m) { m.style.color = ok ? '#3fb950' : '#f85149'; m.textContent = text; } }
   function collect() {
     return Array.prototype.map.call(host.querySelectorAll('tbody tr'), function (tr) {
       return { code: tr.getAttribute('data-code'), rate: tr.querySelector('.cur-rate').value, manual: tr.querySelector('.cur-manual').checked };
@@ -46,7 +46,7 @@
   function save() {
     msg('Saving...', true);
     rpc.run.withSuccessHandler(function (r) {
-      if (r && r.success) render(r, '<span style="color:#15803d">✓ Saved. Reload a booking page to see the changes.</span>'); else msg((r && r.error) || 'Save failed', false);
+      if (r && r.success) render(r, '<span style="color:#3fb950">✓ Saved. Reload a booking page to see the changes.</span>'); else msg((r && r.error) || 'Save failed', false);
     }).withFailureHandler(function (e) { msg('Error: ' + e.message, false); }).saveCurrencyRates(collect());
   }
   function fetchRates() {
@@ -56,7 +56,7 @@
       var parts = ['ECB rates of ' + (r.ecbDate || 'today') + ': updated ' + (r.updated.join(', ') || 'none')];
       if (r.keptManual.length) parts.push('kept manual: ' + r.keptManual.join(', '));
       if (r.missing.length) parts.push('not published by the ECB (enter by hand): ' + r.missing.join(', '));
-      render(r, '<span style="color:#15803d">✓ ' + esc(parts.join(' · ')) + '</span>');
+      render(r, '<span style="color:#3fb950">✓ ' + esc(parts.join(' · ')) + '</span>');
     }).withFailureHandler(function (e) { msg('Error: ' + e.message, false); }).fetchCurrencyRates();
   }
   window.initCurrencies = function () {
