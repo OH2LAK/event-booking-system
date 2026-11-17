@@ -98,11 +98,12 @@ footer a{color:var(--muted)}
 <main>
 <div class="hero"><div class="wrap grid">
   <div>
-    <div class="eyebrow">Open source &middot; self-hosted</div>
+    <div class="eyebrow">Open source &middot; self-hosted or hosted for you</div>
     <h1>Run your ham radio meeting <em>without the spreadsheet</em></h1>
     <p class="lead">Registration and accommodation booking for radio amateur gatherings and any event with rooms, camper vans and tents. Guests book, see live availability and get a priced confirmation. You run it all from a browser.</p>
     <div class="cta">
       <a class="btn primary" href="https://demo.hamradio-events.com">Try the live demo</a>
+      <a class="btn ghost" href="#hosting">Get it hosted</a>
       <a class="btn ghost" href="https://github.com/OH2LAK/event-booking-system">View on GitHub</a>
     </div>
     <p class="note">The demo is a sandbox. Break it, it resets itself every night.</p>
@@ -198,9 +199,9 @@ docker compose up --build -d</code></pre>
 
 <section class="band host" id="hosting"><div class="wrap">
   <h2>Don't want to run a server? We host it for you</h2>
-  <p class="sub">Organising an event and just need the booking system? Order your own instance at <code>your-event.hamradio-events.com</code>: your own database, your own passwords, set up for you with the event name and organiser already filled in. Priced per event, quoted when we approve your request. Your data is erased automatically 30 days after the event.</p>
+  <p class="sub">Organising an event and just need the booking system? Order your own instance at <code>your-event.hamradio-events.com</code>: your own database, your own passwords, set up for you with the event name and organiser already filled in. Run by Finskas Networks Oy and OH2LAK, the radio amateur who built the system. Priced per event, quoted when we approve your request. Your data is erased automatically 30 days after the event.</p>
   <form id="order" novalidate>
-    <label>Address you want <span style="display:flex;align-items:center;gap:.3rem"><input name="slug" required pattern="[a-z0-9-]{3,32}" placeholder="my-event" style="flex:1"> <span>.hamradio-events.com</span></span></label>
+    <label class="full">Address you want <span style="display:flex;align-items:center;gap:.4rem;max-width:30rem"><input name="slug" required pattern="[a-z0-9-]{3,32}" placeholder="my-event" style="flex:1;min-width:0"> <span style="white-space:nowrap">.hamradio-events.com</span></span></label>
     <label>Event name<input name="event_name" required maxlength="120" placeholder="Summer Camp 2027"></label>
     <label>Short name<input name="event_short" required maxlength="20" placeholder="SC27"></label>
     <label>Organiser (club or company)<input name="organizer" required maxlength="120"></label>
@@ -208,17 +209,18 @@ docker compose up --build -d</code></pre>
     <label>Your email<input name="contact_email" type="email" required maxlength="200"></label>
     <label>Event ends<input name="event_end" type="date"></label>
     <label class="full">Anything we should know?<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+    <label class="full" style="flex-direction:row;align-items:flex-start;gap:.6rem"><input type="checkbox" name="agree" required style="margin-top:.25rem"> <span>I have read the <a href="/terms.html">terms</a> and the <a href="/privacy.html">privacy notice</a>.</span></label>
     <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
     <div class="full"><button class="btn primary" type="submit">Send request</button></div>
     <div class="msg" id="order-msg" role="status"></div>
   </form>
-  <p class="sub" style="font-size:.85rem">We use your details only to handle this order. We act as a processor for your attendees' data; a data processing agreement is available on request.</p>
+  <p class="sub" style="font-size:.85rem">We use your details only to handle this order. We act as a processor for your attendees' data; see the <a href="/terms.html">terms</a> and <a href="/privacy.html">privacy notice</a>.</p>
 </div></section>
 </main>
 
 <footer><div class="wrap">
-  <div>Open source event booking, built by a radio amateur (OH2LAK) for the events he organises.</div>
-  <div>This site sets no cookies and uses no analytics. <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a></div>
+  <div>Open source event booking, built by a radio amateur (OH2LAK) for the events he organises. Hosting service provided by Finskas Networks Oy.</div>
+  <div>This site sets no cookies and uses no analytics. <a href="/terms.html">Terms</a> &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="https://github.com/OH2LAK/event-booking-system">GitHub</a></div>
 </div></footer>
 <script>
 (function(){
@@ -227,7 +229,7 @@ docker compose up --build -d</code></pre>
     e.preventDefault();
     if(!f.reportValidity())return;
     var d={};new FormData(f).forEach(function(v,k){d[k]=v});
-    d.slug=String(d.slug||'').toLowerCase();
+    d.slug=String(d.slug||'').toLowerCase();delete d.agree;
     m.className='msg';m.textContent='Sending...';
     fetch('https://platform.hamradio-events.com/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
       .then(function(r){return r.json().catch(function(){return{ok:false,error:'Server error.'}})})
