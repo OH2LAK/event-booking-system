@@ -32,7 +32,7 @@
       + 'Event shutdown below erases <em>everyone</em> at once and cannot be undone.</p>';
     h += '<fieldset style="border:1px solid #f85149;border-radius:6px;margin:0.9rem 0;padding:0.6rem 0.9rem"><legend style="font-weight:700;color:#f85149;padding:0 0.4rem">Event shutdown</legend>'
       + '<ol style="font-size:0.85rem;margin:0.3rem 0 0.6rem 1.1rem;padding:0;line-height:1.5">'
-      + '<li>Download what you still need (without personal data if possible): <a href="/report?view=hotel&fmt=csv" target="_blank" rel="noopener">full CSV export</a>. Delete that file afterwards.</li>'
+      + '<li>Download what you still need (without personal data if possible): <a href="/report?view=hotel&fmt=csv" target="_blank" rel="noopener" style="color:var(--accent2,#0969da)">full CSV export</a>. Delete that file afterwards.</li>'
       + '<li>Make sure no dispute or other open matter needs the data (otherwise set a retention hold in Event setup).</li>'
       + '<li>Run the shutdown. It sends the optional final notice, deletes all bookings and log entries, closes registration, removes deleted rows from the database files and verifies the result.</li>'
       + '<li>Afterwards remove copies the app cannot reach: database backups and dumps, exported CSV/XLSX files, the report print-outs, your mail program\'s sent items and your SMTP provider\'s logs.</li></ol>';

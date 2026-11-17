@@ -19,3 +19,6 @@
 | Printable slip | `/report` | Open a slip from the check-in view |
 
 Do not capture real attendee data; use only the demo database.
+
+The finished screenshots live in `docs/screenshots/` (`guest/`, `admin/` and `setup/`) and are described in
+[screenshots/README.md](screenshots/README.md).

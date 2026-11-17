@@ -15,6 +15,15 @@ report & check-in tool (hotel list, check-in desk, summary, printable slips).
 The first version of this system ran on the Google Apps Script platform. This is a rewrite in Node.js + PostgreSQL,
 kept event-neutral so it can be used for any event.
 
+## Screenshots
+
+Booking form for guests, booking admin for the registration team and event setup for the organizer (full tour with
+descriptions: [docs/screenshots](docs/screenshots/README.md)).
+
+| Guest booking form | Booking admin | Event setup |
+|---|---|---|
+| [![Booking form](docs/screenshots/guest/booking-form.png)](docs/screenshots/README.md#1-guest-pages) | [![Booking admin](docs/screenshots/admin/bookings-table.png)](docs/screenshots/README.md#bookings-table) | [![Event setup](docs/screenshots/setup/pricing.png)](docs/screenshots/README.md#pricing-and-room-inventory) |
+
 ## First-time event setup
 
 1. Start the app (see below) and open `/?setup=1`, then log in with `SETUP_PASSWORD`.
