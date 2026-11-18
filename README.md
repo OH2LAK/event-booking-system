@@ -1,19 +1,24 @@
 # Event booking system
 
-**Registration and accommodation booking for events, on your own server.** Guests book a room, a camper van spot, a tent
-or a day pass, see live availability and get a priced confirmation by email. Organizers run everything from a browser:
+**Registration, accommodation and vendor-space booking for events, on your own server.** Guests book a room, a camper van
+spot, a tent, a day pass, or, at a hamfest or fair, a flea market table, trunk sale spot or sales booth. They see live
+availability and get a priced confirmation by email. Organizers run everything from a browser:
 no spreadsheets, no code, no third-party service.
 
 ![Booking form](docs/screenshots/guest/booking-form.png)
 
-Built for club weekends, conferences, camps, retreats and meetups: anything where people sign up, stay somewhere and pay a
-fee. One Docker command starts it, and the whole event (name, dates, rooms, prices, languages, branding) is set up in a
+Built for club weekends, hamfests and fairs, conferences, camps, retreats and meetups: anything where people sign up,
+stay somewhere or reserve a space, and pay a fee. One Docker command starts it, and the whole event (name, dates, rooms, prices, languages, branding) is set up in a
 web page.
 
 ## Why you might want it
 
 - **Accommodation is the hard part, and it is solved.** Rooms of different sizes, people joining an existing room with a
   booking reference, camper vans, tents, single beds and day visitors, with availability that updates as people book.
+- **Hamfests and fairs are first-class.** Event profiles switch rooms, camping, day attendance and vendor spaces on or off, so
+  an overnight meeting, a one-day fair and everything in between use the same form. Flea market tables, trunk sales and
+  booths have their own price, day, times, size, power, location and capacity; vendors can register without accommodation
+  and list the names who need entry tickets.
 - **Prices calculate themselves.** Room price, extra nights, meal package and meeting fee add up to a total that is shown
   before booking, written into the confirmation email and kept in the booking.
 - **It speaks your guests' language.** 20 languages are built in and guests switch with one click. The currency is yours

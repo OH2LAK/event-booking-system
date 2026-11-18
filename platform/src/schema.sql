@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS orders (
   contact_name  TEXT NOT NULL,
   contact_email TEXT NOT NULL,
   event_end     DATE,
-  event_mode    TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day')),
+  event_mode    TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day','hamfest')),
   notes         TEXT,
   price_cents   INTEGER,
   currency      TEXT NOT NULL DEFAULT 'eur',
@@ -19,7 +19,14 @@ CREATE TABLE IF NOT EXISTS orders (
   paid_at       TIMESTAMPTZ,
   decided_at    TIMESTAMPTZ
 );
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS event_mode TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day'));
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS event_mode TEXT NOT NULL DEFAULT 'overnight' CHECK (event_mode IN ('overnight','day','hamfest'));
+-- Orders made before the hamfest / fair profile existed only allowed overnight and day
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'orders'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%event_mode%' AND pg_get_constraintdef(oid) NOT LIKE '%hamfest%') THEN
+    ALTER TABLE orders DROP CONSTRAINT orders_event_mode_check;
+    ALTER TABLE orders ADD CONSTRAINT orders_event_mode_check CHECK (event_mode IN ('overnight','day','hamfest'));
+  END IF;
+END $$;
 -- Optional own domain for the instance (extra fee). domain_fee_cents is the part of price_cents that pays for it.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS custom_domain TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS domain_fee_cents INTEGER NOT NULL DEFAULT 0;

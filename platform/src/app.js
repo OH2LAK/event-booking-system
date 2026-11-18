@@ -59,7 +59,7 @@ function build(deps) {
       : !t('event_name') || !t('event_short') || !t('organizer') || !t('contact_name') ? 'Please fill in all required fields.'
       : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t('contact_email')) ? 'Invalid email address.'
       : t('event_end') && !/^\d{4}-\d{2}-\d{2}$/.test(t('event_end')) ? 'Invalid event end date.'
-      : t('event_mode') && !['overnight', 'day'].includes(t('event_mode')) ? 'Invalid event type.'
+      : t('event_mode') && !['overnight', 'day', 'hamfest'].includes(t('event_mode')) ? 'Invalid event type.'
       : domain && !cf.enabled() ? 'Own domains are not available yet. Leave the domain field empty or contact us.'
       : domain && domains.validate(domain) ? domains.validate(domain)
       : t('event_name').length > 120 || t('notes').length > 2000 ? 'Text too long.' : null;
@@ -98,7 +98,7 @@ function build(deps) {
     const o = (await db.query('SELECT o.*, t.state AS tenant_state, t.erase_after, t.domain_status, t.domain_note FROM orders o LEFT JOIN tenants t ON t.order_id=o.id ORDER BY o.id DESC LIMIT 200')).rows;
     const btn = (path, id, label, extra = '') => `<form method=post action=${path}><input type=hidden name=id value=${id}>${extra}<button>${label}</button></form>`;
     const rows = o.map(r => `<tr><td>${r.id}</td><td>${esc(r.status)}${r.tenant_state ? ' / ' + esc(r.tenant_state) : ''}</td><td><b>${esc(r.slug)}</b><br>${esc(r.event_name)}<br>${esc(r.organizer)}${r.custom_domain ? `<br>own domain: <b>${esc(r.custom_domain)}</b>${r.domain_status && r.domain_status !== 'none' ? ' (' + esc(r.domain_status) + (r.domain_note && r.domain_status !== 'active' ? ': ' + esc(r.domain_note) : '') + ')' : ''}` : ''}</td>
-      <td>${esc(r.contact_name)}<br>${esc(r.contact_email)}<br>${r.event_mode === 'day' ? 'one-day event, ' : ''}ends ${r.event_end ? esc(new Date(r.event_end).toISOString().slice(0, 10)) : '?'}</td><td>${esc(r.notes)}</td>
+      <td>${esc(r.contact_name)}<br>${esc(r.contact_email)}<br>${r.event_mode === 'day' ? 'one-day event, ' : r.event_mode === 'hamfest' ? 'hamfest / fair, ' : ''}ends ${r.event_end ? esc(new Date(r.event_end).toISOString().slice(0, 10)) : '?'}</td><td>${esc(r.notes)}</td>
       <td>${r.status === 'requested' ? btn('/operator/approve', r.id, 'Approve', `<input name=price type=number step=0.01 min=0 placeholder="price ${config.priceCents / 100}" style="width:7em"> ` + (r.custom_domain ? `<input name=domain_fee type=number step=0.01 min=0 placeholder="domain fee ${config.customDomainFeeCents / 100}" style="width:8em"> ` : '')) + btn('/operator/reject', r.id, 'Reject') : ''}
       ${r.status === 'active' ? btn('/operator/suspend', r.id, 'Suspend') + btn('/operator/resume', r.id, 'Resume') + btn('/operator/erase', r.id, 'Erase now') + (r.custom_domain ? btn('/operator/domain-check', r.id, 'Check domain') + btn('/operator/domain-retry', r.id, 'Retry domain') : '') : ''}
       ${r.status === 'failed' ? btn('/operator/retry', r.id, 'Retry') : ''}</td></tr>`).join('');

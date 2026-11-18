@@ -26,7 +26,7 @@ function create(deps) {
       const env = { DATABASE_URL: databaseUrl, PUBLIC_URL: `https://${own || hostOf(slug)}`, SETUP_PASSWORD: setupPw, OWNER_EMAIL: order.contact_email, SESSION_SECRET: rand(32), NODE_ENV: 'production' };
       if (process.env.SMTP_HOST) Object.assign(env, { SMTP_HOST: process.env.SMTP_HOST, SMTP_PORT: process.env.SMTP_PORT, SMTP_USER: process.env.SMTP_USER, SMTP_PASS: process.env.SMTP_PASS, SMTP_FROM: process.env.SMTP_FROM });
       await runner.pull();
-      const out = await runner.initEvent(name, env, JSON.stringify({ EVENT_NAME: order.event_name, EVENT_SHORT: order.event_short, ORGANIZER: order.organizer, EVENT_MODE: order.event_mode === 'day' ? 'day' : 'overnight', API_ENABLED: 'no' }));
+      const out = await runner.initEvent(name, env, JSON.stringify({ EVENT_NAME: order.event_name, EVENT_SHORT: order.event_short, ORGANIZER: order.organizer, EVENT_MODE: order.event_mode === 'overnight' || !order.event_mode ? 'overnight' : 'day', ...(order.event_mode === 'hamfest' ? { EVENT_PROFILE: 'hamfest', MOD_ROOMS: 'no', MOD_CAMPING: 'no', MOD_DAYVISITOR: 'yes', MOD_VENDORS: 'yes' } : {}), API_ENABLED: 'no' }));
       if (!/"success":\s*true/.test(out)) throw new Error('init failed: ' + out);
       const r = `ebs-${slug}`;
       await runner.start(name, env, {

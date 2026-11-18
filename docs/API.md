@@ -145,7 +145,7 @@ curl -X POST $BASE/bookings \
 | `sendNotifications` | `false` = this system sends no email or SMS for this booking. Default `true`. |
 | `displayCurrency`, `bypassToken` | As in the form. |
 
-A one-day event only accepts `type: "dayvisitor"`.
+Only the types of the switched-on event modules are accepted: for example a one-day event accepts `dayvisitor`, a hamfest also `vendor` (see `modules` in `GET /event`).
 
 **Idempotency.** Always send an `Idempotency-Key` (any unique string up to 100 characters, for example your order number). If a request times out and you send it again with the same key and body, you get the first answer back (header `Idempotent-Replayed: true`) and no second booking. The same key with a different body is refused with 422. Keys are remembered for 24 hours; failed requests are not remembered and can simply be retried.
 
