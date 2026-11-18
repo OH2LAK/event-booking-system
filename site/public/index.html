@@ -132,7 +132,7 @@ footer a{color:var(--muted)}
     <div class="card"><h3>One-day events</h3><p>Switch the event to a one-day event and the form becomes a plain registration: no accommodation, just who is coming and what they want to join.</p></div>
     <div class="card"><h3>Optional extras</h3><p>Dinner, an excursion, a workshop: guests tick what they want. Each extra has its own price, capacity and sign-up deadline, and you see how many to order.</p></div>
     <div class="card"><h3>API and webhooks</h3><p>Connect other systems: read counts and bookings, export CSV or JSON, make bookings from your own web shop or register, and get signed webhook messages when bookings change. Keys with separate permissions.</p></div>
-    <div class="card"><h3>Your own domain</h3><p>Hosted events can use your own address, for example ilmo.yourclub.fi, for an extra fee. One DNS record from you, the certificate is automatic.</p></div>
+    <div class="card"><h3>Your own domain</h3><p>Hosted events can use your own address, for example ilmo.yourclub.fi, for an extra fee. One DNS record from you, the certificate is automatic. Only possible if you own or administer the domain.</p></div>
     <div class="card"><h3>Payment status</h3><p>Show prices and how to pay (for example at the door) and mark bookings paid as money arrives. Online payment is not built in yet.</p></div>
     <div class="card"><h3>Event structure</h3><p>Event days, optional extra nights such as a Thursday night, rooms booked for the whole event or per night, and an optional meal package.</p></div>
     <div class="card"><h3>Registration control</h3><p>Open and close by hand or by date, an announcement banner, a closed message, and a secret bypass link for late registrants.</p></div>
@@ -204,7 +204,7 @@ docker compose up --build -d</code></pre>
 
 <section class="band host" id="hosting"><div class="wrap">
   <h2>Don't want to run a server? We host it for you</h2>
-  <p class="sub">Organising an event and just need the booking system? Order your own instance at <code>your-event.hamradio-events.com</code>: your own database, your own passwords, set up for you with the event name and organiser already filled in. Run by Finskas Networks Oy and OH2LAK, the radio amateur who built the system. Priced per event, quoted when we approve your request. Your data is erased automatically 30 days after the event.</p>
+  <p class="sub">Organising an event and just need the booking system? Order your own instance at <code>your-event.hamradio-events.com</code>: your own database, your own passwords, set up for you with the event name and organiser already filled in. Run by Finskas Networks Oy and OH2LAK, the radio amateur who built the system. Priced per event, quoted when we approve your request. Optional: use your own domain (for example ilmo.yourclub.fi) for an extra fee, if you own or administer it. Your data is erased automatically 30 days after the event.</p>
   <form id="order" novalidate>
     <label class="full">Address you want <span style="display:flex;align-items:center;gap:.4rem;max-width:30rem"><input name="slug" required pattern="[a-z0-9-]{3,32}" placeholder="my-event" style="flex:1;min-width:0"> <span style="white-space:nowrap">.hamradio-events.com</span></span></label>
     <label>Event name<input name="event_name" required maxlength="120" placeholder="Summer Camp 2027"></label>
@@ -214,7 +214,8 @@ docker compose up --build -d</code></pre>
     <label>Your email<input name="contact_email" type="email" required maxlength="200"></label>
     <label>Event ends<input name="event_end" type="date"></label>
     <label>Event type<select name="event_mode"><option value="overnight">Overnight event (rooms, camper vans, tents)</option><option value="day">One-day event (registration only)</option></select></label>
-    <label class="full">Your own address (optional, extra fee)<input name="custom_domain" maxlength="253" placeholder="ilmo.yourclub.fi" autocomplete="off"><small style="color:var(--muted,#57606a)">A subdomain of a domain you control, not the bare domain. You add one DNS record (a CNAME) and we handle the certificate. We tell you the price when we approve the order.</small></label>
+    <label class="full">Your own address (optional, extra fee)<input name="custom_domain" maxlength="253" placeholder="ilmo.yourclub.fi" autocomplete="off"><small style="color:var(--muted,#57606a)">Only possible if you own or administer the domain: you must be able to add DNS records to it. Use a subdomain, not the bare domain. You add one DNS record (a CNAME) and we handle the certificate. We tell you the price when we approve the order.</small></label>
+    <label class="full" id="dc-wrap" style="flex-direction:row;align-items:flex-start;gap:.6rem;display:none"><input type="checkbox" name="domain_control" id="dc-box" style="margin-top:.25rem"> <span>I own or administer this domain and can add DNS records to it. An own address only works if you control the domain.</span></label>
     <label class="full">Anything we should know?<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
     <label class="full" style="flex-direction:row;align-items:flex-start;gap:.6rem"><input type="checkbox" name="agree" required style="margin-top:.25rem"> <span>I have read the <a href="/terms.html">terms</a> and the <a href="/privacy.html">privacy notice</a>.</span></label>
     <div class="hp" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
@@ -232,11 +233,13 @@ docker compose up --build -d</code></pre>
 <script>
 (function(){
   var f=document.getElementById('order'),m=document.getElementById('order-msg');
+  f.custom_domain.addEventListener('input',function(){document.getElementById('dc-wrap').style.display=f.custom_domain.value.trim()?'flex':'none';});
   f.addEventListener('submit',function(e){
     e.preventDefault();
     if(!f.reportValidity())return;
+    if(f.custom_domain.value.trim()&&!document.getElementById('dc-box').checked){m.className='msg err';m.textContent='An own address needs you to own or administer the domain. Tick the box, or clear the address field.';return;}
     var d={};new FormData(f).forEach(function(v,k){d[k]=v});
-    d.slug=String(d.slug||'').toLowerCase();delete d.agree;
+    d.slug=String(d.slug||'').toLowerCase();delete d.agree;delete d.domain_control;
     m.className='msg';m.textContent='Sending...';
     fetch('https://platform.hamradio-events.com/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
       .then(function(r){return r.json().catch(function(){return{ok:false,error:'Server error.'}})})
