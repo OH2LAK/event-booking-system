@@ -29,7 +29,8 @@ web page.
 
 | | |
 |---|---|
-| **One-day events** | A setting in Event setup switches from an overnight event to a one-day event: no accommodation, everyone registers as an attendee. |
+| **Event profiles and modules** | Switches in Event setup turn rooms, camping, day attendance and vendor spaces on or off. Profiles (overnight event, one-day event, hamfest/fair) are only presets, so hybrid events work. |
+| **Vendor spaces** | Flea market tables, trunk sales, sales and demo booths or your own space types, with price, day and times, size, power and location, a question to the booker and capacity. Vendors can register without accommodation (one contact person plus a list of names for entry tickets) or add a space to a normal booking. |
 | **Optional extras** | A free list of extras (dinner, excursion, workshop ...) with price, optional capacity, sign-up deadline and maximum per booking. Guests tick what they want when registering; the price is added to the total and the organizer sees totals per extra. |
 | **Payments** | Prices and a "how to pay" text (for example "pay at the door") are shown to guests; the organizer marks bookings paid in the booking list. Online payment (Stripe/SumUp) is not built in yet. |
 | **Booking types** | Rooms (any sizes you define), camper van spots, tent spots, organizer-assigned single beds, day visitors who pick their days. Join an existing booking with its reference. Optional solo use of a double room. |

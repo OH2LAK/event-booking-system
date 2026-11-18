@@ -92,6 +92,8 @@ Backups are outside the application's reach. If you keep database backups, make 
 | `event_log` | callsign / booking reference, event type | security and troubleshooting; removed when the person is erased |
 | `settings`, `event_config`, `room_types`, `event_structure`, `currency_rates` | none about participants (organizer contact details only) | configuration |
 
+**Entry-ticket names.** A vendor can list names of other people who come with them and need an entry ticket (table `booking_tickets`). These are personal data of third parties that the booker supplies; they are kept only for the booking, included in the export of the booking and erased with it. The organizer should tell vendors in the event information that they are responsible for having the right to give these names.
+
 Optional **webhooks** send booking data to addresses the organizer enters (choose *no personal data* where possible); the organizer is responsible for those receivers (see [API.md](API.md), section Privacy). Erasing a booking deletes queued messages about it and sends a `booking.erased` message with the reference only, and event shutdown switches all webhooks and API keys off.
 
 The only other outgoing connection that is not an email is the optional **Fetch ECB rates** button in the admin panel (see

@@ -58,10 +58,10 @@ The error `message` of a refused booking is in the language of the request's `la
 | Request | Answer |
 | --- | --- |
 | `GET /ping` | `{ ok, event, key, scopes, time }`: the key works (any permission). |
-| `GET /event` | Name, dates, currency, languages, event mode (`overnight` or `day`), days and nights of the event structure, meal package. |
+| `GET /event` | Name, dates, currency, languages, event mode (`overnight` or `day`), the event `profile` and the `modules` switches (`rooms`, `camping`, `dayvisitor`, `vendors`), days and nights of the event structure, meal package. |
 | `GET /availability` | Whether registration is open, free rooms per type (and per night), camper/tent/single-bed spots left, extras with capacity left. |
 | `GET /stats` | Bookings by status, type and country; payments (expected, paid, outstanding); extras taken; room inventory and occupancy. |
-| `GET /extras` | The extras catalog: price, capacity, how many are taken and left, deadline. |
+| `GET /extras` | The extras catalog: price, capacity, how many are taken and left, deadline. Vendor spaces are in the same list with `kind: "vendor"` and a `vendorSpace` object (type, day, times, size, power, location, pricing, unit, unit price, the question to the booker). |
 
 ```bash
 curl -H "Authorization: Bearer $KEY" $BASE/availability
@@ -91,11 +91,12 @@ curl -H "Authorization: Bearer $KEY" "$BASE/bookings?paymentStatus=UNPAID&active
   "totalPrice": 183, "currency": "EUR", "priceBreakdown": "…",
   "status": "CONFIRMED", "paymentStatus": "UNPAID", "paidAt": null,
   "roomNumber": "", "orgComment": "", "publishConsent": true, "isOrganizer": false, "freeText": "", "language": "fi",
-  "extras": [ { "id": "dinner", "name": "Saturday dinner", "qty": 2, "unitPrice": 25 } ]
+  "extras": [ { "id": "dinner", "name": "Saturday dinner", "qty": 2, "unitPrice": 25, "note": "" } ],
+  "tickets": []
 }
 ```
 
-`type` is `room`, `camper`, `tent`, `singlebed` or `dayvisitor`; `status` is `CONFIRMED`, `CHECKED_IN`, `NEEDS_ATTENTION` or `CANCELLED`; `paymentStatus` is `UNPAID`, `PAID` or `WAIVED`.
+`type` is `room`, `camper`, `tent`, `singlebed`, `dayvisitor` or `vendor`; `status` is `CONFIRMED`, `CHECKED_IN`, `NEEDS_ATTENTION` or `CANCELLED`; `paymentStatus` is `UNPAID`, `PAID` or `WAIVED`.
 
 ## 4. Exports
 
@@ -129,14 +130,15 @@ curl -X POST $BASE/bookings \
 
 | Field | |
 | --- | --- |
-| `callsign`, `name`, `email`, `type`, `privacyAck` | Required. `privacyAck: true` states that the guest has accepted the privacy notice (`/privacy`); **the calling system is responsible for showing it**. |
+| `callsign`, `name`, `email`, `type`, `privacyAck` | Required (`callsign` is optional for `type: "vendor"`: a vendor-only booking without accommodation, which needs at least one vendor space in `extras`). Only the booking types of the switched-on event modules are accepted.  `privacyAck: true` states that the guest has accepted the privacy notice (`/privacy`); **the calling system is responsible for showing it**. |
 | `phone`, `country`, `dietary`, `shirtSize`, `freeText` | Optional text. |
 | `roomId` | Room type id (`type: "room"`). Ids are in `GET /availability`. |
 | `joinExisting`, `roomRef` | Join an existing room or camper van booking by its reference. |
 | `soloDouble` | Use a multi-person room alone (if the organizer allows it). |
 | `extraNights`, `nights`, `visitorDays` | Lists of keys from `GET /event` (extra nights, per-night mode nights, days for day visitors). |
 | `fullBoard` | The meal package. |
-| `extras` | `[ { "id": "dinner", "qty": 2 } ]`, see `GET /extras`. |
+| `extras` | `[ { "id": "dinner", "qty": 2 } ]`, see `GET /extras`. Vendor spaces use the same list and take a `note` (the answer to the space's question, required when the space says so); with per-metre pricing `qty` is the number of metres. |
+| `tickets` | `["Name One", "Name Two"]`: names that get an entry ticket besides the contact person (max 20). Kept only when the booking has a vendor space. |
 | `publishConsent` | May the callsign and first name appear on the public "Who's coming?" list. **Defaults to `false`.** |
 | `language` | Language of the confirmation email (a code enabled for the event). |
 | `paymentStatus` | `PAID` if the payment was already collected elsewhere, `WAIVED`, or `UNPAID`. Default: `UNPAID` (or `WAIVED` when the price is 0). |
@@ -149,7 +151,7 @@ A one-day event only accepts `type: "dayvisitor"`.
 
 ## 6. Changing and cancelling (`bookings:write`)
 
-`PATCH /bookings/{ref}` changes only the fields that are sent. Changeable: `callsign`, `name`, `email`, `phone`, `country`, `type`, `roomId`, `roomRef`, `isPrimary`, `extraNights`, `nights`, `visitorDays`, `fullBoard`, `dietary`, `status`, `roomNumber`, `orgComment`, `publishConsent`, `soloRoom`, `freeText`, `isOrganizer`, `paymentStatus`, `extras`. Anything else is refused. Prices are recalculated when something that affects the price changes. Like in the admin panel, a change is **not** checked against capacity: the caller decides. `"sendEmail": true` also sends the guest an update email (default: no).
+`PATCH /bookings/{ref}` changes only the fields that are sent. Changeable: `callsign`, `name`, `email`, `phone`, `country`, `type`, `roomId`, `roomRef`, `isPrimary`, `extraNights`, `nights`, `visitorDays`, `fullBoard`, `dietary`, `status`, `roomNumber`, `orgComment`, `publishConsent`, `soloRoom`, `freeText`, `isOrganizer`, `paymentStatus`, `extras`, `tickets`. Anything else is refused. Prices are recalculated when something that affects the price changes. Like in the admin panel, a change is **not** checked against capacity: the caller decides. `"sendEmail": true` also sends the guest an update email (default: no).
 
 ```bash
 # mark as paid
@@ -227,6 +229,7 @@ def valid(raw_body: bytes, header: str, secret: str) -> bool:
 
 ## 8. Privacy
 
+* Ticket names of vendor bookings are personal data of third parties supplied by the booker; they are part of the booking (`tickets`) and are erased with it.
 * Only keys with `bookings:read` (or `bookings:write` for what they send and change) see personal data. Use `stats` where counts are enough.
 * Webhooks with *full booking data* send personal data to the address you entered: only use receivers you are allowed to give it to, and record them in your privacy documentation. Queued messages hold personal data until delivered; the stored copy is removed after a successful delivery (failed ones after 7 days).
 * When a booking is erased, queued messages about it are deleted and `booking.erased` is sent so other systems can delete their copy.

@@ -11,7 +11,7 @@ const { getSettings } = require('./settings');
 const yes = v => v === 'YES';
 
 // A booking as the API shows it. `extras` is the list of chosen extras.
-function serializeBooking(row, extras) {
+function serializeBooking(row, extras, tickets) {
   const o = repo.toObj(row);
   return {
     ref: o.bookingRef,
@@ -24,7 +24,8 @@ function serializeBooking(row, extras) {
     status: o.status, paymentStatus: o.paymentStatus, paidAt: row.paid_at ? new Date(row.paid_at).toISOString() : null,
     roomNumber: o.roomNumber, orgComment: o.orgComment, publishConsent: yes(o.publishConsent), isOrganizer: yes(o.isOrganizer),
     freeText: o.freeText, language: o.language,
-    extras: (extras || []).map(a => ({ id: a.id, name: a.name, qty: a.qty, unitPrice: a.unit_price })),
+    extras: (extras || []).map(a => ({ id: a.id, name: a.name, qty: a.qty, unitPrice: a.unit_price, note: a.note || '' })),
+    tickets: tickets || [],
   };
 }
 // Just enough to know what happened, no personal data.
@@ -35,15 +36,22 @@ function minimalBooking(b) {
 async function extrasByBookingId(client, ids) {
   const map = {};
   if (!ids.length) return map;
-  const r = await client.query('SELECT booking_id, addon_id AS id, name, qty, unit_price FROM booking_addons WHERE booking_id = ANY($1::int[]) ORDER BY addon_id', [ids]);
-  r.rows.forEach(x => { (map[x.booking_id] = map[x.booking_id] || []).push({ id: x.id, name: x.name, qty: Number(x.qty), unit_price: Number(x.unit_price) }); });
+  const r = await client.query('SELECT booking_id, addon_id AS id, name, qty, unit_price, note FROM booking_addons WHERE booking_id = ANY($1::int[]) ORDER BY addon_id', [ids]);
+  r.rows.forEach(x => { (map[x.booking_id] = map[x.booking_id] || []).push({ id: x.id, name: x.name, qty: Number(x.qty), unit_price: Number(x.unit_price), note: x.note || '' }); });
+  return map;
+}
+async function ticketsByBookingId(client, ids) {
+  const map = {};
+  if (!ids.length) return map;
+  const r = await client.query('SELECT booking_id, name FROM booking_tickets WHERE booking_id = ANY($1::int[]) ORDER BY booking_id, sort', [ids]);
+  r.rows.forEach(x => { (map[x.booking_id] = map[x.booking_id] || []).push(x.name); });
   return map;
 }
 
 async function getBooking(client, ref) {
   const r = await client.query('SELECT * FROM bookings WHERE booking_ref = $1', [String(ref || '')]);
   if (!r.rows.length) return null;
-  return serializeBooking(r.rows[0], (await extrasByBookingId(client, [r.rows[0].id]))[r.rows[0].id]);
+  return serializeBooking(r.rows[0], (await extrasByBookingId(client, [r.rows[0].id]))[r.rows[0].id], (await ticketsByBookingId(client, [r.rows[0].id]))[r.rows[0].id]);
 }
 
 const LIST_FILTERS = { status: 'status', type: 'type', paymentStatus: 'payment_status', roomId: 'room_id' };
@@ -71,14 +79,15 @@ async function listBookings(client, q, opts) {
   const more = r.rows.length > limit;
   const rows = r.rows.slice(0, limit);
   const ex = await extrasByBookingId(client, rows.map(x => x.id));
-  return { data: rows.map(x => serializeBooking(x, ex[x.id])), next: more ? rows[rows.length - 1].seq : null };
+  const tk = await ticketsByBookingId(client, rows.map(x => x.id));
+  return { data: rows.map(x => serializeBooking(x, ex[x.id], tk[x.id])), next: more ? rows[rows.length - 1].seq : null };
 }
 
 // ---- no personal data below ----
 function eventInfo() {
   return {
     name: CONFIG.EVENT_NAME, shortName: CONFIG.EVENT_SHORT, organizer: CONFIG.ORGANIZER, location: CONFIG.LOCATION, datesText: CONFIG.DATES_TEXT,
-    mode: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight', currency: CONFIG.CURRENCY, languages: String(CONFIG.LANGUAGES || 'en').split(','),
+    mode: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight', profile: CONFIG.EVENT_PROFILE, modules: require('./modules').flags(), currency: CONFIG.CURRENCY, languages: String(CONFIG.LANGUAGES || 'en').split(','),
     defaultLanguage: CONFIG.DEFAULT_LANGUAGE, url: CONFIG.FRIENDLY_URL, endDate: CONFIG.EVENT_END_DATE || null,
     days: CONFIG.STRUCTURE.days, accommodation: CONFIG.STRUCTURE.accommodation, extraNights: CONFIG.STRUCTURE.extraNights,
     mealPackage: CONFIG.STRUCTURE.package.enabled ? { sub: CONFIG.STRUCTURE.package.sub, includes: CONFIG.STRUCTURE.package.includes } : null,
@@ -90,7 +99,11 @@ async function extrasCatalog(client) {
   return CONFIG.ADDONS.map(a => ({
     id: a.id, name: a.name, description: a.description, price: a.price, maxPerBooking: a.max_qty, capacity: a.capacity || null,
     taken: used[a.id] || 0, left: a.capacity > 0 ? Math.max(0, a.capacity - (used[a.id] || 0)) : null,
-    signUpCloses: a.closes || null, enabled: a.enabled, closed: addons.isClosed(a),
+    signUpCloses: a.closes || null, enabled: a.enabled, closed: addons.isClosed(a), kind: a.kind,
+    vendorSpace: a.kind === 'vendor' ? {
+      spaceType: a.space_type, day: a.day_key || null, starts: a.starts || null, ends: a.ends || null, size: a.size, power: a.power, location: a.location,
+      pricing: a.pricing, unit: a.unit, unitPrice: addons.unitPrice(a), question: a.prompt || null, questionRequired: a.prompt_required,
+    } : null,
   }));
 }
 

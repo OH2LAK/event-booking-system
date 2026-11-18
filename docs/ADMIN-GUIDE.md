@@ -68,9 +68,18 @@ address, the privacy contact email, an optional URL to your own privacy notice, 
 period in days** (default 30) and a **retention hold**. These feed the privacy notice at `/privacy`, the statement on the booking
 form and the deletion date shown to participants. See section 9 and [GDPR.md](GDPR.md).
 
-**Event type and payment info.** *Event type* chooses between an overnight event (rooms, tents, camper vans, extra nights) and a
-one-day event. In a one-day event the booking page has no accommodation: everyone registers as an attendee, the event days are
-all included, and the meeting fee is the only base price (set it to 0 for a free event). *How guests pay* is a short text shown on
+**Event profile and modules.** The group *Event profile and modules* decides what the booking page offers. There are four switches:
+*Rooms and single beds*, *Camping* (camper vans and tents), *Day attendance* (registration as a visitor for the event days) and
+*Vendor spaces* (sales and flea market, see section 5c). The *Event profile* is only a starting point that sets the switches:
+**Overnight event** (rooms, camping and day attendance), **One-day event** (day attendance only), **Hamfest / fair** (day attendance and
+vendor spaces) and **Custom**. After choosing a profile you can change any switch, so mixed events work too, for example a hamfest with
+camping or a meeting with a flea market. Changing a switch by hand moves the profile to the matching preset or to *Custom*. At least one
+switch must stay on. Switching a module off hides it from the booking page and refuses new bookings of that kind; existing bookings stay.
+When neither rooms nor camping is on, the event has no accommodation: the event days are all included for attendees, the availability bar
+is hidden and the meeting fee is the only base price (set it to 0 for a free event). Event setups saved before this feature keep working:
+*overnight* turns rooms, camping and day attendance on, *day* turns day attendance on.
+
+**Payment info.** *How guests pay* is a short text shown on
 the booking page and in the confirmation email, for example "Pay at the door by card or cash". There is no online payment yet.
 
 **Extras (setup page).** The **Extras** card lists optional things guests can add: a dinner, an excursion, a workshop. Each extra has
@@ -78,6 +87,32 @@ an id (letters, digits and "-"), a name, a description, a price (0 = free), a ma
 (0 = unlimited) and an optional sign-up deadline. Disabled extras are hidden from guests. The name and price are copied into each
 booking when it is made, so later price changes do not alter existing bookings until you use *Recalculate all prices*. Names and
 descriptions can be translated in the translations card. Cancelled bookings free their capacity.
+
+## 5c. Vendor spaces (setup page)
+
+For hamfests and fairs the **Vendor spaces** card lists spaces that sellers and exhibitors can reserve: a flea market table, a trunk sale
+spot, a sales or demo booth, or anything you define yourself. The card is meant for events where the *Vendor spaces* switch in Event
+setup is on (the card tells you if it is off). Each space has:
+
+* an **id** (letters, digits and "-", fixed once saved; it must differ from the ids of your extras), a **name**, a **description** and a
+  **type** (table, trunk sale, booth, other);
+* a **day** (one event day, or all days) and optional **start and end times**;
+* free **size**, **power** and **location** texts, shown to the booker;
+* a **price** with a **pricing** mode: *per item* (price times quantity), *per metre* (the quantity is the number of metres) or *per day*
+  (price times quantity times the number of event days, for spaces that are not tied to one day), and a **unit label** such as "table" or "metre";
+* **max per booking**, **capacity** (0 = unlimited) and an optional **sign-up deadline**;
+* a **question to the booker**, for example "What will you sell or show?", that can be required, and an **On** switch.
+
+Guests use the spaces in two ways. The booking page has a **Vendor registration** card for vendors who need no accommodation: they pick one
+or more spaces, answer the question and give one contact person. The same spaces also appear as an optional section in a normal booking
+(a day visitor, a room or a camper booking can add a table). A vendor does not need a callsign: without one the booking gets a reference
+beginning with V. A vendor booking has no meeting fee, so the total is the spaces and any extras. The booker can list **names for entry
+tickets** (one per line, besides the contact person, at most 20). The information the vendor supplies is what the organizer works from:
+in **Edit booking** you can change the quantity, the answer to the question and the ticket names. Entry tickets are not priced by
+themselves; if you charge for them, add an extra such as "Entry ticket" to the Extras card.
+
+The bookings table shows vendor bookings with a *VENDOR* tag, and the **Extras** column lists the spaces with the booker's answers and the number of ticket names.
+The dashboard counts vendor bookings and the totals per space. Names, descriptions and questions can be translated in the Translations card.
 
 ## 2. Dashboard (top of the page)
 

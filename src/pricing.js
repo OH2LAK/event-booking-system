@@ -84,6 +84,7 @@ function calculatePrice(data, s, lang) {
     packageLine();
   }
 
+  // A vendor booking has no accommodation and no meeting fee: the vendor spaces (below) are the price.
   if (data.type === 'room' || data.type === 'singlebed') {
     packageLine();
     meetingFee();

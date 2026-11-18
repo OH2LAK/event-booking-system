@@ -4,6 +4,7 @@
 const { CONFIG } = require('./config');
 const db = require('./db');
 const I18N = require('./i18n');
+const M = require('./modules');
 
 // type: text | textarea | url | email | color | date | number
 const FIELDS = [
@@ -13,7 +14,11 @@ const FIELDS = [
   { group: 'Event', key: 'ORGANIZER_SHORT', label: 'Organizer (short)', type: 'text', max: 40 },
   { group: 'Event', key: 'LOCATION', label: 'Venue (full)', type: 'text', max: 150, help: 'e.g. venue, city, country.' },
   { group: 'Event', key: 'LOCATION_SHORT', label: 'Venue (short)', type: 'text', max: 60, help: 'Usually the city.' },
-  { group: 'Event', key: 'EVENT_MODE', label: 'Event type', type: 'select', max: 10, options: [['overnight', 'Overnight event (rooms, camping, nights)'], ['day', 'One-day event (registration and optional extras only)']], help: 'A one-day event hides rooms, camping and nights: guests register, and can add optional extras such as meals (set them up in the "Extras" card). For a one-day event define a single day in "Event structure".' },
+  { group: 'Event profile and modules', key: 'EVENT_PROFILE', label: 'Event profile', type: 'select', max: 12, options: Object.keys(M.PROFILES).map(k => [k, M.PROFILES[k].label]), help: 'A profile is only a starting point: it sets the switches below. You can change any switch afterwards, so mixed events (for example a hamfest with camping) work too.' },
+  { group: 'Event profile and modules', key: 'MOD_ROOMS', label: 'Rooms and single beds', type: 'select', max: 3, options: [['yes', 'On'], ['no', 'Off']], help: 'Hotel rooms, joining a room and single-bed bookings.' },
+  { group: 'Event profile and modules', key: 'MOD_CAMPING', label: 'Camping', type: 'select', max: 3, options: [['yes', 'On'], ['no', 'Off']], help: 'Camper van and tent spots.' },
+  { group: 'Event profile and modules', key: 'MOD_DAYVISITOR', label: 'Day attendance', type: 'select', max: 3, options: [['yes', 'On'], ['no', 'Off']], help: 'Registration as a visitor for the event days, with optional extras such as meals.' },
+  { group: 'Event profile and modules', key: 'MOD_VENDORS', label: 'Vendor spaces (sales and flea market)', type: 'select', max: 3, options: [['yes', 'On'], ['no', 'Off']], help: 'Tables, trunk sales, booths and similar spaces, set up in the "Extras and vendor spaces" card.' },
   { group: 'Dates and times', key: 'DATES_TEXT', label: 'Event dates (short text)', type: 'text', max: 60, help: 'e.g. 13-16 May 2027' },
   { group: 'Dates and times', key: 'CHECKIN_TIME', label: 'Check-in text', type: 'text', max: 100 },
   { group: 'Dates and times', key: 'CHECKOUT_TIME', label: 'Check-out text', type: 'text', max: 100 },
@@ -54,6 +59,7 @@ function slugify(s) {
 
 function apply(values) {
   FIELDS.forEach(f => { CONFIG[f.key] = values[f.key]; });
+  CONFIG.EVENT_MODE = M.modeOf({ ROOMS: values.MOD_ROOMS, CAMPING: values.MOD_CAMPING });
   CONFIG.SLUG = slugify(values.EVENT_SHORT);
   if (!CONFIG.REPLY_TO_EMAIL && process.env.REPLY_TO_EMAIL) CONFIG.REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL;
 }
@@ -61,7 +67,10 @@ function apply(values) {
 async function load() {
   const r = await db.query('SELECT config FROM event_config WHERE id = 1');
   configured = r.rows.length > 0;
-  apply(Object.assign({}, BASE, configured ? r.rows[0].config : {}));
+  const stored = configured ? r.rows[0].config : {};
+  // Configs saved before event modules existed only have EVENT_MODE: derive the module switches from it
+  const legacy = configured && stored.MOD_ROOMS === undefined ? M.fromLegacyMode(stored.EVENT_MODE) : {};
+  apply(Object.assign({}, BASE, stored, Object.keys(legacy).reduce((o, k) => { o['MOD_' + k] = legacy[k]; return o; }, {}), configured && stored.MOD_ROOMS === undefined ? { EVENT_PROFILE: stored.EVENT_MODE === 'day' ? 'day' : 'overnight' } : {}));
   return configured;
 }
 
@@ -72,6 +81,13 @@ function current() {
 }
 
 function validate(input) {
+  input = Object.assign({}, input);
+  // Older callers send only EVENT_MODE (overnight | day): translate it to the module switches
+  if (input.MOD_ROOMS === undefined && input.MOD_CAMPING === undefined && input.EVENT_MODE !== undefined) {
+    const m = M.fromLegacyMode(input.EVENT_MODE);
+    M.NAMES.forEach(n => { input['MOD_' + n] = m[n]; });
+    if (input.EVENT_PROFILE === undefined) input.EVENT_PROFILE = input.EVENT_MODE === 'day' ? 'day' : 'overnight';
+  }
   const out = {};
   for (const f of FIELDS) {
     let v = input[f.key] === undefined || input[f.key] === null ? '' : String(input[f.key]);
@@ -92,7 +108,7 @@ function validate(input) {
       if (!enabled.includes(v)) return { error: `${f.label} must be one of the enabled languages (${enabled.join(', ')})` };
     }
     if (f.type === 'select') {
-      v = v || f.options[0][0];
+      v = v || (f.options.some(o => o[0] === BASE[f.key]) ? BASE[f.key] : f.options[0][0]);
       if (!f.options.some(o => o[0] === v)) return { error: `${f.label}: choose one of the listed values` };
     }
     if (f.type === 'currency') {
@@ -117,6 +133,9 @@ function validate(input) {
     if (['EVENT_NAME', 'EVENT_SHORT', 'ORGANIZER'].includes(f.key) && !v) return { error: `${f.label} is required` };
     out[f.key] = v;
   }
+  if (out.MOD_ROOMS === 'no' && out.MOD_CAMPING === 'no' && out.MOD_DAYVISITOR === 'no' && out.MOD_VENDORS === 'no')
+    return { error: 'Switch on at least one module (rooms, camping, day attendance or vendor spaces)' };
+  out.EVENT_MODE = M.modeOf({ ROOMS: out.MOD_ROOMS, CAMPING: out.MOD_CAMPING }); // derived, kept for compatibility
   return { values: out };
 }
 
@@ -133,4 +152,4 @@ async function save(input) {
   return { success: true };
 }
 
-module.exports = { FIELDS, load, save, current, isConfigured: () => configured };
+module.exports = { FIELDS, PROFILES: M.PROFILES, load, save, current, isConfigured: () => configured };

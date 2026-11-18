@@ -8,7 +8,7 @@
     var out = [];
     host.querySelectorAll('tr[data-row]').forEach(function (tr) {
       var g = function (n) { return tr.querySelector('[name=' + n + ']'); };
-      out.push({ id: g('id').value, name: g('name').value, description: g('description').value, price: g('price').value,
+      out.push({ kind: 'extra', id: g('id').value, name: g('name').value, description: g('description').value, price: g('price').value,
         max_qty: g('max_qty').value, capacity: g('capacity').value, closes: g('closes').value, enabled: g('enabled').checked });
     });
     return out;
@@ -68,7 +68,7 @@
         else { msg.style.color = '#f85149'; msg.textContent = (r && r.error) || 'Save failed'; }
       })
       .withFailureHandler(function (e) { msg.style.color = '#f85149'; msg.textContent = 'Error: ' + e.message; })
-      .saveAddons(readForm());
+      .saveAddons(readForm(), 'extra');
   }
 
   window.initAddons = function () {
@@ -77,7 +77,7 @@
     rpc.run
       .withSuccessHandler(function (d) {
         if (!d || !d.success) return;
-        rows = d.addons.map(function (a) { return { id: a.id, name: a.name, description: a.description, price: a.price, max_qty: a.max_qty, capacity: a.capacity, closes: a.closes || '', enabled: a.enabled, _existing: true }; });
+        rows = d.addons.filter(function (a) { return a.kind !== 'vendor'; }).map(function (a) { return { id: a.id, name: a.name, description: a.description, price: a.price, max_qty: a.max_qty, capacity: a.capacity, closes: a.closes || '', enabled: a.enabled, _existing: true }; });
         render();
       })
       .withFailureHandler(function (e) { host.textContent = 'Could not load extras: ' + e.message; })

@@ -4,6 +4,8 @@ const { CONFIG, VERSION } = require('./config');
 const privacy = require('./privacy');
 const i18n = require('./i18n');
 const currency = require('./currency');
+const modules = require('./modules');
+const addons = require('./addons');
 
 const esc = v => String(v === undefined || v === null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -45,11 +47,15 @@ function getClientConfigJson_(joinRef, settings, lang) {
     MEETING_FEE_DAY: s.MEETING_FEE_DAY,
     CURRENCY: currency.publicInfo(),
     EVENT_MODE: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight',
+    MODS: modules.flags(),
     PAYMENT_INFO: i18n.ev(lang, 'PAYMENT_INFO'),
-    ADDONS: (CONFIG.ADDONS || []).filter(a => a.enabled).map(a => ({
-      id: a.id, price: a.price, maxQty: a.max_qty,
+    ADDONS: (CONFIG.ADDONS || []).filter(addons.offered).map(a => Object.assign({
+      id: a.id, price: a.price, maxQty: a.max_qty, kind: a.kind,
       name: i18n.content(lang, `addon.${a.id}.name`, a.name), desc: i18n.content(lang, `addon.${a.id}.desc`, a.description),
-    })),
+    }, a.kind === 'vendor' ? {
+      spaceType: a.space_type, dayKey: a.day_key, starts: a.starts, ends: a.ends, size: a.size, power: a.power, location: a.location,
+      unit: a.unit, unitPrice: addons.unitPrice(a), prompt: i18n.content(lang, `addon.${a.id}.prompt`, a.prompt), promptRequired: a.prompt_required,
+    } : {})),
   };
   return JSON.stringify(cfg);
 }
@@ -127,6 +133,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
   settings = i18n.localizedSettings(lang, settings);
   const STRUCT = i18n.localizedStructure(lang);
   const DAY = CONFIG.EVENT_MODE === 'day';
+  const MODS = modules.flags();
   sw = sw || '';
   return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -277,20 +284,25 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
 
   <div id="landing-section">
     <div class="landing">
-      <div class="choice-card" id="card-new" onclick="selectMode('new')">
+      <div class="choice-card" id="card-new" onclick="selectMode('new')" ${MODS.rooms || MODS.camping ? '' : 'style="display:none"'}>
         <div class="choice-icon">🏨 🚐</div>
         <div class="choice-title">${te('form.bookAcc')}</div>
         <div class="choice-desc">${te('form.bookAccDesc')}</div>
       </div>
-      <div class="choice-card" id="card-join" onclick="selectMode('join')">
+      <div class="choice-card" id="card-join" onclick="selectMode('join')" ${MODS.rooms || MODS.camping ? '' : 'style="display:none"'}>
         <div class="choice-icon">🔑</div>
         <div class="choice-title">${te('form.joinTitle')}</div>
         <div class="choice-desc">${te('form.joinDesc')}</div>
       </div>
-      <div class="choice-card" id="card-dayvisitor" onclick="selectMode('dayvisitor')">
+      <div class="choice-card" id="card-dayvisitor" onclick="selectMode('dayvisitor')" ${MODS.dayvisitor ? '' : 'style="display:none"'}>
         <div class="choice-icon">🎫</div>
         <div class="choice-title">${te('form.dayVisitor')}</div>
         <div class="choice-desc">${te('form.dayVisitorDesc')}</div>
+      </div>
+      <div class="choice-card" id="card-vendor" onclick="selectMode('vendor')" ${MODS.vendors && CONFIG.ADDONS.some(a => a.kind === 'vendor' && addons.offered(a)) ? '' : 'style="display:none"'}>
+        <div class="choice-icon">🛒</div>
+        <div class="choice-title">${te('form.vendorCard')}</div>
+        <div class="choice-desc">${te('form.vendorCardDesc')}</div>
       </div>
       <div class="choice-card" id="card-who" onclick="openPublicPage()">
         <div class="choice-icon">📋</div>
@@ -306,17 +318,17 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
     <div id="acc-type-section" class="card section">
       <h2>${te('form.accType')}</h2>
       <div class="options">
-        <label class="radio-option">
+        <label class="radio-option" ${MODS.rooms ? '' : 'style="display:none"'}>
           <input type="radio" name="acc-type" value="room" onchange="onTypeChange()">
           <div><div class="opt-label">${te('form.hotelRoom')}</div>
           <div class="opt-sub">${te('form.hotelRoomSub', {n: STRUCT.coreNights})}</div></div>
         </label>
-        <label class="radio-option">
+        <label class="radio-option" ${MODS.camping ? '' : 'style="display:none"'}>
           <input type="radio" name="acc-type" value="camper" onchange="onTypeChange()">
           <div><div class="opt-label">${te('form.camperSpot')}</div>
           <div class="opt-sub">${te('form.camperSub', {n: STRUCT.coreNights, price: settings.CAMPER_VAN_PRICE_PER_NIGHT * CONFIG.CAMPING_NIGHTS})}</div></div>
         </label>
-        <label class="radio-option" id="tent-option" ${!settings.TENT_ENABLED ? 'style="display:none"' : ''}>
+        <label class="radio-option" id="tent-option" ${!settings.TENT_ENABLED || !MODS.camping ? 'style="display:none"' : ''}>
           <input type="radio" name="acc-type" value="tent" onchange="onTypeChange()">
           <div><div class="opt-label">${te('form.tentSpot')}</div>
           <div class="opt-sub">${te('form.tentSub', {price: settings.TENT_PRICE_WEEKEND})}</div></div>
@@ -381,7 +393,7 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
       <h2>${te('form.yourDetails')}</h2>
       <div class="row2">
         <div class="field">
-          <label>${te('form.callsign')}</label>
+          <label id="callsign-label">${te('form.callsign')}</label>
           <input type="text" id="callsign" placeholder="OH2LAK" autocomplete="off" style="text-transform:uppercase">
         </div>
         <div class="field">
@@ -487,6 +499,18 @@ function buildBookingPageHtml_(joinRef, settings, bypassToken, lang, sw) {
       <div id="extras-list" style="display:flex;flex-direction:column;gap:0.5rem"></div>
     </div>
 
+    <div id="vendor-section" class="card section">
+      <h2>${te('form.vendorTitle')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1rem">${te('form.vendorHint')}</p>
+      <div id="vendor-list" style="display:flex;flex-direction:column;gap:0.6rem"></div>
+    </div>
+
+    <div id="tickets-section" class="card section">
+      <h2>${te('form.ticketsTitle')}</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:0.75rem">${te('form.ticketsHelp')}</p>
+      <textarea id="tickets-text" rows="4" maxlength="2000" style="width:100%;box-sizing:border-box;padding:0.5rem;border:1.5px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-family:inherit"></textarea>
+    </div>
+
     <div id="price-section" class="section"><div id="price-box"></div><div id="price-disclaimer" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;font-style:italic"></div>${settings && CONFIG.PAYMENT_INFO ? '<div class="info-box" style="margin-top:0.75rem;white-space:pre-line">' + esc(i18n.ev(lang, 'PAYMENT_INFO')) + '</div>' : ''}</div>
     <div id="submit-section" class="section">
       <div id="form-msg" class="msg"></div>
@@ -547,7 +571,7 @@ let currentAccType = null;
 
 function selectMode(mode) {
   currentMode = mode;
-  ['new','join','dayvisitor','who'].forEach(function(m) {
+  ['new','join','dayvisitor','vendor','who'].forEach(function(m) {
     const el = document.getElementById('card-' + m);
     if (el) el.classList.toggle('selected', m === mode);
   });
@@ -565,6 +589,14 @@ function selectMode(mode) {
     document.getElementById('individual-meals-section').style.display = 'none';
     resetExtras();
     showExtras();
+    updatePriceDisplay();
+  } else if (mode === 'vendor') {
+    currentAccType = 'vendor';
+    hide('acc-type-section'); hide('room-type-section'); hide('join-section'); hide('thu-section'); hideNights();
+    document.getElementById('dayvisitor-section').style.display = 'none';
+    document.getElementById('individual-meals-section').style.display = 'none';
+    hide('addons-section');
+    showExtras(); show('guest-section'); show('gdpr-section'); show('price-section'); show('submit-section');
     updatePriceDisplay();
   } else if (mode === 'dayvisitor') {
     currentAccType = 'dayvisitor';
@@ -603,7 +635,7 @@ function goBack() {
 }
 
 function show(id) { document.getElementById(id).classList.add('visible'); }
-function hide(id) { document.getElementById(id).classList.remove('visible'); }
+function hide(id) { document.getElementById(id).classList.remove('visible'); if (id === 'extras-section') { document.getElementById('vendor-section').classList.remove('visible'); document.getElementById('tickets-section').classList.remove('visible'); } }
 
 function onTypeChange() {
   const el = document.querySelector('input[name="acc-type"]:checked');
@@ -677,31 +709,81 @@ function selectedVisitorDays() {
   return Array.prototype.map.call(document.querySelectorAll('input[name="dv-day"]:checked'), function(e){ return e.value; });
 }
 function escH(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function isVendorAddon(id) { var a = (CONFIG_CLIENT.ADDONS || []).filter(function(x){ return x.id === id; })[0]; return !!a && a.kind === 'vendor'; }
 function selectedAddons() {
-  return Array.prototype.map.call(document.querySelectorAll('select[data-addon]'), function(e){ return { id: e.getAttribute('data-addon'), qty: parseInt(e.value, 10) || 0 }; })
-    .filter(function(x){ return x.qty > 0; });
+  return Array.prototype.map.call(document.querySelectorAll('select[data-addon]'), function(e){
+    var id = e.getAttribute('data-addon'); var n = document.querySelector('input[data-note="' + id + '"]');
+    return { id: id, qty: parseInt(e.value, 10) || 0, note: n ? n.value.trim() : '' };
+  }).filter(function(x){ return x.qty > 0; });
+}
+function addonPicker(a, l, keep) {
+  var left = (l.left === null || l.left === undefined) ? null : l.left;
+  var max = left === null ? a.maxQty : Math.min(a.maxQty, left);
+  var off = !!l.closed || max < 1;
+  var opts = '<option value="0">0</option>';
+  for (var i = 1; i <= max; i++) opts += '<option value="' + i + '"' + (keep[a.id] === i ? ' selected' : '') + '>' + i + '</option>';
+  var note = l.closed ? T('js.extraClosed') : (max < 1 ? T('js.extraFull') : (left !== null && left <= 10 ? T('js.extraLeft', {n: left}) : ''));
+  return { off: off, note: note, select: '<select data-addon="' + escH(a.id) + '" aria-label="' + escH(a.name) + '"' + (off ? ' disabled' : '') + ' onchange="onAddonChange()" style="padding:0.3rem 0.4rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">' + opts + '</select>' };
 }
 function renderExtras() {
   var host = document.getElementById('extras-list');
   if (!host) return;
   var keep = {}; selectedAddons().forEach(function(x){ keep[x.id] = x.qty; });
   var live = {}; ((avail && avail.addons) || []).forEach(function(a){ live[a.id] = a; });
-  host.innerHTML = (CONFIG_CLIENT.ADDONS || []).map(function(a) {
-    var l = live[a.id] || {};
-    var left = (l.left === null || l.left === undefined) ? null : l.left;
-    var max = left === null ? a.maxQty : Math.min(a.maxQty, left);
-    var off = !!l.closed || max < 1;
-    var opts = '<option value="0">0</option>';
-    for (var i = 1; i <= max; i++) opts += '<option value="' + i + '"' + (keep[a.id] === i ? ' selected' : '') + '>' + i + '</option>';
-    var note = l.closed ? T('form.extraClosed') : (max < 1 ? T('form.extraFull') : (left !== null && left <= 10 ? T('form.extraLeft', {n: left}) : ''));
-    return '<div class="check-option' + (off ? ' disabled-meal' : '') + '" style="cursor:default;align-items:center">'
-      + '<div style="flex:1"><div class="opt-label">' + escH(a.name) + ' \u00b7 ' + M(a.price) + '</div>'
+  host.innerHTML = (CONFIG_CLIENT.ADDONS || []).filter(function(a){ return a.kind !== 'vendor'; }).map(function(a) {
+    var p = addonPicker(a, live[a.id] || {}, keep);
+    return '<div class="check-option' + (p.off ? ' disabled-meal' : '') + '" style="cursor:default;align-items:center">'
+      + '<div style="flex:1"><div class="opt-label">' + escH(a.name) + ' · ' + M(a.price) + '</div>'
       + (a.desc ? '<div class="opt-sub">' + escH(a.desc) + '</div>' : '')
-      + (note ? '<div class="opt-sub" style="color:var(--danger)">' + escH(note) + '</div>' : '') + '</div>'
-      + '<select data-addon="' + escH(a.id) + '" aria-label="' + escH(a.name) + '"' + (off ? ' disabled' : '') + ' onchange="updatePriceDisplay()" style="padding:0.3rem 0.4rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)">' + opts + '</select></div>';
+      + (p.note ? '<div class="opt-sub" style="color:var(--danger)">' + escH(p.note) + '</div>' : '') + '</div>' + p.select + '</div>';
+  }).join('');
+  renderVendorSpaces();
+}
+function renderVendorSpaces() {
+  var host = document.getElementById('vendor-list');
+  if (!host) return;
+  var keepQ = {}, keepN = {}; selectedAddons().forEach(function(x){ keepQ[x.id] = x.qty; keepN[x.id] = x.note; });
+  var live = {}; ((avail && avail.addons) || []).forEach(function(a){ live[a.id] = a; });
+  host.innerHTML = (CONFIG_CLIENT.ADDONS || []).filter(function(a){ return a.kind === 'vendor'; }).map(function(a) {
+    var p = addonPicker(a, live[a.id] || {}, keepQ);
+    var bits = [];
+    if (a.dayKey) bits.push(dayLabel(a.dayKey));
+    if (a.starts || a.ends) bits.push((a.starts || '') + '–' + (a.ends || ''));
+    if (a.size) bits.push(T('js.spaceSize') + ': ' + a.size);
+    if (a.power) bits.push(T('js.spacePower') + ': ' + a.power);
+    if (a.location) bits.push(T('js.spaceLocation') + ': ' + a.location);
+    var shown = keepQ[a.id] > 0;
+    return '<div class="check-option' + (p.off ? ' disabled-meal' : '') + '" style="cursor:default;flex-direction:column;align-items:stretch">'
+      + '<div style="display:flex;align-items:center;gap:0.75rem"><div style="flex:1"><div class="opt-label">' + escH(a.name) + ' · ' + M(a.unitPrice) + (a.unit ? ' / ' + escH(a.unit) : '') + '</div>'
+      + (a.desc ? '<div class="opt-sub">' + escH(a.desc) + '</div>' : '')
+      + (bits.length ? '<div class="opt-sub">' + bits.map(escH).join(' · ') + '</div>' : '')
+      + (p.note ? '<div class="opt-sub" style="color:var(--danger)">' + escH(p.note) + '</div>' : '') + '</div>' + p.select + '</div>'
+      + '<input type="text" data-note="' + escH(a.id) + '" maxlength="300" value="' + escH(keepN[a.id] || '') + '" placeholder="' + escH(a.prompt || T('js.vendorNotePh')) + (a.promptRequired ? ' *' : '') + '" aria-label="' + escH(a.prompt || T('js.vendorNotePh')) + '" style="display:' + (shown ? 'block' : 'none') + ';margin-top:0.5rem;padding:0.4rem 0.5rem;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"></div>';
   }).join('');
 }
-function showExtras() { if ((CONFIG_CLIENT.ADDONS || []).length) show('extras-section'); }
+function dayLabel(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.label : k; }
+function onAddonChange() {
+  document.querySelectorAll('select[data-addon]').forEach(function(sel) {
+    var n = document.querySelector('input[data-note="' + sel.getAttribute('data-addon') + '"]');
+    if (n) n.style.display = (parseInt(sel.value, 10) || 0) > 0 ? 'block' : 'none';
+  });
+  updatePriceDisplay();
+}
+function hasVendorSpaces() { return (CONFIG_CLIENT.ADDONS || []).some(function(a){ return a.kind === 'vendor'; }); }
+function showExtras() {
+  var list = CONFIG_CLIENT.ADDONS || [];
+  if (list.some(function(a){ return a.kind !== 'vendor'; })) show('extras-section');
+  if (hasVendorSpaces() && (CONFIG_CLIENT.MODS || {}).vendors) show('vendor-section');
+  syncVendorUi();
+}
+// Entry-ticket names are asked for vendor bookings and for any booking that includes a vendor space
+function syncVendorUi() {
+  var any = selectedAddons().some(function(x){ return isVendorAddon(x.id); });
+  var t = document.getElementById('tickets-section');
+  if (t) t.classList.toggle('visible', currentAccType === 'vendor' || any);
+  var lab = document.getElementById('callsign-label');
+  if (lab) { if (!lab.getAttribute('data-orig')) lab.setAttribute('data-orig', lab.textContent); lab.textContent = currentAccType === 'vendor' ? T('js.callsignVendor') : lab.getAttribute('data-orig'); }
+}
 function dayShort(k) { var d = (CONFIG_CLIENT.STRUCTURE.days || []).find(function(y){ return y.key === k; }); return d ? d.short : k; }
 
 function onExtraNightChange() {
@@ -712,13 +794,14 @@ function onExtraNightChange() {
 function renderAvailability(data) {
   const grid = document.getElementById('avail-grid');
   let html = '';
-  CONFIG_CLIENT.ROOMS.forEach(function(r) {
+  var MM = CONFIG_CLIENT.MODS || {};
+  (MM.rooms ? CONFIG_CLIENT.ROOMS : []).forEach(function(r) {
     const a = data.rooms[r.id];
     const full = a && a.available <= 0;
     html += '<div class="avail-item' + (full ? ' full' : '') + '"><span>' + r.note_en.replace(/\u26a0\ufe0f /,'') + '</span><span class="count">' + (a ? a.available + '/' + a.total : '?') + '</span></div>';
   });
-  html += '<div class="avail-item' + (data.camperSpotsLeft <= 0 ? ' full' : '') + '"><span>' + T('js.camperSpots') + '</span><span class="count">' + data.camperSpotsLeft + '/' + CONFIG_CLIENT.CAMPER_VAN_SPOTS + '</span></div>';
-  if (data.tentEnabled) {
+  if (MM.camping) html += '<div class="avail-item' + (data.camperSpotsLeft <= 0 ? ' full' : '') + '"><span>' + T('js.camperSpots') + '</span><span class="count">' + data.camperSpotsLeft + '/' + CONFIG_CLIENT.CAMPER_VAN_SPOTS + '</span></div>';
+  if (data.tentEnabled && MM.camping) {
     html += '<div class="avail-item' + (data.tentSpotsLeft <= 0 ? ' full' : '') + '"><span>' + T('js.tentSpots') + '</span><span class="count">' + data.tentSpotsLeft + '/' + CONFIG_CLIENT.TENT_SPOTS + '</span></div>';
   }
   grid.innerHTML = html;
@@ -875,6 +958,7 @@ function onJoinRoomSelect() {
 }
 
 function updatePriceDisplay() {
+  syncVendorUi();
   const box = document.getElementById('price-box');
   let rows = [], total = 0, tbd = false;
   if (currentMode === 'join') {
@@ -971,12 +1055,12 @@ function updatePriceDisplay() {
   }
   if (currentMode !== 'join') {
     const boardEl = document.getElementById('full-board');
-    if (boardEl && boardEl.checked) {
+    if (boardEl && boardEl.checked && currentAccType !== 'vendor') {
       rows.push({label:T('js.pMeal'), val:M(CONFIG_CLIENT.FULL_BOARD_PRICE)});
       total += CONFIG_CLIENT.FULL_BOARD_PRICE;
     }
     // Meeting fee for all non-day-visitor types
-    if (currentAccType && currentAccType !== 'dayvisitor' && rows.length > 0) {
+    if (currentAccType && currentAccType !== 'dayvisitor' && currentAccType !== 'vendor' && rows.length > 0) {
       rows.push({label:T('js.pMeetingFull'), val:M(CONFIG_CLIENT.MEETING_FEE_WEEKEND)});
       total += CONFIG_CLIENT.MEETING_FEE_WEEKEND;
     }
@@ -984,7 +1068,7 @@ function updatePriceDisplay() {
   selectedAddons().forEach(function(sel) {
     var a = (CONFIG_CLIENT.ADDONS || []).filter(function(x){ return x.id === sel.id; })[0];
     if (!a) return;
-    var n = Math.round(a.price * sel.qty * 100) / 100;
+    var n = Math.round((a.kind === 'vendor' ? a.unitPrice : a.price) * sel.qty * 100) / 100;
     rows.push({label:T('js.pAddon', {name: escH(a.name), qty: sel.qty}), val:M(n)});
     total += n;
   });
@@ -1011,7 +1095,7 @@ function submitForm() {
     dietary:     document.getElementById('dietary').value.trim(),
     shirtSize:   document.getElementById('shirt-size').value,
     freeText:    document.getElementById('free-text') ? document.getElementById('free-text').value.trim() : '',
-    fullBoard:   document.getElementById('full-board').checked,
+    fullBoard:   document.getElementById('full-board').checked && currentAccType !== 'vendor',
     privacyAck:     document.getElementById('privacy-ack').checked,
     language:       CONFIG_CLIENT.LANG,
     displayCurrency: displayCur,
@@ -1047,10 +1131,16 @@ function submitForm() {
       if (!data.visitorDays.length) { showError(T('js.errDays')); return; }
     }
   }
-  if (!data.callsign || data.callsign.length < 3) { showError(T('js.errCallsign')); return; }
+  var isVendor = currentAccType === 'vendor' && currentMode !== 'join';
+  if (isVendor) data.fullBoard = false;
+  // Entry-ticket names (one per line) go with vendor bookings and with any booking that includes a vendor space
+  var tk = document.getElementById('tickets-text');
+  if (tk && (isVendor || data.addons.some(function(x){ return isVendorAddon(x.id); }))) data.tickets = tk.value.split(/\\r?\\n/).map(function(x){ return x.trim(); }).filter(Boolean);
+  // A vendor does not need a callsign or a country; the server answers if a space or a required answer is missing
+  if (!isVendor && (!data.callsign || data.callsign.length < 3)) { showError(T('js.errCallsign')); return; }
   if (!data.name)    { showError(T('js.errName')); return; }
   if (!data.email)   { showError(T('js.errEmail')); return; }
-  if (!data.country) { showError(T('js.errCountry')); return; }
+  if (!data.country && !isVendor) { showError(T('js.errCountry')); return; }
 
   document.getElementById('loading').classList.add('visible');
   document.getElementById('submit-btn').disabled = true;
@@ -1146,7 +1236,8 @@ window.onload = function() {
         setTimeout(function() { var js = document.getElementById('join-section'); if (js) js.scrollIntoView({behavior:'smooth',block:'start'}); }, 300);
       }
       renderOpenRooms(data);  // initialises join form if INITIAL_JOIN is set
-      if (CONFIG_CLIENT.EVENT_MODE === 'day') selectMode('dayvisitor');
+      var M = CONFIG_CLIENT.MODS || {};
+      if (CONFIG_CLIENT.EVENT_MODE === 'day' && M.dayvisitor && !M.vendors) selectMode('dayvisitor');
     })
     .withFailureHandler(function(err) {
       document.getElementById('avail-grid').innerHTML = '<div style="color:var(--danger)">' + T('js.errGeneric', {msg: err.message}) + '</div>';
@@ -1282,6 +1373,8 @@ function loadGuests() {
           badge = '<div class="guest-type tent">' + T('js.tent') + '</div>';
         } else if (g.type === 'dayvisitor') {
           badge = '<div class="guest-type dayvisitor">' + T('js.dayvisitor') + '</div>';
+        } else if (g.type === 'vendor') {
+          badge = '<div class="guest-type dayvisitor">' + T('js.vendor') + '</div>';
         } else if (g.type === 'room' || g.type === 'singlebed') {
           badge = '<div class="guest-type hotel">' + T('js.hotel') + '</div>';
         }
@@ -1313,6 +1406,7 @@ window.onload = loadGuests;
 function getAdminConfigJson_(settings) {
   return {
     EVENT_MODE: CONFIG.EVENT_MODE === 'day' ? 'day' : 'overnight',
+    MODS: modules.flags(),
     STRUCTURE: CONFIG.STRUCTURE,
     CAMPER_VAN_SPOTS: settings.CAMPER_VAN_SPOTS,
     TENT_SPOTS: settings.TENT_SPOTS,
@@ -1619,6 +1713,10 @@ function getAdminPanelHtml() {
         <label>Extras (quantity)</label>
         <div id="edit-addons-box" style="display:flex;flex-direction:column;gap:0.3rem"></div>
       </div>
+      <div class="modal-field" id="edit-tickets-row" style="display:none">
+        <label>Entry ticket names (one per line, besides the contact person)</label>
+        <textarea id="edit-tickets" rows="3" style="width:100%;box-sizing:border-box"></textarea>
+      </div>
     </div>
     <div class="modal-field">
       <label class="org-label">🔒 Room number (organizers only)</label>
@@ -1743,6 +1841,7 @@ function buildAdminPage(settings, mode) {
 <script src="/admin-currency.js"></script>
 <script src="/admin-rooms.js"></script>
 <script src="/admin-addons.js"></script>
+<script src="/admin-vendors.js"></script>
 <script src="/admin-api.js"></script>
 <script src="/admin-auth.js"></script>
 <script src="/admin-users.js"></script>
@@ -2181,6 +2280,7 @@ function loadPanel() {
         if (window.initStructure) window.initStructure();
         if (window.initRoomCatalog) window.initRoomCatalog();
         if (window.initAddons) window.initAddons();
+        if (window.initVendors) window.initVendors();
         if (window.initApi) window.initApi();
         if (window.initUsers) window.initUsers();
         if (window.initPrivacy) window.initPrivacy();
@@ -2253,6 +2353,7 @@ function renderAdmin(data) {
   const tents      = rows.filter(function(r){return r.Type==='tent'}).length;
   const singlebeds = rows.filter(function(r){return r.Type==='singlebed'}).length;
   const dayvisitors= rows.filter(function(r){return r.Type==='dayvisitor'}).length;
+  const vendors    = rows.filter(function(r){return r.Type==='vendor' && r.Status!=='CANCELLED'}).length;
   const meals      = rows.filter(function(r){return r.FullBoard==='YES'}).length;
   const total      = rows.reduce(function(s,r){return s+(parseFloat(r.TotalPrice)||0)},0);
   const paidSum    = rows.reduce(function(s,r){return s+(r.PaymentStatus==='PAID' ? (parseFloat(r.TotalPrice)||0) : 0)},0);
@@ -2306,6 +2407,7 @@ function renderAdmin(data) {
     {l:'Camper van',        v:campers+' / '+CONFIG_ADMIN.CAMPER_VAN_SPOTS},
     {l:'Tent spots',        v:tents+' / '+CONFIG_ADMIN.TENT_SPOTS},
     {l:'Day visitors',      v:dayvisitors},
+    {l:'Vendor bookings',   v:vendors, hide: !(CONFIG_ADMIN.MODS && CONFIG_ADMIN.MODS.vendors)},
     {l:'Meal packages',     v:meals},
   ].concat((CONFIG_ADMIN.STRUCTURE.extraNights || []).map(function(x){
     return {l:'Extra night: '+x.label, v:rows.filter(function(r){return (r.ExtraNights||'').split(',').indexOf(x.key)>=0 && r.Status!=='CANCELLED';}).length};
@@ -2315,7 +2417,7 @@ function renderAdmin(data) {
     {l:'Still to collect',  v:M(total - paidSum)},
   ]).concat((data.addonTotals || []).map(function(a){
     return {l:'Extra: '+a.name, v:a.qty + (a.bookings !== a.qty ? ' <span style="font-size:0.7rem;color:var(--muted)">(' + a.bookings + ' bookings)</span>' : '')};
-  })).map(function(s){
+  })).filter(function(s){ return !s.hide; }).map(function(s){
     return '<div class="stat"><div class="label">'+s.l+'</div><div class="value">'+s.v+'</div></div>';
   }).join('');
 
@@ -2412,6 +2514,8 @@ function renderAdmin(data) {
       roleCell = '<td><span style="font-size:1.1rem">⛺</span> <span class="tag tent">TENT</span>' + staffBadge + '</td>';
     else if (r['Type'] === 'dayvisitor')
       roleCell = '<td><span style="font-size:1.1rem">🎫</span> <span class="tag dayvisitor">DAY VISITOR</span>' + staffBadge + '</td>';
+    else if (r['Type'] === 'vendor')
+      roleCell = '<td><span style="font-size:1.1rem">🛒</span> <span class="tag dayvisitor">VENDOR</span>' + staffBadge + '</td>';
     else if (r['Type'] === 'singlebed')
       roleCell = '<td><span style="font-size:1.1rem">🛏️</span> <span class="tag joiner">SINGLE BED</span>' + staffBadge + '</td>';
     else
@@ -2484,7 +2588,7 @@ function renderAdmin(data) {
         return r.Type==='camper' && r.IsPrimaryBooker!=='YES' &&
                !camperPrimaries.find(function(p){ return p.BookingRef===r.RoomRef; });
       }).forEach(function(r){ html += renderRow(r, 'orphan'); });
-      ['singlebed','tent','dayvisitor'].forEach(function(t){
+      ['singlebed','tent','dayvisitor','vendor'].forEach(function(t){
         rows.filter(function(r){ return r.Type===t; })
             .forEach(function(r){ html += renderRow(r, 'other'); });
       });
@@ -2492,8 +2596,8 @@ function renderAdmin(data) {
     } else if (s.col === '_type') {
       // Two-level type sort: groups ordered by type, joiners stay under their primary
       var typeOrder = s.dir === 1
-        ? ['room','singlebed','camper','tent','dayvisitor']
-        : ['dayvisitor','tent','camper','singlebed','room'];
+        ? ['room','singlebed','camper','tent','dayvisitor','vendor']
+        : ['vendor','dayvisitor','tent','camper','singlebed','room'];
       typeOrder.forEach(function(t) {
         if (t === 'room') {
           var primaries = rows.filter(function(r){ return r.Type==='room' && r.IsPrimaryBooker==='YES'; });
@@ -2562,9 +2666,16 @@ function openEdit(ref) {
   document.getElementById('edit-addons-row').style.display = addonList.length ? '' : 'none';
   document.getElementById('edit-addons-box').innerHTML = addonList.map(function(a){
     var q = (haveAddons.filter(function(h){ return h.id === a.id; })[0] || {}).qty || 0;
-    return '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem"><input type="number" min="0" max="99" data-edit-addon="' + a.id + '" value="' + q + '" style="width:4rem"> ' + String(a.name).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</label>';
+    var have = haveAddons.filter(function(h){ return h.id === a.id; })[0] || {};
+    var isV = (window._addonCatalog || []).some(function(c){ return c.id === a.id && c.kind === 'vendor'; }) || !!have.note;
+    return '<label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;flex-wrap:wrap"><input type="number" min="0" max="99" data-edit-addon="' + a.id + '" value="' + q + '" style="width:4rem"> ' + String(a.name).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      + (isV ? ' <input type="text" maxlength="300" data-edit-note="' + a.id + '" value="' + String(have.note || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;') + '" placeholder="What will be sold or shown" style="flex:1;min-width:12rem">' : '') + '</label>';
   }).join('');
   document.getElementById('edit-modal')._addonsBefore = JSON.stringify(editAddonSelection());
+  var haveTickets = []; try { haveTickets = JSON.parse(row.TicketsJson || '[]'); } catch (e) {}
+  document.getElementById('edit-tickets').value = haveTickets.join('\\n');
+  document.getElementById('edit-tickets-row').style.display = (row.Type === 'vendor' || haveTickets.length || haveAddons.some(function(h){ return h.note; })) ? '' : 'none';
+  document.getElementById('edit-modal')._ticketsBefore = haveTickets.join('\\n');
   document.getElementById('edit-fullboard').checked  = row.FullBoard  === 'YES';
   document.querySelectorAll('input[name="edit-xn"]').forEach(function(cb){ cb.checked = (row.ExtraNights||'').split(',').indexOf(cb.value) >= 0; });
   var ntSel = (row.Nights||'').split(',').filter(Boolean);
@@ -2653,7 +2764,11 @@ function closeEdit() {
 }
 
 function editAddonSelection() {
-  return Array.prototype.map.call(document.querySelectorAll('input[data-edit-addon]'), function(i){ return { id: i.getAttribute('data-edit-addon'), qty: parseInt(i.value, 10) || 0 }; })
+  return Array.prototype.map.call(document.querySelectorAll('input[data-edit-addon]'), function(i){
+    var n = document.querySelector('input[data-edit-note="' + i.getAttribute('data-edit-addon') + '"]');
+    var o = { id: i.getAttribute('data-edit-addon'), qty: parseInt(i.value, 10) || 0 };
+    if (n) o.note = n.value.trim();
+    return o; })
     .filter(function(x){ return x.qty > 0; });
 }
 function togglePaid(ref, cur) {
@@ -2689,6 +2804,8 @@ function saveEdit() {
   // Only send the extras when they were changed, so saving other fields never reprices a booking
   var addonsNow = editAddonSelection();
   if (JSON.stringify(addonsNow) !== document.getElementById('edit-modal')._addonsBefore) fields.Addons = addonsNow;
+  var ticketsNow = document.getElementById('edit-tickets').value.split(/\\r?\\n/).map(function(x){ return x.trim(); }).filter(Boolean).join('\\n');
+  if (ticketsNow !== document.getElementById('edit-modal')._ticketsBefore) fields.Tickets = ticketsNow ? ticketsNow.split('\\n') : [];
   const saveBtn = document.getElementById('edit-save-btn');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving...';

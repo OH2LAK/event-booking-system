@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   email            TEXT NOT NULL,
   phone            TEXT NOT NULL DEFAULT '',
   country          TEXT NOT NULL DEFAULT '',
-  type             TEXT NOT NULL CHECK (type IN ('room','camper','tent','singlebed','dayvisitor')),
+  type             TEXT NOT NULL CHECK (type IN ('room','camper','tent','singlebed','dayvisitor','vendor')),
   room_id          TEXT NOT NULL DEFAULT '',
   room_ref         TEXT NOT NULL,                    -- primary booking_ref of the room/spot
   is_primary       BOOLEAN NOT NULL DEFAULT false,
@@ -135,6 +135,47 @@ CREATE TABLE IF NOT EXISTS booking_addons (
   unit_price  NUMERIC(10,2) NOT NULL,
   name        TEXT NOT NULL,
   PRIMARY KEY (booking_id, addon_id)
+);
+
+-- Vendor spaces (flea market tables, trunk sales, booths ...) are catalog rows of kind 'vendor': the same table, plus
+-- type, day, times, size, power, location, a pricing mode and a question the booker answers (what will you sell/demo?).
+-- pricing: item = price x quantity, metre = price x metres (quantity is the number of metres), day = price x quantity x event days
+-- (when the space is not tied to one day).
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'extra';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS space_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS day_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS starts TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS ends TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS power TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS location TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS pricing TEXT NOT NULL DEFAULT 'item';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS prompt TEXT NOT NULL DEFAULT '';
+ALTER TABLE addons ADD COLUMN IF NOT EXISTS prompt_required BOOLEAN NOT NULL DEFAULT false;
+DO $$ BEGIN
+  ALTER TABLE addons ADD CONSTRAINT addons_kind_chk CHECK (kind IN ('extra','vendor'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE addons ADD CONSTRAINT addons_pricing_chk CHECK (pricing IN ('item','metre','day'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- The booker's answer to the space's question (what will you sell or show?)
+ALTER TABLE booking_addons ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';
+
+-- Booking type 'vendor' (vendor-only registration, no accommodation). The original CHECK did not list it.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'bookings_type_check' AND pg_get_constraintdef(oid) NOT LIKE '%vendor%') THEN
+    ALTER TABLE bookings DROP CONSTRAINT bookings_type_check;
+    ALTER TABLE bookings ADD CONSTRAINT bookings_type_check CHECK (type IN ('room','camper','tent','singlebed','dayvisitor','vendor'));
+  END IF;
+END $$;
+
+-- Names that get an entry ticket besides the contact person (vendor helpers and companions). Supplied by the booker.
+CREATE TABLE IF NOT EXISTS booking_tickets (
+  booking_id  INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  sort        INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  PRIMARY KEY (booking_id, sort)
 );
 
 -- ---- Public API (see docs/API.md) ----

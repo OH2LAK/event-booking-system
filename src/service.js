@@ -12,7 +12,8 @@ const sms = require('./sms');
 const addons = require('./addons');
 const webhooks = require('./webhooks');
 
-const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor'];
+const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor', 'vendor'];
+const modules = require('./modules');
 const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
 
 // Angle brackets are stripped from all guest-supplied text: several pages render these values via innerHTML.
@@ -92,7 +93,7 @@ async function getAvailability() {
     return booked >= settings.ROOM_COUNTS[cfg.id];
   });
   const singleBedSlots = settings.SINGLE_BED_SLOTS || 0;
-  const singleBedVisible = allSinglesFull && freeSingleBeds > 0 && singleBedSlots > 0 && singleBedBooked < singleBedSlots;
+  const singleBedVisible = modules.on('ROOMS') && allSinglesFull && freeSingleBeds > 0 && singleBedSlots > 0 && singleBedBooked < singleBedSlots;
 
   const openRooms = bookings
     .filter(b => b.type === 'room' && b.isPrimaryBooker === 'YES' && b.soloRoom !== 'YES')
@@ -164,16 +165,17 @@ async function submitBooking(input, opts) {
   };
 
   // --- validate and normalize input (lengths are capped) ---
-  const callsign = str(input.callsign, 20).toUpperCase();
-  if (!/^[A-Z0-9\/-]{3,20}$/.test(callsign)) return reject('err.callsign', null);
+  // Vendors need not be radio amateurs: without a callsign they get a generated handle (V<number>) inside the lock below
+  let callsign = str(input.callsign, 20).toUpperCase();
+  const vendorNoCall = input.type === 'vendor' && !callsign;
+  if (!vendorNoCall && !/^[A-Z0-9\/-]{3,20}$/.test(callsign)) return reject('err.callsign', null);
   const name = str(input.name, 100);
   if (name.length < 2) return reject('err.name', null, callsign);
   const email = str(input.email, 200);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reject('err.email', null, callsign);
   const dayMode = CONFIG.EVENT_MODE === 'day';
-  // A one-day event has no accommodation: everyone registers as an attendee for the event day(s)
-  if (dayMode && input.type !== 'dayvisitor') return reject('err.type', null, callsign);
-  if (!TYPES.includes(input.type)) return reject('err.type', null, callsign);
+  // Only the booking types of the switched-on event modules are accepted (see modules.js)
+  if (!TYPES.includes(input.type) || !modules.typeAllowed(input.type)) return reject('err.type', null, callsign);
   if (input.privacyAck !== true) return reject('err.privacy', null, callsign);
 
   const data = {
@@ -208,10 +210,11 @@ async function submitBooking(input, opts) {
       return closedByDate ? reject('err.closedOn', { date: settings.REGISTRATION_CLOSES }, callsign) : reject('err.closed', null, callsign);
     }
 
+    const seq = rows.reduce((m, r) => Math.max(m, r.seq), 0) + 1;
+    if (vendorNoCall) { callsign = 'V' + seq; data.callsign = callsign; }
     const existing = bookings.find(b => b.callsign === callsign);
     if (existing) return reject('err.exists', { cs: callsign, ref: existing.bookingRef }, callsign);
 
-    const seq = rows.reduce((m, r) => Math.max(m, r.seq), 0) + 1;
     const bookingRef = `${callsign}-${seq}`;
     let isPrimary = false; let roomId = ''; let roomRef = bookingRef; let soloRoom = false;
     let primaryRow = null;
@@ -262,6 +265,8 @@ async function submitBooking(input, opts) {
       if (!settings.TENT_ENABLED) return reject('err.tentNA', null, callsign);
       if (bookings.filter(b => b.type === 'tent').length >= settings.TENT_SPOTS) return reject('err.noTent', null, callsign);
       isPrimary = true;
+    } else if (data.type === 'vendor') {
+      isPrimary = true; // vendor-only registration: no accommodation, the vendor spaces are the booking
     } else if (data.type === 'singlebed') {
       // Single-bed bookings must be enabled in settings and within the slot limit
       const singleBedBooked = bookings.filter(b => b.type === 'singlebed').length;
@@ -286,6 +291,12 @@ async function submitBooking(input, opts) {
 
     const ad = await addons.resolve(input.addons, client);
     if (ad.error) return reject(ad.error, ad.vars, callsign);
+    const hasSpace = ad.items.some(i => i.kind === 'vendor');
+    if (data.type === 'vendor' && !hasSpace) return reject('err.vendorSpace', null, callsign);
+    // Entry-ticket names belong to vendor bookings (and to any booking that includes a vendor space)
+    const tickets = hasSpace ? addons.cleanTickets(input.tickets) : [];
+    if (tickets.length > addons.MAX_TICKETS) return reject('err.tickets', { n: addons.MAX_TICKETS }, callsign);
+    data.tickets = tickets; data.addonItems = ad.items;
     const priceInput_ = {
       addons: ad.items,
       type: data.type, roomId, isPrimaryBooker: isPrimary, extraNights: data.extraNights, nights: data.nights,
@@ -306,6 +317,7 @@ async function submitBooking(input, opts) {
         PAYMENT_STATUSES.includes(opts.paymentStatus) ? opts.paymentStatus : (price.total > 0 ? 'UNPAID' : 'WAIVED')]
     ).then(async ins => {
       await addons.replaceForBooking(client, ins.rows[0].id, ad.items);
+      if (tickets.length) await addons.replaceTickets(client, ins.rows[0].id, tickets);
       if (opts.paymentStatus === 'PAID') await client.query('UPDATE bookings SET paid_at = now() WHERE id = $1', [ins.rows[0].id]);
     });
 
@@ -357,13 +369,18 @@ async function getAdminData() {
     bookedByType[r.id] = confirmed.filter(b => b.roomId === r.id && b.isPrimaryBooker === 'YES').length;
   });
   // Chosen extras per booking, and the totals the organizer needs for catering and planning
-  const ba = (await db.query(`SELECT b.booking_ref, b.status, a.addon_id, a.name, a.qty FROM booking_addons a JOIN bookings b ON b.id = a.booking_id ORDER BY a.addon_id`)).rows;
+  const ba = (await db.query(`SELECT b.booking_ref, b.status, a.addon_id, a.name, a.qty, a.note FROM booking_addons a JOIN bookings b ON b.id = a.booking_id ORDER BY a.addon_id`)).rows;
   const byRef = {}; const totals = {};
   ba.forEach(x => {
-    (byRef[x.booking_ref] = byRef[x.booking_ref] || []).push({ id: x.addon_id, name: x.name, qty: Number(x.qty) });
+    (byRef[x.booking_ref] = byRef[x.booking_ref] || []).push({ id: x.addon_id, name: x.name, qty: Number(x.qty), note: x.note || '' });
     if (x.status !== 'CANCELLED') { const t = totals[x.addon_id] = totals[x.addon_id] || { id: x.addon_id, name: x.name, qty: 0, bookings: 0 }; t.qty += Number(x.qty); t.bookings++; }
   });
-  const adminRows = rows.map(r => Object.assign(repo.toAdminRow(r), { AddonsJson: JSON.stringify(byRef[r.booking_ref] || []), Addons: (byRef[r.booking_ref] || []).map(a => a.name + (a.qty > 1 ? ' x' + a.qty : '')).join(', ') }));
+  const tk = (await db.query('SELECT b.booking_ref, t.name FROM booking_tickets t JOIN bookings b ON b.id = t.booking_id ORDER BY b.booking_ref, t.sort')).rows;
+  const tkByRef = {}; tk.forEach(x => { (tkByRef[x.booking_ref] = tkByRef[x.booking_ref] || []).push(x.name); });
+  const adminRows = rows.map(r => Object.assign(repo.toAdminRow(r), {
+    AddonsJson: JSON.stringify(byRef[r.booking_ref] || []), TicketsJson: JSON.stringify(tkByRef[r.booking_ref] || []),
+    Addons: (byRef[r.booking_ref] || []).map(a => a.name + (a.qty > 1 ? ' x' + a.qty : '') + (a.note ? ' (' + a.note + ')' : '')).join(', ') + ((tkByRef[r.booking_ref] || []).length ? ' [+' + tkByRef[r.booking_ref].length + ' tickets]' : ''),
+  }));
   return {
     success: true, rows: adminRows, headers: repo.HEADERS.concat(['Addons']), addonTotals: Object.values(totals), addonCatalog: CONFIG.ADDONS,
     rooms: CONFIG.ROOMS, roomPrices: settings.ROOM_PRICES, bookedByType,
@@ -424,11 +441,13 @@ async function updateBooking(bookingRef, fields, sendEmail) {
         if (qty < 1) continue;
         const a = CONFIG.ADDONS.find(x => x.id === sel.id); const prev = old.find(x => x.id === sel.id);
         if (!a && !prev) return { success: false, error: 'Unknown extra: ' + sel.id };
-        items.push({ id: sel.id, name: a ? a.name : prev.name, qty, unit_price: prev ? prev.unit_price : a.price });
+        const note = sel.note !== undefined ? addons.cleanNote(sel.note) : (prev ? prev.note : '');
+        items.push({ id: sel.id, name: a ? a.name : prev.name, qty, unit_price: prev ? prev.unit_price : addons.unitPrice(a), note });
       }
       await addons.replaceForBooking(client, row.id, items);
       addonChange = true;
     }
+    if (Object.prototype.hasOwnProperty.call(fields, 'Tickets')) await addons.replaceTickets(client, row.id, addons.cleanTickets(fields.Tickets).slice(0, addons.MAX_TICKETS));
     // Room number is shared by everyone in the same room
     if (Object.prototype.hasOwnProperty.call(clean, 'RoomNumber')) {
       const canonical = row.is_primary ? bookingRef : row.room_ref;
@@ -477,7 +496,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
   // Webhooks: what happened to the booking
   const API_NAME = { IsPrimaryBooker: 'isPrimary', Addons: 'extras' };
   const { before, clean } = result;
-  const changed = Object.keys(clean).concat(Object.prototype.hasOwnProperty.call(fields, 'Addons') ? ['Addons'] : []).map(k => API_NAME[k] || k.charAt(0).toLowerCase() + k.slice(1));
+  const changed = Object.keys(clean).concat(Object.prototype.hasOwnProperty.call(fields, 'Addons') ? ['Addons'] : []).concat(Object.prototype.hasOwnProperty.call(fields, 'Tickets') ? ['Tickets'] : []).map(k => API_NAME[k] || k.charAt(0).toLowerCase() + k.slice(1));
   const evs = [];
   if (clean.Status === 'CANCELLED' && before.status !== 'CANCELLED') evs.push('booking.cancelled');
   if (clean.PaymentStatus === 'PAID' && before.payment !== 'PAID') evs.push('booking.paid');

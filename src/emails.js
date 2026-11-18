@@ -48,7 +48,7 @@ const DBL = '═'.repeat(59), SGL = '─'.repeat(57);
 const sec = title => `${SGL}\n${title}\n${SGL}`;
 const head = lines => [DBL].concat(lines.filter(Boolean).map(l => '  ' + l), [DBL]).join('\n');
 const kv = rows => {
-  const r = rows.filter(x => x[1] !== undefined && x[1] !== null && x[1] !== '');
+  const r = rows.filter(x => x && x[1] !== undefined && x[1] !== null && x[1] !== '');
   const w = Math.max.apply(null, r.map(x => x[0].length));
   return r.map(x => x[0].padEnd(w) + ' : ' + x[1]).join('\n');
 };
@@ -62,7 +62,7 @@ function helpers(lang) {
   const dayShort = k => (LS.days.find(d => d.key === k) || {}).short || k;
   const extra = k => LS.extraNights.find(x => x.key === k);
   return {
-    t, LS,
+    t, LS, lang,
     days: list => S.pickDays(list).map(dayShort).join(' + '),
     nightLabel: k => { const x = extra(k); return x ? x.label : t('js.nightOf', { day: dayShort(k) }); },
     extras: list => S.pickExtras(list).map(k => { const x = extra(k) || { label: k }; return x.label + (x.includes ? ' (' + x.includes + ')' : ''); }).join(', '),
@@ -72,6 +72,7 @@ function helpers(lang) {
       if (type === 'tent') return t('mail.tTent');
       if (type === 'singlebed') return t('mail.tSingle');
       if (type === 'dayvisitor') return t('mail.tDayVisitor');
+      if (type === 'vendor') return t('mail.tVendor');
       return type;
     },
     mealLines: isRoomLike => {
@@ -91,6 +92,22 @@ function approxLine(t, total, cur, rate) {
   return '\n' + t('mail.approx', { amt: currency.fmtApproxWith(total, rate, cur), native: currency.native(), rate: currency.fmtRate(Number(rate)), cur });
 }
 
+// Vendor spaces and entry-ticket names of a booking as plain text lines (localized with H when given, English otherwise).
+function vendorLines(data, H) {
+  const t = H ? H.t : (k => k);
+  const spaces = (data.addonItems || []).filter(i => i.kind === 'vendor');
+  const lines = [];
+  spaces.forEach(it => {
+    const a = CONFIG.ADDONS.find(x => x.id === it.id) || {};
+    const name = H ? i18n.content(H.lang, `addon.${it.id}.name`, it.name) : it.name;
+    const when = [a.day_key ? (H ? H.days([a.day_key]) : a.day_key) : '', a.starts && a.ends ? `${a.starts}-${a.ends}` : (a.starts || ''), a.location || ''].filter(Boolean).join(', ');
+    lines.push(`- ${name} x ${it.qty}${a.unit ? ' ' + a.unit : ''}${when ? ' (' + when + ')' : ''}`);
+    if (it.note) lines.push(`    ${it.note}`);
+  });
+  const tickets = data.tickets || [];
+  return { spaces: lines.join('\n'), tickets: tickets.map(n => `- ${n}`).join('\n'), count: spaces.length, ticketCount: tickets.length };
+}
+
 async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, settings, primaryRow) {
   const lang = langOf(data.language);
   const H = helpers(lang), t = H.t;
@@ -104,11 +121,14 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
   const parts = [];
   parts.push(head([ev('EVENT_NAME').toUpperCase(), t('mail.confirmTitle'), ev('LOCATION'), ev('DATES_TEXT')]));
   parts.push(`${t('mail.dear', { name: data.name })}\n\n${t('mail.confirmed')}\n\n${t('mail.refLabel', { ref: bookingRef })}`);
+  const genCall = data.type === 'vendor' && /^V\d+$/.test(callsign); // generated handle for a vendor without a callsign
   parts.push(sec(t('mail.secGuest')) + '\n' + kv([
-    [t('mail.lCallsign'), callsign], [t('mail.lName'), data.name], [t('mail.lEmail'), data.email],
+    genCall ? null : [t('mail.lCallsign'), callsign], [t('mail.lName'), data.name], [t('mail.lEmail'), data.email],
     [t('mail.lPhone'), data.phone], [t('mail.lCountry'), data.country]]));
 
-  if (data.type === 'dayvisitor') {
+  if (data.type === 'vendor') {
+    parts.push(sec(t('mail.secVendor')) + '\n' + kv([[t('mail.lType'), t('mail.tVendor')]]));
+  } else if (data.type === 'dayvisitor') {
     parts.push(sec(t('mail.secAttendance')) + '\n' + kv([[t('mail.lType'), t('mail.tDayVisitor')], [t('mail.lDays'), H.days(data.visitorDays)]]));
   } else {
     const rows = [[t('mail.lType'), H.typeLabel(data.type, roomCfg && roomCfg.id)]];
@@ -134,6 +154,11 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
     parts.push(sec(t('mail.secAccommodation')) + '\n' + kv(rows) + (blocks.length ? '\n\n' + blocks.join('\n\n') : ''));
   }
 
+  const vl = vendorLines(data, H);
+  if (vl.count) {
+    parts.push((data.type === 'vendor' ? '' : sec(t('mail.secVendor')) + '\n') + vl.spaces
+      + (vl.ticketCount ? '\n\n' + t('mail.lTickets') + ':\n' + vl.tickets : ''));
+  }
   const extraLines = [];
   if (data.fullBoard) extraLines.push(`${t('mail.mealIncludes')}\n${H.mealLines(isRoomLike)}`);
   else if (CONFIG.STRUCTURE.package.enabled) extraLines.push(t('mail.mealNo'));
@@ -145,7 +170,7 @@ async function sendConfirmationEmail(data, bookingRef, price, webAppUrl, setting
   // Nothing to pay: no payment section. The organizer's own payment text replaces the built-in one when set.
   if (price.total > 0) parts.push(sec(t('mail.secPayment')) + '\n' + (ev('PAYMENT_INFO') || t('mail.payBody'))
     + (data.isPrimaryBooker && data.type === 'room' && roomCfg ? '\n\n' + t('mail.roomBookerNote', { n: livePrice(settings, roomCfg) }) : ''));
-  if (CONFIG.EVENT_MODE !== 'day') parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
+  if (CONFIG.EVENT_MODE !== 'day' && data.type !== 'vendor') parts.push(`${SGL}\n\n${t('mail.checkin', { v: ev('CHECKIN_TIME') })}\n${t('mail.checkout', { v: ev('CHECKOUT_TIME') })}`);
   parts.push(`${SGL}\n${t('mail.questions')}\n${CONFIG.REPLY_TO_EMAIL}\n\n${signoff()}\n${DBL}`);
 
   await sendMail(data.email, `[${CONFIG.EVENT_SHORT}] ${t('mail.confirmSubject', { ref: bookingRef })}`, parts.join('\n\n'), mailOpts(lang));
@@ -265,9 +290,9 @@ Phone    : ${data.phone || "\u2014"}
 Country  : ${data.country || "\u2014"}
 
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${data.type === "dayvisitor" ? "ATTENDANCE" : "ACCOMMODATION"}
+${data.type === "dayvisitor" ? "ATTENDANCE" : data.type === "vendor" ? "VENDOR REGISTRATION" : "ACCOMMODATION"}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-${data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
+${data.type === "vendor" ? "Type     : Vendor (no accommodation)" : data.type === "dayvisitor" ? `Type     : Day visitor (no overnight accommodation)
 Days     : ${daysText(data.visitorDays)}` : `Type     : ${data.type === "room" ? (roomCfg ? roomCfg.note_en : "Room") : data.type === "camper" ? "Camper van" : data.type === "tent" ? "Tent" : data.type}
 ${data.type === "room" && data.isPrimaryBooker ? `Role     : Primary booker (room holder)` : ""}
 ${data.type === "room" && !data.isPrimaryBooker ? `Role     : Joining existing room: ${data.roomRef}` : ""}
@@ -279,6 +304,7 @@ ORDERED SERVICES
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 ${price.breakdown.split(" | ").join("\n")}
 
+${(() => { const v = vendorLines(data, null); return v.count ? "Vendor spaces:\n" + v.spaces + (v.ticketCount ? "\n\nEntry tickets (besides the contact person):\n" + v.tickets : "") + "\n" : ""; })()}
 Meal package: ${data.fullBoard ? "YES" : "No"}
 ${data.fullBoard ? `${mealLines}` : ""}
 Dietary: ${data.dietary || "\u2014"}

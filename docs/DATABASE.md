@@ -1,7 +1,7 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are seventeen tables.
+applied automatically when the app starts (and by the `db` container on first start). There are eighteen tables.
 
 ```
 bookings         one row per registered person (all booking types)
@@ -13,7 +13,8 @@ translations     admin-edited texts per language (see LANGUAGES.md)
 currency_rates   exchange rates for the extra (display-only) currencies (see CURRENCIES.md)
 event_log        audit/diagnostic log written by the app
 addons           optional extras the organizer offers (meals, excursions ...)
-booking_addons   which extras each booking chose (name and price are a snapshot)
+booking_addons   which extras and vendor spaces each booking chose (name and price are a snapshot, plus the booker's note)
+booking_tickets  names that get an entry ticket besides the contact person (vendor bookings)
 api_keys         API keys for other systems (only a hash of each key is stored; see API.md)
 api_idempotency  remembered Idempotency-Key answers for the API (24 hours)
 webhooks         webhook addresses, events and signing secrets
@@ -199,7 +200,19 @@ No row means the event is not configured yet and the public booking page shows "
 taken when the guest chose it, so later catalog edits do not change existing bookings (until prices are recalculated). Cancelled
 bookings do not count against an extra's capacity. Rows are deleted together with their booking.
 
-The `event_config` keys `API_ENABLED` (`no` or `yes`: the API is off until switched on), `EVENT_MODE` (`overnight` or `day`) and `PAYMENT_INFO` (text shown to guests on how to pay) belong to the same feature.
+The `event_config` keys `API_ENABLED` (`no` or `yes`: the API is off until switched on), `EVENT_MODE` (`overnight` or `day`, derived from the modules) and `PAYMENT_INFO` (text shown to guests on how to pay) belong to the same feature.
+
+**Vendor spaces.** Flea market tables, trunk sales and booths are `addons` rows with `kind = 'vendor'` (extras have `kind = 'extra'`), edited in the **Vendor spaces** card.
+The extra columns are `space_type` (`table`, `trunk`, `booth`, `other`), `day_key` (an event day key, empty = all days), `starts` and `ends` (`HH:MM`),
+`size`, `power`, `location`, `pricing` (`item`, `metre` or `day`), `unit` (label), `prompt` (the question to the booker) and `prompt_required`.
+With `pricing = 'day'` and no `day_key` the price is multiplied by the number of event days when a booking chooses the space.
+`booking_addons.note` holds the booker's answer to the question. The booking type `vendor` (a vendor-only booking without accommodation) is allowed by the `bookings.type` check;
+such a booking without a callsign gets the generated callsign `V<number>`. `booking_tickets` (`booking_id`, `sort`, `name`) holds the names that get an entry ticket besides the contact person;
+rows are deleted together with their booking.
+
+**Event profile and modules.** `event_config` also holds `EVENT_PROFILE` (`overnight`, `day`, `hamfest` or `custom`; only a label for the preset) and the switches
+`MOD_ROOMS`, `MOD_CAMPING`, `MOD_DAYVISITOR` and `MOD_VENDORS` (`yes` or `no`). `EVENT_MODE` is `overnight` when rooms or camping is on, otherwise `day`.
+A config saved before the modules existed (only `EVENT_MODE`) is read as the matching preset.
 
 ## API tables
 

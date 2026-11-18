@@ -24,7 +24,7 @@ function toReportRow(row, addonMap) {
   const o = repo.toObj(row);
   const extras = (addonMap && addonMap[row.id]) || [];
   return {
-    extras, extrasText: extras.map(a => a.name + (a.qty > 1 ? ' x' + a.qty : '')).join(', '), paymentStatus: o.paymentStatus,
+    extras, extrasText: extras.map(a => a.name + (a.qty > 1 ? ' x' + a.qty : '') + (a.note ? ' (' + a.note + ')' : '')).join(', '), paymentStatus: o.paymentStatus,
     bookingRef: o.bookingRef, callsign: o.callsign, name: o.name, email: o.email, phone: o.phone,
     country: o.country, type: o.type, roomId: o.roomId, roomRef: o.roomRef,
     isPrimary: o.isPrimaryBooker === 'YES', extraNights: S.keys(o.extraNights), nights: S.pickNights(o.nights), fullBoard: o.fullBoard === 'YES',
@@ -42,8 +42,10 @@ router.get('/report', async (req, res, next) => {
     const settings = await getSettings();
     report.setRC(settings);
     const addonMap = {};
-    (await db.query('SELECT booking_id, name, qty, unit_price FROM booking_addons ORDER BY addon_id')).rows.forEach(a => { (addonMap[a.booking_id] = addonMap[a.booking_id] || []).push({ name: a.name, qty: Number(a.qty), unitPrice: Number(a.unit_price) }); });
-    const rows = (await repo.all(db)).filter(r => r.status !== 'CANCELLED').map(r => toReportRow(r, addonMap));
+    (await db.query('SELECT booking_id, name, qty, unit_price, note FROM booking_addons ORDER BY addon_id')).rows.forEach(a => { (addonMap[a.booking_id] = addonMap[a.booking_id] || []).push({ name: a.name, qty: Number(a.qty), unitPrice: Number(a.unit_price), note: a.note || '' }); });
+    const ticketMap = {};
+    (await db.query('SELECT booking_id, name FROM booking_tickets ORDER BY booking_id, sort')).rows.forEach(t => { (ticketMap[t.booking_id] = ticketMap[t.booking_id] || []).push(t.name); });
+    const rows = (await repo.all(db)).filter(r => r.status !== 'CANCELLED').map(r => Object.assign(toReportRow(r, addonMap), { tickets: ticketMap[r.id] || [] }));
     if (req.query.fmt === 'csv') {
       const csv = report.buildCsv_(rows);
       res.set('Content-Disposition', `attachment; filename="${csv.filename}"`);

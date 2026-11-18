@@ -109,15 +109,15 @@ const USERS = {
   deleteAdminUser: (actor, id) => authRoutes.users.remove(actor, id),
 };
 const ADMIN = {
-  getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
+  getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current(), profiles: eventConfig.PROFILES }),
   saveEventConfig: values => eventConfig.save(values),
   getCurrencies: () => currency.adminView(),
   saveCurrencyRates: list => currency.saveRates(list),
   fetchCurrencyRates: () => currency.fetchEcb(),
   getRoomCatalog: () => ({ success: true, rooms: CONFIG.ROOMS }),
   saveRoomCatalog: list => rooms.save(list),
-  getAddons: () => ({ success: true, addons: CONFIG.ADDONS }),
-  saveAddons: list => addons.save(list),
+  getAddons: () => ({ success: true, addons: CONFIG.ADDONS, days: CONFIG.STRUCTURE.days, modules: require('./modules').flags() }),
+  saveAddons: (list, kind) => addons.save(list, kind),
   getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
   saveStructure: input => structure.save(input),
   getApiOverview: async () => Object.assign(await apiKeys.list(), { scopes: apiKeys.SCOPES, baseUrl: CONFIG.FRIENDLY_URL.replace(/\/+$/, '') + '/api/v1' }, { webhooks: await webhooks.list() }),
@@ -137,7 +137,7 @@ const ADMIN = {
   getAdminPanelHtml: (_pw, mode) => {
     const setup = mode === 'setup';
     let html = setup
-      ? '<div id="account-card"></div><div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="api-card"></div><div id="users-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
+      ? '<div id="account-card"></div><div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="vendors-card"></div><div id="api-card"></div><div id="users-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
       : '<div id="account-card"></div>' + pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {

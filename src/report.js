@@ -258,6 +258,18 @@ function hotelView_(rows) {
     body += '</tbody></table>';
   }
 
+  // Vendors: spaces with the vendor's own description, and the names that get an entry ticket (the vendor's information is authoritative)
+  var vds = rows.filter(function(r) { return r.type==='vendor' || (r.tickets && r.tickets.length); });
+  if (vds.length) {
+    body += '<h2>🛒 Myyjät ja myyntipaikat (' + vds.length + ')</h2>'
+      + '<table><thead><tr><th>Kutsu</th><th>Yhteyshenkilö</th><th>Paikat ja kuvaus</th><th>Sisäänpääsylippujen nimet</th></tr></thead><tbody>';
+    vds.forEach(function(r) {
+      var sp = (r.extras || []).map(function(a) { return esc_(a.name) + ' × ' + a.qty + (a.note ? ' (' + esc_(a.note) + ')' : ''); }).join('<br>');
+      body += '<tr><td><strong style="font-family:monospace">' + r.callsign + '</strong></td><td>' + r.name + '</td><td>' + sp + '</td><td>' + (r.tickets || []).join(', ') + '</td></tr>';
+    });
+    body += '</tbody></table>';
+  }
+
   // Day visitors
   var dvs = rows.filter(function(r) { return r.type==='dayvisitor'; });
   if (dvs.length) {
@@ -401,6 +413,8 @@ function confirmationSlip_(rows, r, pw) {
     acc='Single bed — Room '+(r.roomNumber||'TBD');
   } else if (r.type==='dayvisitor') {
     acc='Day visitor ('+dayLabels_(r.visitorDays).join(' + ')+')';
+  } else if (r.type==='vendor') {
+    acc='Vendor (no accommodation)';
   }
 
   // Meals text EN + FI
@@ -558,7 +572,7 @@ function summaryView_(rows) {
 function buildCsv_(rows) {
   var hdrs = ['Callsign','Name','Email','Country','Type','RoomId','RoomNo','RoomRef',
     'IsPrimary','Nights','ExtraNights','VisitorDays','FullBoard','Dietary','ShirtSize',
-    'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef','Extras','Payment'];
+    'Accommodation+Meals_'+cur.native(),'MeetingFee_'+cur.native(),'Total_'+cur.native(),'Status','BookingRef','Extras','Payment','EntryTickets'];
   var lines = [hdrs.join(';')];
   rows.forEach(function(r) {
     var p = calcPrices_(r);
@@ -566,7 +580,7 @@ function buildCsv_(rows) {
       r.isPrimary?'YES':'NO', r.nights.join('+'), r.extraNights.join('+'), r.visitorDays.join('+'), r.fullBoard?'YES':'NO',
       r.dietary,r.shirtSize,
       p.hotelTotal.toFixed(0), p.meetingFee.toFixed(0), p.total.toFixed(0),
-      r.status, r.bookingRef, r.extrasText, r.paymentStatus,
+      r.status, r.bookingRef, r.extrasText, r.paymentStatus, (r.tickets || []).join(' + '),
     ].map(function(v){
       v=(v||'').toString();
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; // neutralize spreadsheet formulas
@@ -613,6 +627,8 @@ function printView_(rows, ref) {
     var dEN=dayLabels_(r.visitorDays).join(' + ');
     var dFI=dEN;
     accEN='Day visitor ('+dEN+')'; accFI='Päivävieras ('+dFI+')';
+  } else if (r.type==='vendor') {
+    accEN='Vendor (no accommodation)'; accFI='Myyjä (ei majoitusta)';
   }
 
   // Meals EN + FI

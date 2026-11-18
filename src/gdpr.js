@@ -48,7 +48,8 @@ async function exportBooking(ref) {
       controller: privacy.controllerName(),
       event: CONFIG.EVENT_NAME,
       booking: row,
-      extras: (await db.query('SELECT addon_id, name, qty, unit_price FROM booking_addons WHERE booking_id = $1 ORDER BY addon_id', [row.id])).rows,
+      extras: (await db.query('SELECT addon_id, name, qty, unit_price, note FROM booking_addons WHERE booking_id = $1 ORDER BY addon_id', [row.id])).rows,
+      entry_ticket_names: (await db.query('SELECT name FROM booking_tickets WHERE booking_id = $1 ORDER BY sort', [row.id])).rows.map(r => r.name),
       logEntries: log.rows,
     },
   };

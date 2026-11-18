@@ -62,6 +62,8 @@ const CONFIG = {
 
   // Event type: 'overnight' (rooms, camping, nights) or 'day' (one-day event: registration plus optional extras)
   EVENT_MODE: 'overnight',
+  // Event profile (a preset label) and the module switches it sets; EVENT_MODE is derived from the modules (see modules.js)
+  EVENT_PROFILE: 'overnight', MOD_ROOMS: 'yes', MOD_CAMPING: 'yes', MOD_DAYVISITOR: 'yes', MOD_VENDORS: 'no',
   // How guests pay (shown on the booking page and in the confirmation email), e.g. "Pay at the door by card or cash."
   PAYMENT_INFO: '',
   // Optional extras (meals, excursions ...); loaded from the database by addons.js

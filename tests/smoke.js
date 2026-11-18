@@ -473,7 +473,9 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     await rpc('recalcAllPrices', '');
 
     // one-day event mode
-    r = (await rpc('saveEventConfig', { ...ecA.values, EVENT_MODE: 'day', PAYMENT_INFO: 'Pay at the door' })).body.result;
+    const DAYMODS = { EVENT_PROFILE: 'day', MOD_ROOMS: 'no', MOD_CAMPING: 'no', MOD_DAYVISITOR: 'yes', MOD_VENDORS: 'no' };
+    const NIGHTMODS = { EVENT_PROFILE: 'overnight', MOD_ROOMS: 'yes', MOD_CAMPING: 'yes', MOD_DAYVISITOR: 'yes', MOD_VENDORS: 'no' };
+    r = (await rpc('saveEventConfig', { ...ecA.values, ...DAYMODS, PAYMENT_INFO: 'Pay at the door' })).body.result;
     check('day mode: saved', r && r.success, r);
     r = (await rpc('submitBooking', booking({ callsign: 'TESTD1', type: 'tent' }))).body.result;
     check('day mode: accommodation types rejected', !r.success, r);
@@ -484,7 +486,22 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     const scripts = [...homeD.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
     let parsed = 0; for (const s of scripts) { try { new Function(s); parsed++; } catch (e) { console.log(e.message); } }
     check('day mode: inline scripts parse', scripts.length > 0 && parsed === scripts.length, [parsed, scripts.length]);
-    r = (await rpc('saveEventConfig', { ...ecA.values, EVENT_MODE: 'overnight', PAYMENT_INFO: '' })).body.result;
+    // hybrid: camping on, rooms off (modules are independent of the profile label)
+    r = (await rpc('saveEventConfig', { ...ecA.values, ...NIGHTMODS, EVENT_PROFILE: 'custom', MOD_ROOMS: 'no' })).body.result;
+    check('modules: camping-only hybrid saved', r && r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTM1', type: 'room', roomId: '2S' }))).body.result;
+    check('modules: room rejected when rooms are off', !r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTM2', type: 'camper' }))).body.result;
+    check('modules: camper accepted when camping is on', r.success, r);
+    r = (await rpc('submitBooking', booking({ callsign: 'TESTM3', type: 'dayvisitor', visitorDays: ['d1'] }))).body.result;
+    check('modules: day attendance accepted next to camping', r.success, r);
+    r = (await rpc('saveEventConfig', { ...ecA.values, MOD_ROOMS: 'no', MOD_CAMPING: 'no', MOD_DAYVISITOR: 'no', MOD_VENDORS: 'no' })).body.result;
+    check('modules: all modules off is refused', r && !r.success, r);
+    // legacy callers that only send EVENT_MODE still work
+    const legacy = { ...ecA.values }; ['EVENT_PROFILE', 'MOD_ROOMS', 'MOD_CAMPING', 'MOD_DAYVISITOR', 'MOD_VENDORS'].forEach(k => delete legacy[k]);
+    r = (await rpc('saveEventConfig', { ...legacy, EVENT_MODE: 'day' })).body.result;
+    check('modules: legacy EVENT_MODE=day still works', r && r.success, r);
+    r = (await rpc('saveEventConfig', { ...legacy, EVENT_MODE: 'overnight', PAYMENT_INFO: '' })).body.result;
     check('back to overnight mode', r && r.success, r);
     await rpc('saveAddons', []);
   }

@@ -146,7 +146,7 @@ const PATCHABLE = {
   callsign: 'Callsign', name: 'Name', email: 'Email', phone: 'Phone', country: 'Country', type: 'Type', roomId: 'RoomId', roomRef: 'RoomRef',
   isPrimary: 'IsPrimaryBooker', extraNights: 'ExtraNights', nights: 'Nights', fullBoard: 'FullBoard', dietary: 'Dietary', status: 'Status',
   roomNumber: 'RoomNumber', orgComment: 'OrgComment', publishConsent: 'PublishConsent', soloRoom: 'SoloRoom', freeText: 'FreeText',
-  isOrganizer: 'IsOrganizer', visitorDays: 'VisitorDays', paymentStatus: 'PaymentStatus', extras: 'Addons',
+  isOrganizer: 'IsOrganizer', visitorDays: 'VisitorDays', paymentStatus: 'PaymentStatus', extras: 'Addons', tickets: 'Tickets',
 };
 const notFound = e => /not found/i.test(e || '');
 const failFromService = (res, r) => (notFound(r.error) ? fail(res, 404, 'not_found', r.error) : fail(res, /already has an active booking/.test(r.error) ? 409 : 422, 'invalid_booking', r.error));
@@ -160,8 +160,9 @@ router.patch('/bookings/:ref', need('bookings:write'), wrap(async (req, res) => 
     if (!PATCHABLE[k]) return fail(res, 400, 'unknown_field', `"${k}" cannot be changed. Changeable: ${Object.keys(PATCHABLE).join(', ')}.`);
     const v = b[k];
     if (typeof v === 'string' && v.length > 1000) return fail(res, 400, 'invalid_field', `${k} is too long (max 1000 characters).`);
+    if (k === 'tickets' && !Array.isArray(v)) return fail(res, 400, 'invalid_field', 'tickets must be a list of names.');
     if (k === 'extras' && !Array.isArray(v)) return fail(res, 400, 'invalid_field', 'extras must be a list like [{"id":"dinner","qty":2}].');
-    fields[PATCHABLE[k]] = Array.isArray(v) && k !== 'extras' ? v.join(',') : v;
+    fields[PATCHABLE[k]] = Array.isArray(v) && k !== 'extras' && k !== 'tickets' ? v.join(',') : v;
   }
   if (!Object.keys(fields).length) return fail(res, 400, 'no_changes', 'Nothing to change.');
   const r = await service.updateBooking(req.params.ref, fields, b.sendEmail === true);

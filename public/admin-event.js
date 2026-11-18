@@ -39,6 +39,29 @@
       + ' <span id="ev-msg" style="margin-left:0.75rem;font-size:0.85rem"></span></div></details>';
     host.innerHTML = html;
     document.getElementById('ev-save').addEventListener('click', function () { save(data.fields); });
+    wireProfiles(data.profiles || {});
+  }
+
+  // A profile only presets the module switches; changing a switch by hand moves the profile to the matching preset or "Custom".
+  var MODS = ['ROOMS', 'CAMPING', 'DAYVISITOR', 'VENDORS'];
+  function wireProfiles(profiles) {
+    var prof = document.getElementById('ev-EVENT_PROFILE');
+    if (!prof) return;
+    function modSel(n) { return document.getElementById('ev-MOD_' + n); }
+    prof.addEventListener('change', function () {
+      var p = profiles[prof.value];
+      if (p && p.modules) MODS.forEach(function (n) { modSel(n).value = p.modules[n]; });
+    });
+    MODS.forEach(function (n) {
+      modSel(n).addEventListener('change', function () {
+        var match = 'custom';
+        Object.keys(profiles).forEach(function (k) {
+          var m = profiles[k].modules;
+          if (m && MODS.every(function (x) { return modSel(x).value === m[x]; })) match = k;
+        });
+        prof.value = match;
+      });
+    });
   }
 
   function save(fields) {

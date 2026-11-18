@@ -130,7 +130,7 @@ function contentItems(settings) {
     (CONFIG.STRUCTURE.package.includes || []).forEach((s, i) => add(`structure.package.includes.${i}`, `Meal package: includes #${i + 1}`, s));
   }
   CONFIG.ROOMS.forEach(r => add(`room.${r.id}.note`, `Room type ${r.id}`, r.note_en));
-  (CONFIG.ADDONS || []).forEach(a => { add(`addon.${a.id}.name`, `Extra ${a.id}: name`, a.name); add(`addon.${a.id}.desc`, `Extra ${a.id}: description`, a.description); });
+  (CONFIG.ADDONS || []).forEach(a => { add(`addon.${a.id}.name`, `Extra ${a.id}: name`, a.name); add(`addon.${a.id}.desc`, `Extra ${a.id}: description`, a.description); if (a.prompt) add(`addon.${a.id}.prompt`, `Extra ${a.id}: question to the booker`, a.prompt); });
   return items;
 }
 
