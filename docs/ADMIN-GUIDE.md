@@ -192,6 +192,15 @@ Guests pick their language on the booking pages and get emails in it. See [LANGU
 translate your own texts (announcement, day labels, package texts, room type names) under **Event content**, and have the
 privacy notice translations checked before you rely on them. The admin panel and this report stay in English.
 
+## 6c. API and webhooks (setup page)
+
+To connect other systems (accounting, a club register, a web shop, your own website) first switch **API for other systems** on in *Event setup* (group Integrations). The **API and webhooks** card then lets you:
+
+- **Create API keys**: one per system, with only the permissions it needs (*stats* = counts without personal data, *bookings:read*, *bookings:write*) and an optional validity. The key is shown once; copy it into the other system. Revoke a key at any time; the list shows when it was last used.
+- **Add webhooks**: addresses (https) that are called when a booking is created, changed, cancelled, paid or erased. Choose whether to send the full booking or no personal data. *Send test* checks the address; *Log* shows recent deliveries and errors.
+
+Everything the other system may do, with examples, is in [API.md](API.md). The API is off by default; hosted events too.
+
 ## 7. Report and check-in tool (`/report`)
 
 Log in with the same password. Top buttons:
@@ -262,7 +271,7 @@ After the event (and when no dispute or other matter is open), run **Event shutd
 2. Tick whether to send a final notice email to everyone.
 3. If the event has not ended, tick the extra box. Type `ERASE ALL DATA` and press the red button.
 
-The tool deletes all bookings and log entries, closes registration, removes the deleted rows from the database files and shows a verification table (all rows should be green). Failed notice emails are listed once on screen.
+The tool deletes all bookings and log entries, revokes all API keys, switches webhooks off, closes registration, removes the deleted rows from the database files and shows a verification table (all rows should be green). Failed notice emails are listed once on screen.
 Then delete backups, exported files, print-outs and mail copies yourself: the app cannot reach those.
 
 If a dispute or other matter is open, enter a short reason in **Retention hold** (Event setup). Reminders pause and the shutdown is blocked until you clear it; erase the data as soon as the matter is closed.

@@ -1,0 +1,1619 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Example Event booking API",
+    "version": "1.0.0",
+    "description": "Read counts and bookings, export data and create or change bookings from other systems. Authenticate with \"Authorization: Bearer <api key>\". Keys and their permissions are created by the organizer on the setup page; the API must be switched on in Event setup. Webhooks (signed notifications) are described in docs/API.md."
+  },
+  "servers": [
+    {
+      "url": "https://your-event.example.com/api/v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key (ebk_...)"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human readable explanation"
+              }
+            }
+          }
+        }
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "description": "Booking reference, e.g. OH2ABC-7"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO time",
+            "format": "date-time"
+          },
+          "callsign": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "room",
+              "camper",
+              "tent",
+              "singlebed",
+              "dayvisitor"
+            ]
+          },
+          "roomId": {
+            "type": "string",
+            "description": "Room type id"
+          },
+          "roomRef": {
+            "type": "string",
+            "description": "Reference of the primary booking of the room or spot"
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "description": "Primary booker of the room/spot"
+          },
+          "soloRoom": {
+            "type": "boolean",
+            "description": "Booked a shared room alone"
+          },
+          "extraNights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Per-night mode: the core nights booked (empty = all)"
+          },
+          "visitorDays": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fullBoard": {
+            "type": "boolean",
+            "description": "Meal package"
+          },
+          "dietary": {
+            "type": "string"
+          },
+          "shirtSize": {
+            "type": "string"
+          },
+          "totalPrice": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO currency code"
+          },
+          "priceBreakdown": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "CHECKED_IN",
+              "NEEDS_ATTENTION",
+              "CANCELLED"
+            ]
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "WAIVED"
+            ]
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "roomNumber": {
+            "type": "string"
+          },
+          "orgComment": {
+            "type": "string"
+          },
+          "publishConsent": {
+            "type": "boolean",
+            "description": "Callsign and first name may be shown on the public list"
+          },
+          "isOrganizer": {
+            "type": "boolean"
+          },
+          "freeText": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "extras": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "integer"
+                },
+                "unitPrice": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NewBooking": {
+        "type": "object",
+        "required": [
+          "callsign",
+          "name",
+          "email",
+          "type",
+          "privacyAck"
+        ],
+        "properties": {
+          "callsign": {
+            "type": "string",
+            "description": "3-20 characters: letters, digits, / and -"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "room",
+              "camper",
+              "tent",
+              "singlebed",
+              "dayvisitor"
+            ],
+            "description": "A one-day event only accepts dayvisitor"
+          },
+          "roomId": {
+            "type": "string",
+            "description": "Room type id (type room, new room)"
+          },
+          "joinExisting": {
+            "type": "boolean",
+            "description": "Join an existing room or camper (needs roomRef)"
+          },
+          "roomRef": {
+            "type": "string",
+            "description": "Booking reference to join"
+          },
+          "soloDouble": {
+            "type": "boolean",
+            "description": "Use a shared room alone"
+          },
+          "extraNights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visitorDays": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Day visitors: day keys (see GET /event)"
+          },
+          "fullBoard": {
+            "type": "boolean",
+            "description": "Meal package"
+          },
+          "dietary": {
+            "type": "string"
+          },
+          "shirtSize": {
+            "type": "string"
+          },
+          "freeText": {
+            "type": "string"
+          },
+          "publishConsent": {
+            "type": "boolean",
+            "description": "Default false"
+          },
+          "extras": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Extra id"
+                },
+                "qty": {
+                  "type": "integer",
+                  "description": "Quantity"
+                }
+              },
+              "required": [
+                "id",
+                "qty"
+              ]
+            },
+            "description": "Optional extras (see GET /extras)"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language of the confirmation email"
+          },
+          "displayCurrency": {
+            "type": "string",
+            "description": "Indicative extra currency"
+          },
+          "privacyAck": {
+            "type": "boolean",
+            "description": "Must be true: confirms the guest has accepted the privacy notice"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "WAIVED"
+            ],
+            "description": "Set PAID if the payment was already collected"
+          },
+          "sendNotifications": {
+            "type": "boolean",
+            "description": "false = no emails or SMS from this system (default true)"
+          },
+          "bypassToken": {
+            "type": "string",
+            "description": "Registration bypass token, if registration is closed"
+          }
+        }
+      },
+      "BookingChanges": {
+        "type": "object",
+        "description": "Only the fields that are sent are changed. Changes are not subject to capacity checks (the same as in the admin panel); prices are recalculated.",
+        "properties": {
+          "callsign": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "room",
+              "camper",
+              "tent",
+              "singlebed",
+              "dayvisitor"
+            ]
+          },
+          "roomId": {
+            "type": "string"
+          },
+          "roomRef": {
+            "type": "string"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "extraNights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visitorDays": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fullBoard": {
+            "type": "boolean"
+          },
+          "dietary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED",
+              "CHECKED_IN",
+              "NEEDS_ATTENTION",
+              "CANCELLED"
+            ]
+          },
+          "roomNumber": {
+            "type": "string"
+          },
+          "orgComment": {
+            "type": "string"
+          },
+          "publishConsent": {
+            "type": "boolean"
+          },
+          "soloRoom": {
+            "type": "boolean"
+          },
+          "freeText": {
+            "type": "string"
+          },
+          "isOrganizer": {
+            "type": "boolean"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UNPAID",
+              "PAID",
+              "WAIVED"
+            ]
+          },
+          "extras": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Extra id"
+                },
+                "qty": {
+                  "type": "integer",
+                  "description": "Quantity"
+                }
+              },
+              "required": [
+                "id",
+                "qty"
+              ]
+            }
+          },
+          "sendEmail": {
+            "type": "boolean",
+            "description": "Send the guest an update email (default false)"
+          }
+        }
+      },
+      "BookingList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Booking"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "nextAfter": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Pass as ?after= to get the next page"
+          }
+        }
+      },
+      "Extra": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "maxPerBooking": {
+            "type": "integer"
+          },
+          "capacity": {
+            "type": "integer",
+            "nullable": true
+          },
+          "taken": {
+            "type": "integer"
+          },
+          "left": {
+            "type": "integer",
+            "nullable": true
+          },
+          "signUpCloses": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "closed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Anything": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "paths": {
+    "/ping": {
+      "get": {
+        "summary": "Check the key",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "any",
+        "responses": {
+          "200": {
+            "description": "The key works",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/event": {
+      "get": {
+        "summary": "Event details and structure",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "Event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/availability": {
+      "get": {
+        "summary": "Open capacity and whether registration is open",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "Availability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "summary": "Counts and sums: bookings, payments, extras, accommodation",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "Statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/extras": {
+      "get": {
+        "summary": "Extras catalog with how many are taken",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "Extras",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Extra"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bookings": {
+      "get": {
+        "summary": "List bookings (oldest first, paged)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:read",
+        "responses": {
+          "200": {
+            "description": "Bookings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CONFIRMED",
+                "CHECKED_IN",
+                "NEEDS_ATTENTION",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "room",
+                "camper",
+                "tent",
+                "singlebed",
+                "dayvisitor"
+              ]
+            }
+          },
+          {
+            "name": "paymentStatus",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UNPAID",
+                "PAID",
+                "WAIVED"
+              ]
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callsign",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search callsign, name or reference",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdSince",
+            "in": "query",
+            "description": "ISO date or time",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activeOnly",
+            "in": "query",
+            "description": "true = leave out cancelled bookings",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "nextAfter of the previous page",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a booking",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:write",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a JSON object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not available (full, callsign already booked ...)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Applies the same rules as the booking form: pricing, capacity, registration window, extras. Send an Idempotency-Key header so a retry never creates a second booking.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique per booking attempt; a retry with the same key and body returns the first answer"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewBooking"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bookings/{ref}": {
+      "get": {
+        "summary": "Get one booking",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:read",
+        "responses": {
+          "200": {
+            "description": "Booking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Booking reference"
+          }
+        ]
+      },
+      "patch": {
+        "summary": "Change a booking",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:write",
+        "responses": {
+          "200": {
+            "description": "Updated booking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Booking reference"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingChanges"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Cancel a booking",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:write",
+        "responses": {
+          "200": {
+            "description": "Cancelled booking",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Booking"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Sets the status to CANCELLED. The booking stays in the list and its capacity is freed. Erasing personal data is done by the organizer.",
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Booking reference"
+          },
+          {
+            "name": "sendEmail",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      }
+    },
+    "/export/bookings.{fmt}": {
+      "get": {
+        "summary": "Export all bookings (same filters as the list, no paging)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "bookings:read",
+        "responses": {
+          "200": {
+            "description": "CSV (UTF-8 with BOM, opens in Excel) or JSON",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fmt",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "json"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CONFIRMED",
+                "CHECKED_IN",
+                "NEEDS_ATTENTION",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "room",
+                "camper",
+                "tent",
+                "singlebed",
+                "dayvisitor"
+              ]
+            }
+          },
+          {
+            "name": "paymentStatus",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UNPAID",
+                "PAID",
+                "WAIVED"
+              ]
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "callsign",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search callsign, name or reference",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdSince",
+            "in": "query",
+            "description": "ISO date or time",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activeOnly",
+            "in": "query",
+            "description": "true = leave out cancelled bookings",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      }
+    },
+    "/export/extras.{fmt}": {
+      "get": {
+        "summary": "Totals per extra (active bookings)",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "CSV or JSON",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fmt",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "json"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/export/accommodation.{fmt}": {
+      "get": {
+        "summary": "Room inventory and occupancy per room type and night",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-required-scope": "stats",
+        "responses": {
+          "200": {
+            "description": "CSV or JSON",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Anything"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API off or the key lacks the permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fmt",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv",
+                "json"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

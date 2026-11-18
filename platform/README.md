@@ -44,6 +44,10 @@ The app itself stays single-event; this folder only adds ordering, payment and a
 Price: set `EVENT_PRICE_CENTS` (default shown in the operator page; you can override it per order when approving).
 Set `STRIPE_AUTOMATIC_TAX=1` only after configuring Stripe Tax.
 
+## API
+
+Every instance contains the public API ([../docs/API.md](../docs/API.md)). It is **off** when an event is created (`API_ENABLED: 'no'` is passed to `init-event`); the organiser switches it on in Event setup and creates keys there. Nothing in the platform needs to change for it: requests go to the event's own address like any other page.
+
 ## Own domains (Cloudflare for SaaS)
 
 An organiser can order their own subdomain (for example `ilmo.myclub.fi`) for an extra fee. How it works:

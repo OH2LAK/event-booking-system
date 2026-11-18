@@ -17,6 +17,9 @@ const privacy = require('./privacy');
 const i18n = require('./i18n');
 const currency = require('./currency');
 const demo = require('./demo');
+const api = require('./api');
+const apiKeys = require('./apiKeys');
+const webhooks = require('./webhooks');
 const { CONFIG } = require('./config');
 
 const app = express();
@@ -70,6 +73,8 @@ app.get('/healthz', async (req, res) => {
 });
 
 app.use(reportRoutes);
+// Public REST API for other systems (needs an API key; see docs/API.md)
+app.use('/api/v1', api.router);
 
 // ---- RPC: the pages call these methods through /api/rpc/<method> ----
 const PUBLIC = {
@@ -84,7 +89,8 @@ const PUBLIC = {
 // Methods that need the setup role (they change how the event is configured or can destroy data).
 // Everything else in ADMIN is available to both roles.
 const SETUP_ONLY = new Set(['getEventConfig', 'saveEventConfig', 'getCurrencies', 'saveCurrencyRates', 'fetchCurrencyRates',
-  'saveRoomCatalog', 'saveStructure', 'getAddons', 'saveAddons', 'getTranslations', 'saveTranslations', 'getShutdownPreview', 'shutdownEvent', 'recalcAllPrices']);
+  'saveRoomCatalog', 'saveStructure', 'getAddons', 'saveAddons', 'getTranslations', 'saveTranslations', 'getShutdownPreview', 'shutdownEvent', 'recalcAllPrices',
+  'getApiOverview', 'createApiKey', 'revokeApiKey', 'createWebhook', 'updateWebhook', 'deleteWebhook', 'testWebhook', 'getWebhookDeliveries']);
 // Registration settings that the admin role may change; every other setting (prices, inventory) needs the setup role.
 const ADMIN_SETTING_KEYS = new Set(['REGISTRATION_OPEN', 'REGISTRATION_CLOSES', 'ALLOW_SOLO_DOUBLE', 'ALLOW_SINGLE_BED_BOOKING', 'TENT_ENABLED',
   'ANNOUNCEMENT', 'CLOSED_MESSAGE', 'BYPASS_TOKEN', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER']);
@@ -100,6 +106,14 @@ const ADMIN = {
   saveAddons: list => addons.save(list),
   getStructure: () => ({ success: true, structure: CONFIG.STRUCTURE }),
   saveStructure: input => structure.save(input),
+  getApiOverview: async () => Object.assign(await apiKeys.list(), { scopes: apiKeys.SCOPES, baseUrl: CONFIG.FRIENDLY_URL.replace(/\/+$/, '') + '/api/v1' }, { webhooks: await webhooks.list() }),
+  createApiKey: (name, scopes, days) => apiKeys.create(name, scopes, days),
+  revokeApiKey: id => apiKeys.revoke(id),
+  createWebhook: input => webhooks.create(input),
+  updateWebhook: (id, input) => webhooks.update(id, input),
+  deleteWebhook: id => webhooks.remove(id),
+  testWebhook: id => webhooks.test(id),
+  getWebhookDeliveries: id => webhooks.deliveries(id),
   exportBooking: ref => gdpr.exportBooking(ref),
   eraseBooking: (ref, opts) => gdpr.eraseBooking(ref, opts),
   getTranslations: async lang => i18n.getTranslations(String(lang || '') || (i18n.enabledCodes().find(c => c !== i18n.defaultLang()) || i18n.defaultLang()), await getSettings()),
@@ -109,7 +123,7 @@ const ADMIN = {
   getAdminPanelHtml: (_pw, mode) => {
     const setup = mode === 'setup';
     let html = setup
-      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
+      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="api-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
       : pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
@@ -170,7 +184,16 @@ app.post('/api/rpc/:method', async (req, res) => {
 });
 app.post('/api/admin/logout', (req, res) => { res.set('Set-Cookie', auth.clearCookie()); res.json({ ok: true }); });
 
-app.use((err, req, res, _next) => { console.error(err); res.status(500).send('Server error'); });
+app.use((err, req, res, _next) => {
+  if (req.path.startsWith('/api/v1')) {
+    // Unreadable or oversized JSON bodies on the API get a JSON answer
+    const status = err.status === 413 ? 413 : (err.type === 'entity.parse.failed' ? 400 : 500);
+    if (status === 500) console.error(err);
+    const code = status === 413 ? 'too_large' : (status === 400 ? 'invalid_json' : 'server_error');
+    return res.status(status).json({ error: { code, message: status === 413 ? 'The request is too large.' : (status === 400 ? 'The request body is not valid JSON.' : 'Server error') } });
+  }
+  console.error(err); res.status(500).send('Server error');
+});
 
 async function initDb() {
   const sql = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
@@ -190,6 +213,7 @@ async function main() {
   await structure.load();
   await addons.load();
   await demo.start();
+  webhooks.start();
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')

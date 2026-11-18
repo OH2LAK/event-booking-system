@@ -1,7 +1,7 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are ten tables.
+applied automatically when the app starts (and by the `db` container on first start). There are fourteen tables.
 
 ```
 bookings         one row per registered person (all booking types)
@@ -14,6 +14,10 @@ currency_rates   exchange rates for the extra (display-only) currencies (see CUR
 event_log        audit/diagnostic log written by the app
 addons           optional extras the organizer offers (meals, excursions ...)
 booking_addons   which extras each booking chose (name and price are a snapshot)
+api_keys         API keys for other systems (only a hash of each key is stored; see API.md)
+api_idempotency  remembered Idempotency-Key answers for the API (24 hours)
+webhooks         webhook addresses, events and signing secrets
+webhook_deliveries  queue and log of webhook messages (payload removed after delivery)
 ```
 
 Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is called `price_eur`; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
@@ -192,7 +196,14 @@ No row means the event is not configured yet and the public booking page shows "
 taken when the guest chose it, so later catalog edits do not change existing bookings (until prices are recalculated). Cancelled
 bookings do not count against an extra's capacity. Rows are deleted together with their booking.
 
-The `event_config` keys `EVENT_MODE` (`overnight` or `day`) and `PAYMENT_INFO` (text shown to guests on how to pay) belong to the same feature.
+The `event_config` keys `API_ENABLED` (`no` or `yes`: the API is off until switched on), `EVENT_MODE` (`overnight` or `day`) and `PAYMENT_INFO` (text shown to guests on how to pay) belong to the same feature.
+
+## API tables
+
+Used by the public API ([API.md](API.md)). `api_keys`: `name`, `prefix` (first characters of the key, to recognise it), `key_hash` (SHA-256; the key itself is never stored), `scopes` (`stats`, `bookings:read`, `bookings:write`, comma-separated), `created_at`, `expires_at`, `last_used_at`, `request_count`, `revoked_at`.
+`api_idempotency`: one row per key and `Idempotency-Key` with the request hash and the stored answer; rows older than 24 hours are deleted.
+`webhooks`: `name`, `url`, `secret` (HMAC signing key, stored as is because it is needed to sign), `events`, `payload` (`full` or `minimal`), `enabled`, `last_status`, `failures`.
+`webhook_deliveries`: the queue and log; `payload` holds the message (with personal data when `full`) only until it was delivered, failed ones lose it after 7 days, and rows are deleted after 30 days. Event shutdown deletes the queue, revokes all keys and disables all webhooks.
 
 ## `translations`
 
@@ -241,7 +252,7 @@ Append-only diagnostic log.
 | `id` | bigserial, PK | |
 | `created_at` | timestamptz | |
 | `level` | text | `OK`, `WARN` or `ERROR`. |
-| `event` | text | `booking_confirmed`, `booking_rejected`, `email_failed`, `accommodation_changed`, `role_changed`, `checked_in`. |
+| `event` | text | `booking_confirmed`, `booking_rejected`, `email_failed`, `accommodation_changed`, `role_changed`, `checked_in`, `api_request` (changes and refusals made with an API key), `api_key_created`, `api_key_revoked`, `webhook_created`, `webhook_deleted`. |
 | `callsign` | text | Callsign (or booking reference for `checked_in`). |
 | `detail` | text | Free text, e.g. `ref=OH2ABC-7 type=room price=EUR135`, or the rejection reason. |
 

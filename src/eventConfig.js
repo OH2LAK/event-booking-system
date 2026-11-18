@@ -31,6 +31,7 @@ const FIELDS = [
   { group: 'Privacy and data retention', key: 'EVENT_END_DATE', label: 'Last day of the event', type: 'date', max: 10, help: 'Starts the retention clock. Personal data must be erased no later than the retention period after this date.' },
   { group: 'Privacy and data retention', key: 'RETENTION_DAYS', label: 'Retention after the event (days)', type: 'number', max: 3, help: 'Default 30, maximum 365.' },
   { group: 'Privacy and data retention', key: 'RETENTION_HOLD', label: 'Retention hold (open matter)', type: 'text', max: 200, help: 'Normally empty. If a dispute or similar matter is open, enter a short reason; retention reminders pause until you clear this. Do not enter personal data here.' },
+  { group: 'Integrations', key: 'API_ENABLED', label: 'API for other systems', type: 'select', max: 3, options: [['no', 'Off (no API access)'], ['yes', 'On (API keys can be used)']], help: 'Lets other systems read counts and bookings, export data and create bookings, using API keys you create in the "API and webhooks" card below. Keep it off if you do not need it.' },
   { group: 'Branding', key: 'LOGO1_URL', label: 'Logo 1 (image URL, https)', type: 'url', max: 300, help: 'Optional.' },
   { group: 'Branding', key: 'LOGO2_URL', label: 'Logo 2 (image URL, https)', type: 'url', max: 300, help: 'Optional.' },
   { group: 'Branding', key: 'ACCENT_COLOR', label: 'Accent color', type: 'color', max: 7, help: 'Hex color, e.g. #b45309' },

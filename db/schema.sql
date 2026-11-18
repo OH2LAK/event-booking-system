@@ -136,3 +136,62 @@ CREATE TABLE IF NOT EXISTS booking_addons (
   name        TEXT NOT NULL,
   PRIMARY KEY (booking_id, addon_id)
 );
+
+-- ---- Public API (see docs/API.md) ----
+-- Named API keys. Only a SHA-256 hash of the key is stored; the key itself is shown once when it is created.
+-- scopes: stats (no personal data), bookings:read, bookings:write.
+CREATE TABLE IF NOT EXISTS api_keys (
+  id            SERIAL PRIMARY KEY,
+  name          TEXT NOT NULL,
+  prefix        TEXT NOT NULL,                      -- first characters of the key, to recognise it in the list
+  key_hash      TEXT NOT NULL UNIQUE,
+  scopes        TEXT NOT NULL,                      -- comma-separated
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at    TIMESTAMPTZ,
+  last_used_at  TIMESTAMPTZ,
+  request_count BIGINT NOT NULL DEFAULT 0,
+  revoked_at    TIMESTAMPTZ
+);
+
+-- Idempotency-Key support for POST /api/v1/bookings: the stored response is replayed on a retry (kept 24 hours).
+CREATE TABLE IF NOT EXISTS api_idempotency (
+  key_id       INTEGER NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+  idem_key     TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  status_code  INTEGER,
+  response     JSONB,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (key_id, idem_key)
+);
+
+-- Webhook endpoints. secret signs every delivery (HMAC-SHA256), payload 'full' or 'minimal' (no personal data).
+CREATE TABLE IF NOT EXISTS webhooks (
+  id            SERIAL PRIMARY KEY,
+  name          TEXT NOT NULL,
+  url           TEXT NOT NULL,
+  secret        TEXT NOT NULL,
+  events        TEXT NOT NULL,                      -- comma-separated event types
+  payload       TEXT NOT NULL DEFAULT 'full' CHECK (payload IN ('full','minimal')),
+  enabled       BOOLEAN NOT NULL DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_status   TEXT NOT NULL DEFAULT '',
+  last_at       TIMESTAMPTZ,
+  failures      INTEGER NOT NULL DEFAULT 0          -- consecutive failed deliveries
+);
+
+-- Delivery queue and log. The payload is removed once a delivery has succeeded (it holds personal data).
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id              UUID PRIMARY KEY,
+  webhook_id      INTEGER NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event           TEXT NOT NULL,
+  booking_ref     TEXT NOT NULL DEFAULT '',
+  payload         TEXT,
+  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','ok','failed')),
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_code       INTEGER,
+  last_error      TEXT NOT NULL DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS webhook_deliveries_due_idx ON webhook_deliveries (next_attempt_at) WHERE status = 'pending';

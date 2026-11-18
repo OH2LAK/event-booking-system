@@ -27,6 +27,8 @@ const CONFIG = {
   CONTROLLER_NAME: "", CONTROLLER_ADDRESS: "", PRIVACY_CONTACT_EMAIL: "", PRIVACY_URL: "",
   EVENT_END_DATE: "", RETENTION_DAYS: "30", RETENTION_HOLD: "",
   LANGUAGES: "en", DEFAULT_LANGUAGE: "en",
+  // Public API (api keys, webhooks): off until the organizer switches it on in Event setup
+  API_ENABLED: "no",
   // Native currency (all prices and payments) and extra currencies for indicative display only (see currency.js)
   CURRENCY: "EUR", CURRENCIES: "",
   LOGO1_URL:      "",

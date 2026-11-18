@@ -43,6 +43,7 @@ web page.
 | **Event setup** | Event details, branding, structure, room types, prices, currencies and translations, kept apart from the booking admin with a separate password so a helper cannot break the event. |
 | **Report and check-in** | Hotel list, check-in desk, summary and printable slips for use at the venue. |
 | **Public guest list** | An opt-in "Who's coming?" page showing callsign, first name and the kind of stay, only for guests who agreed. |
+| **API and webhooks** | A REST API with named, revocable API keys (counts only, read bookings, or create/change/cancel bookings), CSV/JSON exports, and signed webhooks when bookings change, so other systems (accounting, a club register, a web shop) can be connected. Off until the organizer switches it on. OpenAPI description included. |
 | **Data protection** | Generated privacy notice, consent checkbox, per-person data export and erasure, retention deadline with warnings, and an event shutdown that erases all personal data and verifies the result. |
 
 ## Screenshots
@@ -160,6 +161,7 @@ either remove the volume (`docker compose down -v`, **deletes data**) or change 
 
 - [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) - guide for event organizers (booking admin, event setup, report and check-in tool)
 - [docs/DATABASE.md](docs/DATABASE.md) - tables, columns, constraints, settings keys, queries, backup
+- [docs/API.md](docs/API.md) - API and webhooks for connecting other systems (curl examples, signature verification); [docs/openapi.json](docs/openapi.json) is the OpenAPI description
 - [docs/GDPR.md](docs/GDPR.md) - data protection: what the software does, what the organizer must do, handling requests, event shutdown
 - [docs/CURRENCIES.md](docs/CURRENCIES.md) - native currency, extra display currencies and exchange rates (manual or ECB)
 - [docs/LANGUAGES.md](docs/LANGUAGES.md) - offering the booking pages and emails in several languages (English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech, Hungarian), editing translations

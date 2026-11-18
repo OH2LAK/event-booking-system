@@ -1743,6 +1743,7 @@ function buildAdminPage(settings, mode) {
 <script src="/admin-currency.js"></script>
 <script src="/admin-rooms.js"></script>
 <script src="/admin-addons.js"></script>
+<script src="/admin-api.js"></script>
 <script src="/admin-structure.js"></script>
 <script src="/admin-privacy.js"></script>
 <script src="/admin-translations.js"></script>
@@ -2194,6 +2195,7 @@ function doLogin() {
               if (window.initStructure) window.initStructure();
               if (window.initRoomCatalog) window.initRoomCatalog();
               if (window.initAddons) window.initAddons();
+              if (window.initApi) window.initApi();
               if (window.initPrivacy) window.initPrivacy();
               if (window.initTranslations) window.initTranslations();
             } else {

@@ -6,6 +6,7 @@ const { CONFIG } = require('./config');
 const emails = require('./emails');
 const privacy = require('./privacy');
 const { setKey } = require('./settings');
+const webhooks = require('./webhooks');
 
 const CONFIRM_PHRASE = 'ERASE ALL DATA';
 const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -91,6 +92,9 @@ async function eraseBooking(ref, opts) {
   if (!done.success) return done;
 
   await db.logEvent('OK', 'data_erased', '', `seq=${row.seq} notice=${notice.sent ? 'sent' : 'not sent'}`);
+  // Other systems must forget this person too: drop queued notifications about the booking, then announce the erasure (reference only)
+  await webhooks.purge(ref);
+  await webhooks.emit('booking.erased', ref);
   await vacuum(['bookings', 'event_log']);
   return { success: true, ref, notice, logRowsRemoved: done.logRows };
 }
@@ -144,6 +148,11 @@ async function shutdownErase(opts) {
   await db.withBookingLock(async client => {
     await client.query('DELETE FROM bookings');
     await client.query('DELETE FROM event_log');
+    // Integrations end with the event: no queued personal data, no working keys, no active webhooks
+    await client.query('DELETE FROM webhook_deliveries');
+    await client.query('DELETE FROM api_idempotency');
+    await client.query('UPDATE api_keys SET revoked_at = now() WHERE revoked_at IS NULL');
+    await client.query('UPDATE webhooks SET enabled = false');
   });
   await setKey('REGISTRATION_OPEN', 'false');
   await setKey('BYPASS_TOKEN', '');

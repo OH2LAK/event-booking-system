@@ -10,6 +10,7 @@ const i18n = require('./i18n');
 const currency = require('./currency');
 const sms = require('./sms');
 const addons = require('./addons');
+const webhooks = require('./webhooks');
 
 const TYPES = ['room', 'camper', 'tent', 'singlebed', 'dayvisitor'];
 const STATUSES = ['CONFIRMED', 'CHECKED_IN', 'NEEDS_ATTENTION', 'CANCELLED'];
@@ -150,15 +151,16 @@ async function getPublicGuestList() {
     }));
 }
 
-async function submitBooking(input) {
-  input = input || {};
+// opts (used by the API): skipNotifications, paymentStatus, source
+async function submitBooking(input, opts) {
+  input = input || {}; opts = opts || {};
   const lang = i18n.pickCode(input.language);
   // reject(key, vars, callsign): the log gets English text, the guest gets text in their language.
   // vars may be a function of the language code (for texts that contain localized names).
   const reject = (key, vars, callsign) => {
     const v = l => (typeof vars === 'function' ? vars(l) : vars);
     db.logEvent('WARN', 'booking_rejected', callsign || '', i18n.t('en', key, v('en')));
-    return { success: false, error: i18n.t(lang, key, v(lang)) };
+    return { success: false, error: i18n.t(lang, key, v(lang)), code: key };
   };
 
   // --- validate and normalize input (lengths are capped) ---
@@ -301,8 +303,11 @@ async function submitBooking(input) {
       [seq, bookingRef, callsign, name, email, data.phone, data.country, data.type, roomId, roomRef,
         isPrimary, data.extraNights.join(','), data.fullBoard, data.dietary, data.shirtSize, price.total, price.breakdown,
         data.publishConsent, soloRoom, data.visitorDays.join(','), data.freeText, data.nights.join(','), lang, currency.native(), data.displayCurrency, data.displayRate,
-        price.total > 0 ? 'UNPAID' : 'WAIVED']
-    ).then(async ins => { await addons.replaceForBooking(client, ins.rows[0].id, ad.items); });
+        PAYMENT_STATUSES.includes(opts.paymentStatus) ? opts.paymentStatus : (price.total > 0 ? 'UNPAID' : 'WAIVED')]
+    ).then(async ins => {
+      await addons.replaceForBooking(client, ins.rows[0].id, ad.items);
+      if (opts.paymentStatus === 'PAID') await client.query('UPDATE bookings SET paid_at = now() WHERE id = $1', [ins.rows[0].id]);
+    });
 
     const existingJoiners = data.joinExisting && primaryRow
       ? bookings.filter(b => b.roomRef === data.roomRef && b.isPrimaryBooker !== 'YES') : [];
@@ -317,6 +322,7 @@ async function submitBooking(input) {
     roomId: outcome.roomId, isPrimaryBooker: outcome.isPrimary,
     roomRef: data.joinExisting && primaryRow ? data.roomRef : bookingRef,
   });
+  if (!opts.skipNotifications) {
   await safeEmail(callsign, () => emails.sendConfirmationEmail(mailData, bookingRef, priceGuest, CONFIG.FRIENDLY_URL, settings, primaryRow));
   if (sms.enabled() && data.phone) {
     // Short service message with the booking reference; the full confirmation goes by email.
@@ -332,8 +338,10 @@ async function submitBooking(input) {
     }
   }
   await safeEmail(callsign, () => emails.sendOrganizerNotification(mailData, bookingRef, price, settings));
+  }
 
-  db.logEvent('OK', 'booking_confirmed', callsign, `ref=${bookingRef} type=${data.type} price=${currency.fmt(price.total)}`);
+  db.logEvent('OK', 'booking_confirmed', callsign, `ref=${bookingRef} type=${data.type} price=${currency.fmt(price.total)}${opts.source ? ' via ' + opts.source : ''}`);
+  await webhooks.emit('booking.created', bookingRef);
   return { success: true, bookingRef, price: priceGuest };
 }
 
@@ -451,7 +459,7 @@ async function updateBooking(bookingRef, fields, sendEmail) {
         );
       }
     }
-    return { success: true, cascadedCount: roommates.length, obj, price, roommates };
+    return { success: true, cascadedCount: roommates.length, obj, price, roommates, before: { status: row.status, payment: row.payment_status }, clean };
   });
 
   if (!result.success) return result;
@@ -466,6 +474,18 @@ async function updateBooking(bookingRef, fields, sendEmail) {
     const m = emails.roommateCancelledMail(rm, bookingRef);
     await safeEmail(rm.callsign, () => emails.sendMail(rm.email, m.subject, m.body, { name: CONFIG.EMAIL_SENDER_NAME, replyTo: CONFIG.REPLY_TO_EMAIL, lang: m.lang }));
   }
+  // Webhooks: what happened to the booking
+  const API_NAME = { IsPrimaryBooker: 'isPrimary', Addons: 'extras' };
+  const { before, clean } = result;
+  const changed = Object.keys(clean).concat(Object.prototype.hasOwnProperty.call(fields, 'Addons') ? ['Addons'] : []).map(k => API_NAME[k] || k.charAt(0).toLowerCase() + k.slice(1));
+  const evs = [];
+  if (clean.Status === 'CANCELLED' && before.status !== 'CANCELLED') evs.push('booking.cancelled');
+  if (clean.PaymentStatus === 'PAID' && before.payment !== 'PAID') evs.push('booking.paid');
+  const statusMoved = clean.Status !== undefined && clean.Status !== before.status && clean.Status !== 'CANCELLED';
+  const payMoved = clean.PaymentStatus !== undefined && clean.PaymentStatus !== before.payment && clean.PaymentStatus !== 'PAID';
+  if (changed.some(k => k !== 'status' && k !== 'paymentStatus') || statusMoved || payMoved) evs.push('booking.updated');
+  for (const t of evs) await webhooks.emit(t, bookingRef, { changed });
+  for (const rm of roommates) await webhooks.emit('booking.updated', rm.booking_ref, { changed: ['status', 'orgComment'] });
   return { success: true, cascadedCount: result.cascadedCount };
 }
 
@@ -511,6 +531,7 @@ async function changeAccommodation(bookingRef, params) {
   const { booking, oldRoomCfg, newRoomCfg, oldPrice, newPrice, newType, settings } = result;
   db.logEvent('OK', 'accommodation_changed', booking.callsign,
     `ref=${bookingRef} ${booking.type}/${booking.roomId} → ${newType}/${params.newRoomId || ''} price ${currency.fmt(oldPrice.total)}→${currency.fmt(newPrice.total)}`);
+  await webhooks.emit('booking.updated', bookingRef, { changed: ['type', 'roomId'] });
   if (params.sendEmail && booking.email) {
     try {
       await emails.sendAccommodationChangeEmail_(booking, booking.type, oldRoomCfg, newType, newRoomCfg, oldPrice, newPrice, settings);
@@ -521,7 +542,7 @@ async function changeAccommodation(bookingRef, params) {
 
 async function changeRole(bookingRef, params) {
   params = params || {};
-  return db.withBookingLock(async client => {
+  const out = await db.withBookingLock(async client => {
     const settings = await getSettings(client);
     const rows = await repo.all(client);
     const row = rows.find(r => r.booking_ref === bookingRef);
@@ -573,6 +594,8 @@ async function changeRole(bookingRef, params) {
     }
     return { success: false, error: 'Unknown newRole: ' + params.newRole };
   });
+  if (out && out.success) await webhooks.emit('booking.updated', bookingRef, { changed: ['isPrimary', 'roomRef', 'roomId'] });
+  return out;
 }
 
 module.exports = {

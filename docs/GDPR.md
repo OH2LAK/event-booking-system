@@ -87,8 +87,12 @@ Backups are outside the application's reach. If you keep database backups, make 
 | | `privacy_ack_at` | proof that the notice was shown and confirmed |
 | | `currency`, `display_currency`, `display_rate` | currency of the price and the guest's chosen indicative currency (no personal data on its own) |
 | | room number, organizer comment, status | organizing and check-in |
+| `api_keys`, `api_idempotency` | none (key names and hashes; stored answers to booking requests, 24 hours) | access for other systems |
+| `webhooks`, `webhook_deliveries` | queued messages contain the booking data until delivered (up to 7 days if delivery keeps failing) | notifying other systems chosen by the organizer |
 | `event_log` | callsign / booking reference, event type | security and troubleshooting; removed when the person is erased |
 | `settings`, `event_config`, `room_types`, `event_structure`, `currency_rates` | none about participants (organizer contact details only) | configuration |
 
-The only outgoing connection that is not an email is the optional **Fetch ECB rates** button in the admin panel (see
+Optional **webhooks** send booking data to addresses the organizer enters (choose *no personal data* where possible); the organizer is responsible for those receivers (see [API.md](API.md), section Privacy). Erasing a booking deletes queued messages about it and sends a `booking.erased` message with the reference only, and event shutdown switches all webhooks and API keys off.
+
+The only other outgoing connection that is not an email is the optional **Fetch ECB rates** button in the admin panel (see
 [CURRENCIES.md](CURRENCIES.md)). It downloads public exchange rates from the European Central Bank and sends no personal data.
