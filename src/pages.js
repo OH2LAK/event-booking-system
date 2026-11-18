@@ -1744,6 +1744,8 @@ function buildAdminPage(settings, mode) {
 <script src="/admin-rooms.js"></script>
 <script src="/admin-addons.js"></script>
 <script src="/admin-api.js"></script>
+<script src="/admin-auth.js"></script>
+<script src="/admin-users.js"></script>
 <script src="/admin-structure.js"></script>
 <script src="/admin-privacy.js"></script>
 <script src="/admin-translations.js"></script>
@@ -1852,12 +1854,8 @@ function buildAdminPage(settings, mode) {
 </head>
 <body>
 
-<div class="login-box" id="login-box">
-  <h2>🔒 ${heading} — ${esc(CONFIG.EVENT_SHORT)}</h2>
-  <input type="password" id="admin-pw" placeholder="Password">
-  <button class="btn" id="login-btn">Login</button>
-  <div style="color:var(--danger);font-size:0.8rem;margin-top:0.75rem" id="pw-err"></div>
-</div>
+<div id="login-box"></div>
+
 
 
 <script>
@@ -1984,14 +1982,8 @@ function recalcAllPrices() {
 }
 window.recalcAllPrices = recalcAllPrices;
 document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('login-btn').addEventListener('click', doLogin);
-  document.getElementById('admin-pw').addEventListener('keydown', function(e) { if(e.key==='Enter') doLogin(); });
-  // Auto-login if password saved
-  var saved = null; // sessions are cookie based; the password is never stored in the browser
-  if (saved) {
-    document.getElementById('admin-pw').value = saved;
-    doLogin();
-  }
+  // Sign-in: password, then a second factor (public/admin-auth.js). Signed-in sessions resume after a reload.
+  EbsAuth.mount(document.getElementById('login-box'), { mode: PAGE_MODE, title: ${i18n.safeJson(CONFIG.EVENT_SHORT)}, onReady: loadPanel });
   document.addEventListener('change', function(e) {
     if (e.target.id === 's-reg-open') onRegOpenChange();
   });
@@ -2175,45 +2167,32 @@ function saveAccChange() {
     .changeAccommodation(adminPw, accChangeRef, { newType: type, newRoomId: roomId, sendEmail: sendEmail });
 }
 
-function doLogin() {
-  const pw = document.getElementById('admin-pw').value;
-  if (!pw) { document.getElementById('pw-err').textContent = 'Enter password'; return; }
-  document.getElementById('pw-err').textContent = 'Checking...';
+function loadPanel() {
+  // Fetch admin panel HTML from server and inject before loading data
   rpc.run
-    .withSuccessHandler(function(ok) {
-      if (ok) {
-        adminPw = pw;
-        // Fetch admin panel HTML from server and inject before loading data
-        rpc.run
-          .withSuccessHandler(function(html) {
-            if (!html) { document.getElementById('pw-err').textContent = 'Panel load failed'; return; }
-            document.body.innerHTML = html;
-            if (PAGE_MODE === 'setup') {
-              loadSettings();
-              if (window.initEventSetup) window.initEventSetup();
-              if (window.initCurrencies) window.initCurrencies();
-              if (window.initStructure) window.initStructure();
-              if (window.initRoomCatalog) window.initRoomCatalog();
-              if (window.initAddons) window.initAddons();
-              if (window.initApi) window.initApi();
-              if (window.initPrivacy) window.initPrivacy();
-              if (window.initTranslations) window.initTranslations();
-            } else {
-              loadAdmin();
-            }
-          })
-          .withFailureHandler(function(err) {
-            document.getElementById('pw-err').textContent = 'Error: ' + err.message;
-          })
-          .getAdminPanelHtml(pw, PAGE_MODE);
+    .withSuccessHandler(function(html) {
+      if (!html) { alert('Panel load failed'); return; }
+      document.body.innerHTML = html;
+      if (window.initAccount) window.initAccount();
+      if (PAGE_MODE === 'setup') {
+        loadSettings();
+        if (window.initEventSetup) window.initEventSetup();
+        if (window.initCurrencies) window.initCurrencies();
+        if (window.initStructure) window.initStructure();
+        if (window.initRoomCatalog) window.initRoomCatalog();
+        if (window.initAddons) window.initAddons();
+        if (window.initApi) window.initApi();
+        if (window.initUsers) window.initUsers();
+        if (window.initPrivacy) window.initPrivacy();
+        if (window.initTranslations) window.initTranslations();
       } else {
-        document.getElementById('pw-err').textContent = PAGE_MODE === 'setup' ? 'Wrong password (the setup password is required here)' : 'Wrong password';
+        loadAdmin();
       }
     })
     .withFailureHandler(function(err) {
-      document.getElementById('pw-err').textContent = 'Error: ' + err.message;
+      alert('Error: ' + err.message);
     })
-    .checkAdminPassword(pw, PAGE_MODE);
+    .getAdminPanelHtml('', PAGE_MODE);
 }
 
 function loadAdmin() {

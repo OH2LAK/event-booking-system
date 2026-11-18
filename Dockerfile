@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY src ./src
+COPY db ./db
+COPY scripts ./scripts
 COPY public ./public
 ENV NODE_ENV=production
 EXPOSE 3000

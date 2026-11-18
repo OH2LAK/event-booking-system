@@ -11,7 +11,7 @@ The app itself stays single-event; this folder only adds ordering, payment and a
 3. Approve creates a Stripe Checkout Session and emails the payment link (price 0 skips payment).
 4. Stripe calls `/stripe/webhook` (signature verified, replays ignored) → the instance is provisioned:
    database + role, one-shot `init-event.js` container, app container with Traefik labels and resource limits.
-5. The organiser gets the address and the generated setup/admin passwords by email.
+5. The organiser gets the address and a one-time first-time setup code by email. They create their own account (the email address of the order) and set up two-factor authentication; there are no shared admin passwords.
 6. Hourly job: warns before erasure, suspends after the event, erases database and container
    `RETENTION_DAYS` (default 30) after the event end.
 
@@ -88,7 +88,7 @@ real hostname by hand to confirm the validation method (`http`) and the tunnel r
 - Tenant containers run with `--cap-drop ALL`, `no-new-privileges`, read-only root filesystem, memory/CPU/PID limits,
   and a database role that can only reach its own database (10 connections).
 - Traefik reads the Docker socket read-only; only the tunnel can reach it (bound to localhost).
-- Tenant passwords are random per instance and shown only in the email to the organiser.
+- The first-time setup code is random per instance and shown only in the email to the organiser; it only creates the first account.
 
 ## Data protection (checklist, not legal advice)
 

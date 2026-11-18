@@ -15,11 +15,14 @@
     "export-locales": "node scripts/locales.js export",
     "import-locales": "node scripts/locales.js import",
     "openapi": "node scripts/openapi.js > docs/openapi.json",
+    "admin-user": "node scripts/admin-user.js",
     "test:unit": "node tests/currency.test.js && node tests/sms.test.js && node tests/webhooks.test.js"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^14.1.0",
     "express": "^4.21.0",
     "nodemailer": "^10.6.0",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "qrcode-generator": "^2.0.4"
   }
 }

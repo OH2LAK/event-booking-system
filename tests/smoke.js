@@ -1,9 +1,10 @@
 'use strict';
 // End-to-end smoke test against a running instance.
-//   BASE_URL=http://localhost:3000 ADMIN_PASSWORD=... [SETUP_PASSWORD=...] node tests/smoke.js
+//   BASE_URL=http://localhost:3000 SETUP_PASSWORD=... node tests/smoke.js   (fresh database: the first run creates test admin accounts with 2FA)
 // Covers bookings, admin, GDPR, languages, currencies, extras (add-ons), payment status and one-day mode.
-// With SETUP_PASSWORD set (and different from ADMIN_PASSWORD) the two roles are tested as well.
+// Signs in with real accounts (setup and booking admin) through tests/adminSession.js, so both roles are always tested.
 // WARNING: creates test bookings (callsigns starting with TEST) in the target database.
+const { signIn, post: authPost, EMAIL, PASSWORD } = require('./adminSession');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const ADMIN_PW = process.env.ADMIN_PASSWORD || '';
 const PW = process.env.SETUP_PASSWORD || ADMIN_PW; // setup role (the same password in single-password mode)
@@ -26,11 +27,12 @@ async function rpc(method, ...args) {
 const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', country: 'FI', privacyAck: true, ...o });
 
 (async () => {
-  if (PW !== ADMIN_PW) {
-    // --- roles: the admin password must not be able to change the event setup ---
-    cookie = '';
-    check('setup page rejects the admin password', (await rpc('checkAdminPassword', ADMIN_PW, 'setup')).body.result === false, null);
-    check('admin login works', (await rpc('checkAdminPassword', ADMIN_PW, 'admin')).body.result === true, null);
+  {
+    // --- roles: a booking admin account must not be able to change the event setup ---
+    cookie = await signIn(BASE, 'admin');
+    const lg = await authPost(BASE, '/api/auth/login', { email: EMAIL.admin, password: PASSWORD.admin, mode: 'setup' }, '');
+    check('setup page rejects a booking admin account', lg.status === 403, lg.status);
+    check('admin login works', !!cookie, null);
     let r = await rpc('getEventConfig');
     check('admin role cannot read event config', r.status === 403, r);
     r = await rpc('saveEventConfig', { EVENT_NAME: 'Hacked' });
@@ -57,7 +59,8 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
     check('admin role can load the admin panel', r.status === 200 && /Booking Admin/.test(r.body.result || ''), r.status);
     cookie = '';
   }
-  check('login for setup', (await rpc('checkAdminPassword', PW, 'setup')).body.result === true, null);
+  cookie = await signIn(BASE, 'setup');
+  check('login for setup', !!cookie, null);
   const ec = (await rpc('getEventConfig')).body.result;
   check('event config fields served', ec.success && ec.fields.length > 10, ec);
   let sv = (await rpc('saveEventConfig', { EVENT_NAME: '', EVENT_SHORT: 'X', ORGANIZER: 'Y' })).body.result;
@@ -131,8 +134,9 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
   // admin
   cookie = '';
   check('admin API without login -> 401', (await rpc('getAdminData')).status === 401, null);
-  check('wrong password rejected', (await rpc('checkAdminPassword', 'definitely-wrong')).body.result === false, null);
-  check('correct password accepted', (await rpc('checkAdminPassword', PW, 'setup')).body.result === true, null);
+  check('wrong password rejected', (await authPost(BASE, '/api/auth/login', { email: EMAIL.setup, password: 'definitely-wrong-password' }, '')).status === 401, null);
+  cookie = await signIn(BASE, 'setup');
+  check('correct password and second factor accepted', (await rpc('getAdminData', '')).status === 200, null);
   const ad = (await rpc('getAdminData', '')).body.result;
   check('admin data lists bookings', ad.success && ad.rows.length >= 4 && ad.headers.includes('BookingRef'), ad.rows && ad.rows.length);
   r = (await rpc('updateBooking', '', ref, { RoomNumber: '101', OrgComment: 'smoke test' }, false)).body.result;
@@ -204,7 +208,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
 
   // report & check-in tool
   const noAuth = await fetch(BASE + '/report?view=summary');
-  check('report without login shows login page', (await noAuth.text()).includes('Log in'), noAuth.status);
+  check('report without login shows login page', (await noAuth.text()).includes('EbsAuth.mount'), noAuth.status);
   for (const v of ['hotel', 'checkin', 'summary']) {
     const r2 = await fetch(`${BASE}/report?view=${v}`, { headers: { cookie } });
     const t = await r2.text();
@@ -415,7 +419,7 @@ const booking = (o) => ({ name: 'Test Person', email: 'test@example.com', countr
 
   // ---- extras (add-ons), payment status and one-day events ----
   {
-    await rpc('checkAdminPassword', PW, 'setup');
+    cookie = await signIn(BASE, 'setup');
     const ecA = (await rpc('getEventConfig')).body.result;
     let x = (await rpc('saveAddons', [{ id: 'BAD ID', name: 'x' }])).body.result;
     check('addons: bad id rejected', x && x.success === false, x);

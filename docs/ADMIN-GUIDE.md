@@ -1,25 +1,56 @@
 # Admin guide
 
-For event organizers. There are two areas with their own passwords (both set in `.env`):
+For event organizers. There are two areas, and everyone who uses them has their own **account** (email, password and a second factor):
 
-| Area | Address | Password | Who |
+| Area | Address | Account role | Who |
 |---|---|---|---|
-| Booking admin | `<site>/?admin=1` | `ADMIN_PASSWORD` | Everyone who handles bookings: registration settings, bookings table, edits, CSV. The report and check-in tool at `<site>/report` uses the same password. |
-| Event setup | `<site>/?setup=1` | `SETUP_PASSWORD` | One or two people who configure the event: event details, currencies, structure, room types, prices, room inventory, translations, data protection and event shutdown. |
+| Booking admin | `<site>/?admin=1` | Booking admin (or Event setup) | Everyone who handles bookings: registration settings, bookings table, edits, CSV. The report and check-in tool at `<site>/report` uses the same sign-in. |
+| Event setup | `<site>/?setup=1` | Event setup | One or two people who configure the event: event details, currencies, structure, room types, prices, room inventory, translations, API, admin users, data protection and event shutdown. |
 
-The admin password cannot change the event setup, so it can be given to the whole team. The setup password also opens the
-booking admin. If `SETUP_PASSWORD` is not set, `ADMIN_PASSWORD` opens both (single-password mode).
+A booking admin account cannot change the event setup, so it can be given to the whole team. An event setup account also opens the booking admin.
 
-## 1. Logging in
+## 1. Signing in and two-factor authentication
 
-1. Open `<site>/?admin=1` and enter the admin password (for setup tasks use `<site>/?setup=1` and the setup password; the booking admin has a link to it).
-2. The session lasts 12 hours. The browser keeps a session cookie, not the password. After reloading the page you log in
-   again. **Log out** (lock button, top right) ends the session.
-3. After 10 wrong attempts from the same address, logins are blocked for 15 minutes.
-4. A red banner at the top of the panel means a default `change-me-...` value is still in `.env`. Change it (see
-   section 8) before the site is public.
+**First time (the person who installs the system).** Open `<site>/?setup=1`. On a fresh system you are asked for the *setup code*
+(`SETUP_PASSWORD` in `.env`, or the random code printed in the server log, `docker compose logs app`, when it is empty or still a `change-me-...` placeholder; for hosted events it is in the welcome email), your name, email and a password (at least 12 characters).
+That creates the first Event setup account. The setup code is only used for this first account; after that it opens nothing.
 
-The panel does not refresh itself. Use **Refresh** to see bookings made by others.
+**Two-factor authentication is required for everyone.** Right after the first sign-in you choose how to confirm future sign-ins:
+
+- **Authenticator app** (recommended): scan the QR code with Aegis, Google or Microsoft Authenticator, 1Password or similar.
+- **Passkey**: fingerprint, face, screen lock or a security key.
+- **Email code**: a 6-digit code to your account email (only if the server can send email; the weakest option, good as a backup).
+
+You also get **10 recovery codes**. Each works once if you lose your phone or passkey. Save them in a password manager.
+
+**Every later sign-in**: email and password, then the second factor. Sessions last 12 hours. **Log out** ends the session.
+Codes from the authenticator app can be used only once. 5 wrong second-factor codes end the attempt, 5 wrong passwords lock the
+account for 15 minutes, and 10 failed attempts from one address block that address for 15 minutes.
+
+**My account and security** (first card on every admin page): change your password (this signs out your other devices), add or remove
+a passkey, authenticator app or email code (always keep at least one), make new recovery codes, sign out other devices.
+
+**Forgot the password?** Use "Forgot password?" on the sign-in form: a link is emailed (valid for one hour). The second factor stays the same.
+
+## 1a. Admin users (setup page)
+
+The **Admin users** card on the setup page is for Event setup accounts:
+
+| Action | What it does |
+|---|---|
+| Create invitation | Enter email, name and role (**Booking admin** or **Event setup**). The person gets an email, and you also see the link (valid 7 days) to send yourself. They choose a password and set up 2FA. |
+| Role | Changing it signs the person out. You cannot change your own role. |
+| Disable / Enable | A disabled account cannot sign in and is signed out immediately. |
+| Reset 2FA | For a lost phone: removes all second factors and recovery codes. The person signs in with the password and sets up a new second factor. |
+| New invite link | For people who have not accepted their invitation yet. |
+| Delete | Removes the account. There is always at least one active Event setup account. |
+
+**Locked out completely?** Whoever runs the server can use the emergency tool:
+`node scripts/admin-user.js list | reset-2fa <email> | unlock <email> | invite <email> [setup|admin]` (Docker: `docker compose exec app node scripts/admin-user.js ...`).
+`invite` prints a one-time link that sets a new password for an existing account or creates a new one.
+
+Sign-ins, failed attempts and account changes are written to the event log (`event_log` table) with the email address and IP.
+The log is emptied at event shutdown.
 
 ## 1b. Event setup (setup page, first thing to do)
 
@@ -203,7 +234,7 @@ Everything the other system may do, with examples, is in [API.md](API.md). The A
 
 ## 7. Report and check-in tool (`/report`)
 
-Log in with the same password. Top buttons:
+Sign in with your admin account (the same one as on the admin page). Top buttons:
 
 | Button | Use |
 | --- | --- |
@@ -217,9 +248,10 @@ Payment is taken at the venue (cash, Visa, Mastercard).
 
 ## 8. Operations
 
-**Change the admin password (or another secret).** Edit `.env`, then re-create the container so it reads the file:
-`docker compose up -d` (native install: restart `node src/server.js` with the new environment). Existing admin sessions
-become invalid when `SESSION_SECRET` changes.
+**Change another secret (database, SMTP, session signing).** Edit `.env`, then re-create the container so it reads the file:
+`docker compose up -d` (native install: restart `node src/server.js` with the new environment). Changing `SESSION_SECRET` also makes every
+registered authenticator app unusable (the secrets are stored encrypted with a key derived from it): reset 2FA for the accounts afterwards. Admin passwords are
+changed in **My account and security**, not in `.env`.
 
 **Typical tasks**
 

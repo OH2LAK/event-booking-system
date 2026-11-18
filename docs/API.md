@@ -260,5 +260,5 @@ curl -X PATCH $BASE/bookings/$REF -H "Authorization: Bearer $KEY" -H "Content-Ty
 
 * Code: `src/api.js` (routes), `src/apiModel.js` (data shapes, exports), `src/apiKeys.js` (keys), `src/webhooks.js` (queue and delivery), `src/openapi.js` (description). `npm run openapi` regenerates `docs/openapi.json`.
 * Tables: `api_keys`, `api_idempotency`, `webhooks`, `webhook_deliveries` (see [DATABASE.md](DATABASE.md)).
-* Test: `API_WEBHOOK_ALLOW_PRIVATE=1` on the server, then `BASE_URL=… ADMIN_PASSWORD=… SETUP_PASSWORD=… node tests/api.js` (creates test bookings; with `SMOKE_ALLOW_SHUTDOWN=1` it also tests the event shutdown, so use a throwaway database).
+* Test: `API_WEBHOOK_ALLOW_PRIVATE=1` on the server, then `BASE_URL=… SETUP_PASSWORD=… node tests/api.js` (fresh database: the test creates its own admin accounts with 2FA) (creates test bookings; with `SMOKE_ALLOW_SHUTDOWN=1` it also tests the event shutdown, so use a throwaway database).
 * The API is meant for servers. It sends no CORS headers, so a key placed in a web page's JavaScript would be public: never do that.

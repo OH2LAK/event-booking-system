@@ -64,7 +64,7 @@ docker compose logs -f app                  # "[demo] reset done" lines show the
 | `DEMO_MAX_DIRTY_HOURS` | `6` | Reset at the latest this long after the first change |
 | `DEMO_MAX_BOOKINGS` | `200` | Stop accepting bookings above this number |
 
-The passwords (`ADMIN_PASSWORD`, `SETUP_PASSWORD`) are shown to everyone. If you change them, change them on the website
+The demo has two public accounts without two-factor authentication (`admin@demo.invalid` with `ADMIN_PASSWORD`, `setup@demo.invalid` with `SETUP_PASSWORD`); they are shown to everyone in the demo banner, and account management is switched off in demo mode. If you change them, change them on the website
 too (`site/public/index.html`).
 
 ## Security notes

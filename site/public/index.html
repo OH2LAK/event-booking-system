@@ -137,8 +137,8 @@ footer a{color:var(--muted)}
     <div class="card"><h3>Event structure</h3><p>Event days, optional extra nights such as a Thursday night, rooms booked for the whole event or per night, and an optional meal package.</p></div>
     <div class="card"><h3>Registration control</h3><p>Open and close by hand or by date, an announcement banner, a closed message, and a secret bypass link for late registrants.</p></div>
     <div class="card"><h3>Emails</h3><p>Confirmation to the guest, notification to the organizer, and updates when a booking or its accommodation changes.</p></div>
-    <div class="card"><h3>Booking admin</h3><p>Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference worked out, CSV export. One password for the whole team.</p></div>
-    <div class="card"><h3>Event setup</h3><p>Details, branding, structure, room types, prices, currencies and translations. A separate password keeps a helper from breaking the event.</p></div>
+    <div class="card"><h3>Booking admin</h3><p>Live dashboard, sortable bookings table, edit any booking, change accommodation with the price difference worked out, CSV export. Everyone on the team signs in with their own account and two-factor authentication.</p></div>
+    <div class="card"><h3>Event setup</h3><p>Details, branding, structure, room types, prices, currencies and translations. A separate role keeps a helper from breaking the event.</p></div>
     <div class="card"><h3>Currencies</h3><p>One native currency for payment plus display currencies with approximate conversion. Rates by hand or from the European Central Bank.</p></div>
     <div class="card"><h3>Translations</h3><p>English, Finnish, Swedish, Norwegian, Danish, Icelandic, Estonian, Latvian, Lithuanian, Polish, German, Spanish, Portuguese, Italian, French, Dutch, Greek, Ukrainian, Czech and Hungarian. Plain JSON files, easy to improve on GitHub.</p></div>
     <div class="card"><h3>Who is coming</h3><p>An opt-in public page with callsign, first name and the kind of stay, only for guests who agreed.</p></div>
@@ -162,7 +162,7 @@ footer a{color:var(--muted)}
 
 <section id="how"><div class="wrap">
   <h2>Three parts, three audiences</h2>
-  <p class="sub">The people who handle bookings do not need to be able to change the event, so they get their own area and password.</p>
+  <p class="sub">The people who handle bookings do not need to be able to change the event, so they get their own area and role. Every account is protected by a second factor (authenticator app, passkey or email code).</p>
   <div class="cols3">
     <div class="card"><h3><span>Guests</span>Booking pages</h3><p>The booking form, live availability, joining an existing room, day-visitor passes and the Who's coming list. No account needed.</p></div>
     <div class="card"><h3><span>Registration team</span>Booking admin</h3><p>Open and close registration, handle bookings, fix mistakes, export lists, and use the report and check-in tool at the venue.</p></div>
@@ -177,16 +177,16 @@ footer a{color:var(--muted)}
     <ul class="tick">
       <li>Fictional data only, please. Real names are not needed.</li>
       <li>No email is sent.</li>
-      <li>The passwords are public on purpose.</li>
+      <li>The demo accounts are public on purpose (and have no second factor).</li>
     </ul>
     <div class="cta"><a class="btn primary" href="https://demo.hamradio-events.com">Open the demo</a></div>
   </div>
   <div class="cred">
-    <strong>Demo addresses and passwords</strong>
+    <strong>Demo addresses and accounts</strong>
     <table>
       <tr><td>Guest pages</td><td><a href="https://demo.hamradio-events.com/">demo.hamradio-events.com</a></td></tr>
-      <tr><td>Booking admin</td><td><a href="https://demo.hamradio-events.com/?admin=1">/?admin=1</a><br>password <code>demo-admin</code></td></tr>
-      <tr><td>Event setup</td><td><a href="https://demo.hamradio-events.com/?setup=1">/?setup=1</a><br>password <code>demo-setup</code></td></tr>
+      <tr><td>Booking admin</td><td><a href="https://demo.hamradio-events.com/?admin=1">/?admin=1</a><br>email <code>admin@demo.invalid</code><br>password <code>demo-admin</code></td></tr>
+      <tr><td>Event setup</td><td><a href="https://demo.hamradio-events.com/?setup=1">/?setup=1</a><br>email <code>setup@demo.invalid</code><br>password <code>demo-setup</code></td></tr>
     </table>
   </div>
 </div></section>

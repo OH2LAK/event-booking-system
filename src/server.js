@@ -4,6 +4,8 @@ const path = require('path');
 const express = require('express');
 const db = require('./db');
 const auth = require('./auth');
+const authRoutes = require('./authRoutes');
+const adminUsers = require('./adminUsers');
 const service = require('./service');
 const pages = require('./pages');
 const reportRoutes = require('./reportRoutes');
@@ -35,6 +37,9 @@ app.use(demo.middleware);
 app.use(express.static(path.join(__dirname, '..', 'public')));
 // Everything below serves personal data or admin functions: never cache it in browsers or shared proxies
 app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+// Admin sign-in: looks up the session cookie, then the /api/auth routes (password, second factor, invitations)
+app.use(auth.attach);
+app.use(authRoutes.router);
 
 const secureCookies = (process.env.PUBLIC_URL || '').startsWith('https://');
 
@@ -94,6 +99,15 @@ const SETUP_ONLY = new Set(['getEventConfig', 'saveEventConfig', 'getCurrencies'
 // Registration settings that the admin role may change; every other setting (prices, inventory) needs the setup role.
 const ADMIN_SETTING_KEYS = new Set(['REGISTRATION_OPEN', 'REGISTRATION_CLOSES', 'ALLOW_SOLO_DOUBLE', 'ALLOW_SINGLE_BED_BOOKING', 'TENT_ENABLED',
   'ANNOUNCEMENT', 'CLOSED_MESSAGE', 'BYPASS_TOKEN', 'CAMPER_INFO', 'TENT_INFO', 'PRICE_DISCLAIMER']);
+// Account management (setup role only). The first argument is the signed-in setup user.
+const USERS = {
+  listAdminUsers: () => authRoutes.users.list(),
+  inviteAdminUser: (actor, input) => authRoutes.users.invite(actor, input),
+  resendAdminInvite: (actor, id) => authRoutes.users.resend(actor, id),
+  updateAdminUser: (actor, id, patch) => authRoutes.users.update(actor, id, patch),
+  resetAdminTwoFactor: (actor, id) => authRoutes.users.resetTwoFactor(actor, id),
+  deleteAdminUser: (actor, id) => authRoutes.users.remove(actor, id),
+};
 const ADMIN = {
   getEventConfig: () => ({ success: true, configured: eventConfig.isConfigured(), fields: eventConfig.FIELDS, values: eventConfig.current() }),
   saveEventConfig: values => eventConfig.save(values),
@@ -123,8 +137,8 @@ const ADMIN = {
   getAdminPanelHtml: (_pw, mode) => {
     const setup = mode === 'setup';
     let html = setup
-      ? '<div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="api-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
-      : pages.getAdminPanelHtml();
+      ? '<div id="account-card"></div><div id="event-setup"></div><div id="currencies"></div><div id="event-structure"></div><div id="room-catalog"></div><div id="addons-card"></div><div id="api-card"></div><div id="users-card"></div><div id="event-privacy"></div><div id="translations"></div>' + pages.getSetupPanelHtml()
+      : '<div id="account-card"></div>' + pages.getAdminPanelHtml();
     const rs = privacy.status();
     if (rs.state === 'overdue' || rs.state === 'due_soon') {
       const late = rs.state === 'overdue';
@@ -156,23 +170,20 @@ app.post('/api/rpc/:method', async (req, res) => {
   const method = req.params.method;
   const args = Array.isArray(req.body && req.body.args) ? req.body.args : [];
   try {
-    if (method === 'checkAdminPassword') {
-      if (auth.throttled(req.ip)) return res.status(429).json({ error: 'Too many attempts, try again later' });
-      // Second argument 'setup' means the setup page: only the setup password is accepted there.
-      let role = auth.checkPassword(args[0]);
-      if (args[1] === 'setup' && role !== 'setup') role = null;
-      if (role) { auth.clearFailures(req.ip); res.set('Set-Cookie', auth.makeCookie(role, secureCookies)); }
-      else auth.recordFailure(req.ip);
-      return res.json({ result: !!role });
-    }
     if (Object.prototype.hasOwnProperty.call(PUBLIC, method)) return res.json({ result: await PUBLIC[method](...args) });
+    if (Object.prototype.hasOwnProperty.call(USERS, method)) {
+      if (!auth.isAdmin(req)) return res.status(401).json({ error: 'Not logged in' });
+      if (!auth.isSetup(req)) return res.status(403).json({ error: 'An event setup account is required for this' });
+      if (demo.enabled) return res.json({ result: { success: false, error: 'Account management is switched off in the demo.' } });
+      return res.json({ result: await USERS[method](req.admin, ...args) });
+    }
     if (Object.prototype.hasOwnProperty.call(ADMIN, method)) {
       if (!auth.isAdmin(req)) return res.status(401).json({ error: 'Not logged in' });
       const setupOnly = SETUP_ONLY.has(method) || (method === 'getAdminPanelHtml' && args[1] === 'setup');
-      if (setupOnly && !auth.isSetup(req)) return res.status(403).json({ error: 'The setup password is required for this' });
+      if (setupOnly && !auth.isSetup(req)) return res.status(403).json({ error: 'An event setup account is required for this' });
       if (method === 'saveAdminSettings' && !auth.isSetup(req)) {
         const denied = Object.keys(args[1] || {}).filter(k => !ADMIN_SETTING_KEYS.has(k));
-        if (denied.length) return res.json({ result: { success: false, error: 'The setup password is required to change: ' + denied.join(', ') } });
+        if (denied.length) return res.json({ result: { success: false, error: 'An event setup account is required to change: ' + denied.join(', ') } });
       }
       return res.json({ result: await ADMIN[method](...args) });
     }
@@ -182,7 +193,10 @@ app.post('/api/rpc/:method', async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 });
-app.post('/api/admin/logout', (req, res) => { res.set('Set-Cookie', auth.clearCookie()); res.json({ ok: true }); });
+app.post('/api/admin/logout', async (req, res) => {
+  try { await adminUsers.endSession(auth.tokenOf(req)); } catch (_) { /* ignore */ }
+  res.set('Set-Cookie', auth.clearCookie(secureCookies)); res.json({ ok: true });
+});
 
 app.use((err, req, res, _next) => {
   if (req.path.startsWith('/api/v1')) {
@@ -213,7 +227,11 @@ async function main() {
   await structure.load();
   await addons.load();
   await demo.start();
+  if (demo.enabled) await adminUsers.ensureDemoUsers();
   webhooks.start();
+  if (!demo.enabled && await adminUsers.count() === 0) {
+    console.log('\nFirst-time setup: open /?setup=1 and create the first account.\nSetup code: ' + (auth.bootstrapCodeIsGenerated() ? auth.bootstrapCode() + '   (generated; it changes at every restart. Set SETUP_PASSWORD in .env to use a fixed code)' : 'the value of SETUP_PASSWORD in .env') + '\n');
+  }
   const warn = auth.usingDefaults();
   if (warn.length) {
     console.warn('\n!!! SECURITY WARNING !!!\nDefault values are still in use for: ' + warn.join(', ')

@@ -1,12 +1,13 @@
 'use strict';
 // End-to-end test of the public API (/api/v1), API keys and webhooks against a running instance.
-//   BASE_URL=http://localhost:3000 ADMIN_PASSWORD=... [SETUP_PASSWORD=...] API_WEBHOOK_ALLOW_PRIVATE=1 (on the server) node tests/api.js
+//   BASE_URL=http://localhost:3000 SETUP_PASSWORD=... API_WEBHOOK_ALLOW_PRIVATE=1 (on the server) node tests/api.js
 // The webhook tests start a receiver on 127.0.0.1:39555, so the SERVER must run with API_WEBHOOK_ALLOW_PRIVATE=1 (otherwise they are skipped).
 // With SMOKE_ALLOW_SHUTDOWN=1 it also checks that an event shutdown revokes keys and disables webhooks (erases ALL data: throwaway database only).
 // WARNING: creates test bookings (callsigns starting with TESTAPI) in the target database.
 const crypto = require('crypto');
 const http = require('http');
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
+const { signIn } = require('./adminSession');
 const PW = process.env.SETUP_PASSWORD || process.env.ADMIN_PASSWORD || '';
 let cookie = '';
 let failures = 0;
@@ -30,7 +31,8 @@ const person = o => Object.assign({ name: 'Api Person', email: 'api-person@examp
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
-  check('setup login', (await rpc('checkAdminPassword', PW, 'setup')).body.result === true, null);
+  cookie = await signIn(BASE, 'setup');
+  check('setup login', !!cookie, null);
   const ec = (await rpc('getEventConfig')).body.result;
   const base = Object.assign({}, ec.values, { EVENT_NAME: 'API Test Event 2027', EVENT_SHORT: 'ApiEvt', ORGANIZER: 'API Club', EVENT_END_DATE: '2099-01-02', RETENTION_HOLD: '' });
   check('the API is off by default', ec.values.API_ENABLED === 'no', ec.values.API_ENABLED);
@@ -298,8 +300,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ---- roles ----
   cookie = '';
-  if (process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD !== PW) {
-    await rpc('checkAdminPassword', process.env.ADMIN_PASSWORD, 'admin');
+  {
+    cookie = await signIn(BASE, 'admin');
     for (const [m, args] of [['getApiOverview', []], ['createApiKey', ['x', ['stats']]], ['revokeApiKey', [1]], ['createWebhook', [{}]], ['testWebhook', [1]]]) {
       r = await rpc(m, ...args);
       check('admin role cannot use ' + m, r.status === 403, r.status);
@@ -310,7 +312,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ---- event shutdown ends the integrations ----
   if (process.env.SMOKE_ALLOW_SHUTDOWN === '1') {
-    await rpc('checkAdminPassword', PW, 'setup');
+    cookie = await signIn(BASE, 'setup');
     x = (await rpc('shutdownEvent', { confirm: 'ERASE ALL DATA', acknowledgeEarly: true })).body.result;
     check('shutdown succeeds', x.success && x.verified, x);
     const after = (await rpc('getApiOverview')).body.result;

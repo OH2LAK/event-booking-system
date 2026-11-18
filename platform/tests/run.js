@@ -81,11 +81,11 @@ process.env.PLATFORM_PUBLIC_URL = 'https://platform.test'; process.env.EVENT_PRI
   assert.strictEqual(runner.calls.filter(c => c.op === 'start').length, 1);               // replay did not provision twice
   const start = runner.calls.find(c => c.op === 'start');
   assert.strictEqual(start.args[0], 'ebs-oh-camp'); assert.ok(start.args[2]['traefik.http.routers.ebs-oh-camp.rule'].includes('oh-camp.hamradio-events.com'));
-  assert.ok(start.args[1].ADMIN_PASSWORD && start.args[1].SETUP_PASSWORD && start.args[1].ADMIN_PASSWORD !== start.args[1].SETUP_PASSWORD);
+  assert.ok(start.args[1].SETUP_PASSWORD && !start.args[1].ADMIN_PASSWORD && start.args[1].OWNER_EMAIL);       // first-time setup code + owner email; no shared admin password any more
   const init = runner.calls.find(c => c.op === 'initEvent'); assert.strictEqual(JSON.parse(init.args[2]).EVENT_SHORT, 'OHC27');
   assert.strictEqual(JSON.parse(init.args[2]).EVENT_MODE, 'day');                         // event type reaches the new instance
   const ready = mailer.outbox.find(m => m.subject.startsWith('Your event system is ready'));
-  assert.ok(ready.text.includes(start.args[1].SETUP_PASSWORD));
+  assert.ok(ready.text.includes(start.args[1].SETUP_PASSWORD) && /two-factor/.test(ready.text) && !/Admin password/.test(ready.text));
 
   // own domain: Traefik answers on both names, the instance's public URL is the own domain, Cloudflare hostname created, DNS instructions emailed
   assert.ok(start.args[2]['traefik.http.routers.ebs-oh-camp.rule'].includes('Host(`ilmo.ohcamp.fi`)'));

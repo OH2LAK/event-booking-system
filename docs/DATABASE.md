@@ -1,7 +1,7 @@
 # Database reference
 
 PostgreSQL 16. The schema is in [`db/schema.sql`](../db/schema.sql); it is idempotent (`CREATE ... IF NOT EXISTS`) and is
-applied automatically when the app starts (and by the `db` container on first start). There are fourteen tables.
+applied automatically when the app starts (and by the `db` container on first start). There are seventeen tables.
 
 ```
 bookings         one row per registered person (all booking types)
@@ -18,6 +18,9 @@ api_keys         API keys for other systems (only a hash of each key is stored; 
 api_idempotency  remembered Idempotency-Key answers for the API (24 hours)
 webhooks         webhook addresses, events and signing secrets
 webhook_deliveries  queue and log of webhook messages (payload removed after delivery)
+admin_users      admin accounts: email, role, scrypt password hash, encrypted TOTP secret, hashed recovery codes
+admin_passkeys   registered passkeys (WebAuthn public keys) of admin accounts
+admin_sessions   admin sign-in sessions (stage mfa / enrol / ok); only a hash of the cookie token is stored
 ```
 
 Money amounts are in the event's native currency (`CURRENCY` in `event_config`, default EUR; see [CURRENCIES.md](CURRENCIES.md)). The room price column is called `price_eur`; it holds the amount in the native currency. Timestamps are `timestamptz` (stored in UTC, shown in the time zone set by `TZ`).
@@ -204,6 +207,12 @@ Used by the public API ([API.md](API.md)). `api_keys`: `name`, `prefix` (first c
 `api_idempotency`: one row per key and `Idempotency-Key` with the request hash and the stored answer; rows older than 24 hours are deleted.
 `webhooks`: `name`, `url`, `secret` (HMAC signing key, stored as is because it is needed to sign), `events`, `payload` (`full` or `minimal`), `enabled`, `last_status`, `failures`.
 `webhook_deliveries`: the queue and log; `payload` holds the message (with personal data when `full`) only until it was delivered, failed ones lose it after 7 days, and rows are deleted after 30 days. Event shutdown deletes the queue, revokes all keys and disables all webhooks.
+
+## Admin account tables
+
+`admin_users`: `email` (unique, case-insensitive), `name`, `role` (`setup` or `admin`), `password_hash` (scrypt; empty until an invitation is accepted), `totp_secret` (AES-256-GCM, key derived from `SESSION_SECRET`), `totp_enabled`, `totp_last_step` (replay protection), `email_otp_enabled`, `recovery_codes` (JSON list of SHA-256 hashes; each used code is removed), `disabled`, `token_hash`/`token_kind`/`token_expires` (invitation or password-reset link, hashed), `failed_logins`/`locked_until`, `created_at`, `last_login_at`.
+`admin_passkeys`: `cred_id`, `public_key`, `counter`, `transports`, `name`, `last_used_at` (no secrets leave the user's device).
+`admin_sessions`: `token_hash` (SHA-256 of the cookie value), `user_id`, `stage` (`mfa`: password accepted, waiting for the second factor; `enrol`: must set up 2FA; `ok`: signed in), `meta` (pending challenges and counters), `ip`, `expires_at` (10 minutes while half-open, 12 hours when signed in).
 
 ## `translations`
 

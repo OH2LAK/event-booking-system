@@ -39,8 +39,8 @@ function bannerHtml() {
     + 'padding:0.45rem 0.8rem;font:13px/1.4 system-ui,sans-serif;text-align:center">'
     + '<strong>Public demo.</strong> Break things freely: everything is wiped automatically (nightly and when nobody is using it). '
     + 'Fictional data only, please. No real names or addresses. No email is sent. '
-    + 'Booking admin: <a href="/?admin=1" style="color:#92400e">/?admin=1</a> (password <code>' + esc(admin) + '</code>) &middot; '
-    + 'Event setup: <a href="/?setup=1" style="color:#92400e">/?setup=1</a> (password <code>' + esc(setup) + '</code>) &middot; '
+    + 'Booking admin: <a href="/?admin=1" style="color:#92400e">/?admin=1</a> (<code>admin@demo.invalid</code> / <code>' + esc(admin) + '</code>) &middot; '
+    + 'Event setup: <a href="/?setup=1" style="color:#92400e">/?setup=1</a> (<code>setup@demo.invalid</code> / <code>' + esc(setup) + '</code>) &middot; '
     + '<a href="https://github.com/OH2LAK/event-booking-system" style="color:#92400e">Source code</a></div>';
 }
 
@@ -95,6 +95,7 @@ async function reset() {
     await db.withBookingLock(client => client.query('TRUNCATE TABLE ' + tables.join(', ') + ' RESTART IDENTITY CASCADE'));
     await i18n.load(); await eventConfig.load(); await currency.load(); await rooms.load(); await structure.load(); await require('./addons').load();
     await require('./demoData').seed();
+    await require('./adminUsers').ensureDemoUsers();
     dirtySince = 0;
     console.log('[demo] reset done ' + new Date().toISOString());
   } catch (e) {

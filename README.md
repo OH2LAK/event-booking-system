@@ -81,22 +81,24 @@ The code for both is in this repository: `DEMO_MODE=1` ([demo/](demo/README.md),
 
 ## How it fits together
 
-| Part | Address | For | Password |
+| Part | Address | For | Sign-in |
 |---|---|---|---|
 | Guest pages | `/`, `/?public=1` | Participants | none |
-| Booking admin | `/?admin=1` | Everyone who handles bookings | `ADMIN_PASSWORD` |
-| Event setup | `/?setup=1` | The one or two people who configure the event | `SETUP_PASSWORD` |
-| Report and check-in | `/report` | The team at the venue | `ADMIN_PASSWORD` |
+| Booking admin | `/?admin=1` | Everyone who handles bookings | admin account + 2FA |
+| Event setup | `/?setup=1` | The one or two people who configure the event | setup account + 2FA |
+| Report and check-in | `/report` | The team at the venue | admin account + 2FA |
+
+Every admin has a named account with a password and a required second factor (authenticator app, passkey or email code), roles, invitations and an audit log. See the [admin guide](docs/ADMIN-GUIDE.md#1-signing-in-and-two-factor-authentication).
 
 Node.js 22, Express and PostgreSQL, started with Docker Compose. Settings live in `.env`, event data in the database.
 
 ## First-time event setup
 
-1. Start the app (see below) and open `/?setup=1`, then log in with `SETUP_PASSWORD`.
+1. Start the app (see below) and open `/?setup=1`. On a fresh install enter the setup code (`SETUP_PASSWORD` from `.env`, or the code printed in `docker compose logs app` when you kept the placeholder) and create the first account, then set up two-factor authentication and save your recovery codes.
 2. The **Event setup** card at the top opens automatically on a fresh install. Fill in event name, organizer, location, dates,
    check-in/out times, contact email, logos and accent color, then press **Save event setup**.
 3. Until this is saved, visitors only see a "booking is not open yet" page.
-4. Then set prices and room inventory further down the setup page, and open registration in the booking admin (`/?admin=1`, `ADMIN_PASSWORD`).
+4. Then set prices and room inventory further down the setup page, and open registration in the booking admin (`/?admin=1`). Invite your team from "Admin users" on the setup page.
 5. Optional: choose the **native currency** (default EUR) and the languages in **Event setup**. Enter all prices in the native
    currency. Extra currencies for an approximate conversion and their exchange rates are set in the **Currencies** card
    (see [docs/CURRENCIES.md](docs/CURRENCIES.md)); translations are edited in the **Translations** card (see
@@ -145,9 +147,9 @@ knowledge. Change all of them before exposing the app to the internet:**
 
 | Variable | What it protects |
 | --- | --- |
-| `ADMIN_PASSWORD` | Booking admin (`/?admin=1`) and the report & check-in tool. For everyone who handles bookings; it cannot change the event setup |
-| `SETUP_PASSWORD` | Event setup (`/?setup=1`): event details, prices, room types, translations, event shutdown. Also works in the booking admin. If unset, `ADMIN_PASSWORD` is used for both (single-password mode) |
-| `SESSION_SECRET` | Signs admin session cookies (`openssl rand -hex 32`) |
+| `SETUP_PASSWORD` | The **first-time setup code**: lets you create the first Event setup account on a fresh system, nothing else. After that, people sign in with their own accounts (password + 2FA). If it is empty or still a `change-me-...` placeholder, the app generates a random code at startup and prints it in the log (`docker compose logs app`), so the default `.env` is never a way in |
+| `OWNER_EMAIL` | Optional: fixes the email address of the first account (used by the hosting service) |
+| `SESSION_SECRET` | Key for encrypting the authenticator-app secrets (`openssl rand -hex 32`). Changing it later makes registered authenticator apps unusable: reset 2FA afterwards |
 | `POSTGRES_PASSWORD` | Database password (the data volume keeps the old one - see below) |
 | `SMTP_PASS` | Mail server login |
 
@@ -182,8 +184,8 @@ page and in the booking admin. `src/config.js` only holds the defaults used on t
 ```bash
 npm install
 # needs a PostgreSQL; schema is applied automatically on start
-DATABASE_URL=postgres://user:pass@localhost:5432/vushf ADMIN_PASSWORD=secret SESSION_SECRET=x node src/server.js
-BASE_URL=http://localhost:3000 ADMIN_PASSWORD=secret SETUP_PASSWORD=other node tests/smoke.js   # creates TEST* bookings!
+DATABASE_URL=postgres://user:pass@localhost:5432/vushf SETUP_PASSWORD=a-real-secret SESSION_SECRET=x node src/server.js
+BASE_URL=http://localhost:3000 SETUP_PASSWORD=a-real-secret node tests/smoke.js   # fresh database; creates test admin accounts and TEST* bookings!
 npm run test:unit        # currency unit tests, no database needed
 npm run check-locales    # validates the translation files in src/locales/
 ```

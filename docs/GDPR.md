@@ -26,8 +26,8 @@ the first event.
 1. **Fill in the privacy fields** in Event setup: data controller, privacy contact email, last day of the event, retention days.
 2. **Read the generated notice at `/privacy`** and edit your setup so it is true. In particular check who else receives data (hotel, caterer) and where the server and email provider are located. If you need different wording, host your own notice and set its URL.
 3. **Sign data processing agreements** with your hosting and email providers if they process the data for you, and check transfers outside the EU/EEA.
-4. **Use HTTPS** and strong admin/report passwords. Keep the server updated.
-5. **Limit admin access** to people who need it. Everyone with the password sees all personal data.
+4. **Use HTTPS.** Admin accounts need a password (12+ characters) and a second factor. Keep the server updated.
+5. **Limit admin access** to people who need it. Every admin account sees all personal data: give the booking admin role to staff and the event setup role only to one or two people, and delete accounts when someone leaves the team.
 6. **Keep backups on the same schedule.** The app cannot delete database backups, dumps, exported CSV/XLSX files or print-outs. Delete them when you run the shutdown.
 7. **Record the processing** if your country requires a record of processing activities (Art. 30) and prepare for data breaches: a breach that puts people at risk must be reported to the supervisory authority within 72 hours (Art. 33). The software has no breach tooling.
 8. **Do not use the data for anything else**, for example marketing for another event, without a new legal basis or consent.

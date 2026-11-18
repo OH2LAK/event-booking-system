@@ -195,3 +195,53 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   finished_at     TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS webhook_deliveries_due_idx ON webhook_deliveries (next_attempt_at) WHERE status = 'pending';
+
+-- ---- Admin accounts with two-factor authentication (see docs/ADMIN-GUIDE.md) ----
+-- Named users replace the shared admin/setup passwords. role: setup (event setup + bookings) or admin (bookings only).
+-- Secrets: password_hash is scrypt; totp_secret is AES-256-GCM encrypted with a key derived from SESSION_SECRET;
+-- recovery codes and invite/reset tokens are stored only as SHA-256 hashes.
+CREATE TABLE IF NOT EXISTS admin_users (
+  id               SERIAL PRIMARY KEY,
+  email            TEXT NOT NULL,
+  name             TEXT NOT NULL DEFAULT '',
+  role             TEXT NOT NULL CHECK (role IN ('setup','admin')),
+  password_hash    TEXT NOT NULL DEFAULT '',
+  totp_secret      TEXT NOT NULL DEFAULT '',
+  totp_enabled     BOOLEAN NOT NULL DEFAULT false,
+  totp_last_step   BIGINT NOT NULL DEFAULT 0,
+  email_otp_enabled BOOLEAN NOT NULL DEFAULT false,
+  recovery_codes   JSONB NOT NULL DEFAULT '[]',
+  disabled         BOOLEAN NOT NULL DEFAULT false,
+  token_hash       TEXT NOT NULL DEFAULT '',
+  token_kind       TEXT NOT NULL DEFAULT '',
+  token_expires    TIMESTAMPTZ,
+  failed_logins    INTEGER NOT NULL DEFAULT 0,
+  locked_until     TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_login_at    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS admin_users_email_idx ON admin_users (lower(email));
+
+CREATE TABLE IF NOT EXISTS admin_passkeys (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  cred_id      TEXT NOT NULL UNIQUE,
+  public_key   TEXT NOT NULL,
+  counter      BIGINT NOT NULL DEFAULT 0,
+  transports   TEXT NOT NULL DEFAULT '',
+  name         TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ
+);
+
+-- Login sessions. stage: mfa (password ok, waiting for the second factor), enrol (password ok, must set up 2FA), ok (fully signed in).
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash  TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  stage       TEXT NOT NULL CHECK (stage IN ('mfa','enrol','ok')),
+  meta        JSONB NOT NULL DEFAULT '{}',
+  ip          TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS admin_sessions_user_idx ON admin_sessions (user_id);

@@ -1,6 +1,6 @@
 # Taking screenshots for documentation
 
-1. Start the app with an **empty** database and passwords you know (`ADMIN_PASSWORD`, `SETUP_PASSWORD`).
+1. Start the app with an **empty** database and a setup code you know (`SETUP_PASSWORD`). Create the first account at `/?setup=1` and set up two-factor authentication.
 2. Fill it with a fictional event: `npm run seed-demo` (Docker: `docker compose exec app npm run seed-demo`).
    Everything is fake: event "Example Radio Meeting 2027", callsigns `DEMO01`..`DEMO11`, `example.com` emails; no email is sent.
 3. Open the screens below and capture them (browser width about 1200 px).

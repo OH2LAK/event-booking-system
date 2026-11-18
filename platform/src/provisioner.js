@@ -20,10 +20,10 @@ function create(deps) {
       await runner.remove(name); await tenantDb.drop(slug);       // clean any partial earlier attempt
       const dbPass = rand(24);
       const databaseUrl = await tenantDb.create(slug, dbPass);
-      const adminPw = rand(12), setupPw = rand(12);
+      const setupPw = rand(12); // first-time setup code: lets the organizer create the first (owner) account; accounts and 2FA take over after that
       // With an own domain the instance's canonical address (join links in emails) is that domain; it also keeps answering at the normal one.
       const own = order.custom_domain && cf.enabled() ? order.custom_domain : null;
-      const env = { DATABASE_URL: databaseUrl, PUBLIC_URL: `https://${own || hostOf(slug)}`, ADMIN_PASSWORD: adminPw, SETUP_PASSWORD: setupPw, SESSION_SECRET: rand(32), NODE_ENV: 'production' };
+      const env = { DATABASE_URL: databaseUrl, PUBLIC_URL: `https://${own || hostOf(slug)}`, SETUP_PASSWORD: setupPw, OWNER_EMAIL: order.contact_email, SESSION_SECRET: rand(32), NODE_ENV: 'production' };
       if (process.env.SMTP_HOST) Object.assign(env, { SMTP_HOST: process.env.SMTP_HOST, SMTP_PORT: process.env.SMTP_PORT, SMTP_USER: process.env.SMTP_USER, SMTP_PASS: process.env.SMTP_PASS, SMTP_FROM: process.env.SMTP_FROM });
       await runner.pull();
       const out = await runner.initEvent(name, env, JSON.stringify({ EVENT_NAME: order.event_name, EVENT_SHORT: order.event_short, ORGANIZER: order.organizer, EVENT_MODE: order.event_mode === 'day' ? 'day' : 'overnight', API_ENABLED: 'no' }));
@@ -43,10 +43,12 @@ function create(deps) {
       const dom = await domains.attach(order, cf);     // never throws; the instance already works at its normal address
       await mailer.send(order.contact_email, `Your event system is ready: ${order.event_name}`,
         `Hello ${order.contact_name},\n\nYour booking system is ready at https://${hostOf(slug)}\n\n` +
-        `Setup page (event details, prices, rooms): https://${hostOf(slug)}/?setup=1\nSetup password: ${setupPw}\n\n` +
-        `Booking admin page: https://${hostOf(slug)}/?admin=1\nAdmin password: ${adminPw}\n\n` +
+        `Setup page (event details, prices, rooms): https://${hostOf(slug)}/?setup=1\nFirst-time setup code: ${setupPw}\n\n` +
+        `Open the setup page, enter the code and create your account with this email address (${order.contact_email}). ` +
+        `You then set up two-factor authentication with an authenticator app or a passkey: it is required for everyone who administers the event. ` +
+        `Invite colleagues from "Admin users" on the setup page. Booking admin accounts (bookings, check-in, reports) sign in at https://${hostOf(slug)}/?admin=1\n\n` +
         (dom.text ? `Your own address: https://${order.custom_domain}\n\n${dom.text}\n` : '') +
-        `Please change nothing about the passwords by email; keep this message safe. The system is kept until ${end ? end.toISOString().slice(0, 10) : 'the event ends'} and its data is erased ${config.retentionDays} days after the event.\n`);
+        `Keep this message safe: the setup code works only until the first account has been created. The system is kept until ${end ? end.toISOString().slice(0, 10) : 'the event ends'} and its data is erased ${config.retentionDays} days after the event.\n`);
       await db.log(order.id, `provisioned ${slug}`);
     } catch (e) {
       await db.query("UPDATE orders SET status='failed' WHERE id=$1", [order.id]);
